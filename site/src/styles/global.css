@@ -205,15 +205,15 @@ p { margin: 0; text-wrap: pretty; }
 .hero-figure { position: relative; }
 .disc-hero { width: clamp(280px, 27vw, 560px); }
 .disc-hero > .hero-follow { position: absolute; width: 66%; height: 66%; left: 17%; top: 17%; }
-/* line boil: stacked variants, one shown; closed eyes only while blinking */
-.boil { position: relative; display: block; }
-.boil-v { position: absolute; inset: 0; display: none; }
-.boil-v[data-on] { display: block; }
-.boil-v > span { position: absolute; inset: 0; }
-.boil svg { width: 100%; height: 100%; overflow: visible; }
-.ocy-blink { display: none; }
-[data-blink] .ocy-blink { display: inline; }
-[data-blink] .ocy-eyes { display: none; }
+/* face: the illustrator's frames stacked, exactly one shown (stepped, never tweened) */
+.face { position: relative; display: block; }
+.face-f { position: absolute; inset: 0; display: none; }
+.face-f[data-on] { display: block; }
+.face-f > span { position: absolute; inset: 0; }
+.face svg { width: 100%; height: 100%; display: block; }
+.faq-figure { position: relative; display: block; }
+.faq-face { position: absolute; left: 7.895%; top: 10.526%; width: 84.21%; height: 84.21%; }
+.faq-marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; color: var(--accent); }
 @media (max-width: 860px) {
   .hero { grid-template-columns: 1fr; }
   .hero-stage { order: -1; min-height: 0; padding: 8px 0; }

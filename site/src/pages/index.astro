@@ -16,15 +16,37 @@ import trayAttnD from '../../../assets/icons/tray/dark/tray-attention.svg?url';
 const version = readAppVersion();
 const exercises = readExercises();
 
-// site-only art (scripts/make-art.mjs): 3 line-boil variants per theme, each with open and closed eyes
-const artModules = import.meta.glob('../art/*/*.svg', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-const boil = (name: string) =>
-  [1, 2, 3].map((v) => ({
-    light: artModules[`../art/${name}/ocy-${name}-light-v${v}.svg`],
-    dark: artModules[`../art/${name}/ocy-${name}-dark-v${v}.svg`],
+// Hero + FAQ faces: only the illustrator's original frame SVGs (assets/illustrations/ocy-v1f), never redrawn.
+const frameModules = import.meta.glob('../../../assets/illustrations/ocy-v1f/svg/*.svg', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const frameSvg = (key: string) => {
+  const e = Object.entries(frameModules).find(([k]) => k.endsWith(`/${key}.svg`));
+  if (!e) throw new Error(`Missing frame ${key}`);
+  return e[1];
+};
+const faceFrames = (list: [string, number][]) =>
+  list.map(([ex, n]) => ({
+    key: `${ex}-f${n}`,
+    light: { src: `${ex}-light-f${n}`, svg: frameSvg(`${ex}-light-f${n}`) },
+    dark: { src: `${ex}-dark-f${n}`, svg: frameSvg(`${ex}-dark-f${n}`) },
   }));
-const heroArt = boil('hero');
-const faqArt = boil('faq');
+const ex3 = (ex: string): [string, number][] => [1, 2, 3].map((n) => [ex, n]);
+const heroFrames = faceFrames([...ex3('blink'), ...ex3('look-left-right'), ...ex3('look-up-down')]);
+const faqFrames = faceFrames([['look-up-down', 1], ['blink', 2], ['blink', 3]]);
+const manifestSeq = (ex: string) => {
+  const e = exercises.find((x) => x.id === ex);
+  if (!e) throw new Error(`Missing exercise ${ex}`);
+  return { sequence: e.sequence, stepMs: e.stepMs };
+};
+const heroTiming = { blink: manifestSeq('blink'), look: manifestSeq('look-left-right') };
+// four hand-drawn question marks (site-only accents, never part of the face): curl, dot, stroke width
+const QS: [string, [number, number], number][] = [
+  ['M-2.6 -2.4 C-2.9 -5 -0.4 -6.2 1.3 -5.6 C3.2 -4.9 3.3 -2.6 2 -1.5 C0.9 -0.6 0.2 -0.1 0.3 1.6', [0.4, 4.2], 2.1],
+  ['M-1.6 -3.4 C-1.4 -5.6 1.8 -5.9 2.1 -3.8 C2.4 -2.1 0.1 -1.6 -0.1 0.4 L-0.05 1.8', [0, 4.6], 1.7],
+  ['M-3 -1.8 C-2.6 -4.6 2.6 -4.8 2.9 -2.3 C3.1 -0.6 0.4 -0.9 0.5 1.2', [0.6, 3.6], 2.3],
+  ['M-2 -2.9 C-2.2 -4.6 -0.2 -5.3 1.2 -4.9 C2.4 -4.5 2.6 -3.3 1.7 -2.4 C1 -1.7 0.6 -1.6 0.4 -0.6 C0.3 0 0.5 0.8 0.3 1.4', [0.35, 3.9], 1.9],
+];
+const QPLACES = [[65, 28, 12, 1.15], [-2, 28, -14, 1], [60, 4, 6, 0.85], [4, 4, -8, 0.78]];
+const marks = QPLACES.map(([x, y, rot, sc], i) => ({ t: `translate(${x} ${y}) rotate(${rot}) scale(${sc})`, d: QS[i][0], dot: `M${QS[i][1][0]} ${QS[i][1][1]} l0.12 0.1`, w: QS[i][2] }));
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repoUrl = 'https://github.com/danielmevit/ocy';
@@ -206,11 +228,11 @@ const faqLd = {
       </svg>
       <div class="hero-figure" data-hero>
         <div class="disc disc-hero">
-          <div class="hero-follow boil" data-boil role="img" aria-label="Ocy, a small green sprout, looking around">
-            {heroArt.map((v, i) => (
-              <span class="boil-v" data-on={i === 0 ? 'true' : undefined} aria-hidden="true">
-                <span class="mascot-light" set:html={v.light} />
-                <span class="mascot-dark" set:html={v.dark} />
+          <div class="hero-follow face" data-face data-blink-seq={JSON.stringify(heroTiming.blink)} data-look-seq={JSON.stringify(heroTiming.look)} role="img" aria-label="Ocy, a small green sprout, looking around">
+            {heroFrames.map((f) => (
+              <span class="face-f" data-key={f.key} data-on={f.key === 'blink-f1' ? 'true' : undefined} aria-hidden="true">
+                <span class="mascot-light" data-src={f.light.src} set:html={f.light.svg} />
+                <span class="mascot-dark" data-src={f.dark.src} set:html={f.dark.svg} />
               </span>
             ))}
           </div>
@@ -447,13 +469,23 @@ const faqLd = {
     </div>
     <div class="faq-art">
       <span class="disc disc-faq">
-        <span class="faq-figure boil" data-boil data-faq role="img" aria-label="Ocy looking up, with question marks around its head">
-          {faqArt.map((v, i) => (
-            <span class="boil-v" data-on={i === 0 ? 'true' : undefined} aria-hidden="true">
-              <span class="mascot-light" set:html={v.light} />
-              <span class="mascot-dark" set:html={v.dark} />
-            </span>
-          ))}
+        <span class="faq-figure" data-faq role="img" aria-label="Ocy looking up, with question marks around its head">
+          <span class="faq-face face" data-face>
+            {faqFrames.map((f) => (
+              <span class="face-f" data-key={f.key} data-on={f.key === 'look-up-down-f1' ? 'true' : undefined} aria-hidden="true">
+                <span class="mascot-light" data-src={f.light.src} set:html={f.light.svg} />
+                <span class="mascot-dark" data-src={f.dark.src} set:html={f.dark.svg} />
+              </span>
+            ))}
+          </span>
+          <svg class="faq-marks" viewBox="-6 -8 76 76" aria-hidden="true">
+            {marks.map((m, i) => (
+              <g transform={m.t}><g class="ocy-q" data-q={String(i)}>
+                <path d={m.d} fill="none" stroke="currentColor" stroke-width={m.w} stroke-linecap="round" stroke-linejoin="round" />
+                <path d={m.dot} fill="none" stroke="currentColor" stroke-width={m.w + 0.5} stroke-linecap="round" />
+              </g></g>
+            ))}
+          </svg>
         </span>
       </span>
     </div>
@@ -538,138 +570,112 @@ const faqLd = {
       motionQuery.addEventListener('change', syncAll);
       document.addEventListener('visibilitychange', syncAll);
 
-      /* ---------- hand-drawn life: line boil, blinks, wiggling marks (stepped, never tweened) ---------- */
+      /* ---------- hero + FAQ faces: only the illustrator's frames, app timing, stepped (never tweened) ---------- */
       const rand = (lo, hi) => lo + Math.random() * (hi - lo);
       const still = () => motionQuery.matches || document.hidden;
-      function makeLife(el, opts) {
-        const vs = Array.from(el.querySelectorAll('.boil-v'));
-        let cur = 0;
-        let visible = false;
-        let blinkT = null;
-        let boilT = null;
-        function boil() {
-          if (vs.length < 2) return;
-          let n = cur;
-          while (n === cur) n = Math.floor(Math.random() * vs.length);
-          vs[cur].removeAttribute('data-on');
-          vs[n].setAttribute('data-on', 'true');
-          cur = n;
-        }
-        function blink() {
-          el.setAttribute('data-blink', 'true');
-          setTimeout(() => el.removeAttribute('data-blink'), Math.round(rand(120, 180)));
-        }
-        function loopBlink() {
-          clearTimeout(blinkT);
-          blinkT = setTimeout(() => {
-            if (visible && !still() && opts.canBlink()) blink();
-            loopBlink();
-          }, rand(3000, 6000));
-        }
-        function loopBoil() {
-          clearTimeout(boilT);
-          boilT = setTimeout(() => {
-            if (visible && !still() && opts.idleBoil()) boil();
-            loopBoil();
-          }, rand(opts.boilLo, opts.boilHi));
-        }
-        function reset() {
-          vs.forEach((v, i) => (i === 0 ? v.setAttribute('data-on', 'true') : v.removeAttribute('data-on')));
-          cur = 0;
-          el.removeAttribute('data-blink');
-        }
-        new IntersectionObserver((en) => { visible = en[0].isIntersecting; }, { threshold: 0.05 }).observe(el);
-        loopBlink();
-        loopBoil();
-        motionQuery.addEventListener('change', () => { if (motionQuery.matches) reset(); });
-        return { boil, el };
+      function faceOf(el) {
+        const fs = Array.from(el.querySelectorAll('.face-f'));
+        let cur = '';
+        return (key) => {
+          if (key === cur) return;
+          cur = key;
+          for (const f of fs) (f.getAttribute('data-key') === key ? f.setAttribute('data-on', 'true') : f.removeAttribute('data-on'));
+        };
+      }
+      function watchVisible(el) {
+        const s = { on: false };
+        new IntersectionObserver((en) => { s.on = en[0].isIntersecting; }, { threshold: 0.05 }).observe(el);
+        return s;
       }
 
-      /* ---------- hero: eyes follow the pointer, in jumps ---------- */
-      const hero = document.querySelector('[data-hero]');
-      if (hero) {
-        const fig = hero.querySelector('[data-boil]');
-        const eyes = Array.from(hero.querySelectorAll('.ocy-eyes, .ocy-blink'));
+      /* hero: idle = the app's blink loop (now and then the look-left-right loop); cursor = the drawn look poses */
+      const heroFace = document.querySelector('[data-hero] [data-face]');
+      if (heroFace) {
+        const show = faceOf(heroFace);
+        const vis = watchVisible(heroFace);
+        const parse = (a, d) => { try { return JSON.parse(heroFace.getAttribute(a)) || d; } catch { return d; } };
+        const blinkT = parse('data-blink-seq', { sequence: [1], stepMs: 240 });
+        const lookT = parse('data-look-seq', { sequence: [1], stepMs: 320 });
+        const REST = 'blink-f1';
         let lastMove = -1e9;
-        let lastBoil = 0;
-        let boilGap = 320;
-        const life = makeLife(fig, {
-          canBlink: () => performance.now() - lastMove > 1200,
-          idleBoil: () => performance.now() - lastMove > 1200 && Math.random() < 0.35,
-          boilLo: 1400,
-          boilHi: 2600,
-        });
-        let last = 0;
-        let lastKey = '';
-        let pending = null;
-        let trailing = null;
-        // The drawn eyes rest left of the head centre on purpose. Offsets are taken around the head centre
-        // (bias), so the far-left and far-right looks sit about equally far from the middle of the face.
-        const BX = 2.0, DX = 2.6, BY = 1.3, DY = 2.0;
-        function place(dx, dy) {
-          const key = dx + ',' + dy;
-          if (key === lastKey) return;
-          lastKey = key;
-          for (const g of eyes) g.setAttribute('transform', `translate(${dx} ${dy})`);
-        }
-        window.addEventListener(
-          'pointermove',
-          (ev) => {
-            if (ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') return;
-            if (motionQuery.matches) return;
-            const now = performance.now();
-            if (now - last < 125) {
-              pending = ev;
-              if (!trailing) trailing = setTimeout(() => { trailing = null; if (pending) { const e = pending; pending = null; aim(e); } }, 125 - (now - last));
-              return;
+        let idleTimer = null;
+        let seqName = 'blink', idx = -1, cycles = 0;
+        function idleStep() {
+          idleTimer = null;
+          const t = seqName === 'blink' ? blinkT : lookT;
+          if (!still() && vis.on && performance.now() - lastMove > 3000) {
+            idx += 1;
+            if (idx >= t.sequence.length) {
+              idx = 0;
+              cycles += 1;
+              if (seqName === 'blink' && cycles >= 2 && Math.random() < 0.5) { seqName = 'look'; cycles = 0; }
+              else if (seqName === 'look') { seqName = 'blink'; cycles = 0; }
             }
-            pending = null;
-            if (trailing) { clearTimeout(trailing); trailing = null; }
-            aim(ev);
-          },
-          { passive: true }
-        );
-        function aim(ev) {
-          const now = performance.now();
-          last = now;
-          const head = fig.querySelector('.boil-v[data-on] .ocy-head');
-          const box = head && head.getClientRects().length ? head : fig;
-          const r = box.getBoundingClientRect();
-          if (r.bottom < 0 || r.top > window.innerHeight) return;
-          lastMove = now;
-          if (now - lastBoil > boilGap) { life.boil(); lastBoil = now; boilGap = rand(250, 400); }
-          const cx = r.left + r.width / 2;
-          const cy = r.top + r.height / 2;
-          const vx = ev.clientX - cx;
-          const vy = ev.clientY - cy;
-          if (Math.hypot(vx, vy) < r.width * 0.3) place(0, 0);
-          else {
-            const oct = Math.round(Math.atan2(vy, vx) / (Math.PI / 4));
-            const a = oct * (Math.PI / 4);
-            const c = Math.abs(Math.cos(a)) < 1e-9 ? 0 : Math.cos(a);
-            const sn = Math.abs(Math.sin(a)) < 1e-9 ? 0 : Math.sin(a);
-            place(Math.round((BX + c * DX) * 10) / 10, Math.round((BY + sn * DY) * 10) / 10);
+            const tt = seqName === 'blink' ? blinkT : lookT;
+            show((seqName === 'blink' ? 'blink-f' : 'look-left-right-f') + tt.sequence[idx]);
+            idleTimer = setTimeout(idleStep, tt.stepMs);
+            return;
           }
+          if (still()) { show(REST); idx = -1; seqName = 'blink'; }
+          idleTimer = setTimeout(idleStep, 200);
         }
-        motionQuery.addEventListener('change', () => { if (motionQuery.matches) { lastKey = ''; place(0, 0); } });
+        idleStep();
+        let last = 0, pending = null, trailing = null;
+        function aim(ev) {
+          last = performance.now();
+          const r = heroFace.getBoundingClientRect();
+          if (r.bottom < 0 || r.top > window.innerHeight) return;
+          lastMove = last;
+          idx = -1; seqName = 'blink'; cycles = 0;
+          const vx = ev.clientX - (r.left + r.width / 2);
+          const vy = ev.clientY - (r.top + r.height / 2);
+          if (Math.hypot(vx, vy) < r.width * 0.3) show(REST);
+          else if (Math.abs(vx) >= Math.abs(vy)) show(vx < 0 ? 'look-left-right-f1' : 'look-left-right-f3');
+          else show(vy < 0 ? 'look-up-down-f1' : 'look-up-down-f3');
+        }
+        window.addEventListener('pointermove', (ev) => {
+          if (ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') return;
+          if (still()) return;
+          const now = performance.now();
+          if (now - last < 200) {
+            pending = ev;
+            if (!trailing) trailing = setTimeout(() => { trailing = null; if (pending) { const e = pending; pending = null; aim(e); } }, 200 - (now - last));
+            return;
+          }
+          pending = null;
+          if (trailing) { clearTimeout(trailing); trailing = null; }
+          aim(ev);
+        }, { passive: true });
+        motionQuery.addEventListener('change', () => { if (motionQuery.matches) show(REST); });
       }
 
-      /* ---------- FAQ: boil, blink, each question mark wiggles on its own rhythm ---------- */
+      /* FAQ: resting = the drawn "look up" frame; an occasional real blink (half, closed, half); marks wiggle */
       const faqFig = document.querySelector('[data-faq]');
       if (faqFig) {
-        makeLife(faqFig, { canBlink: () => true, idleBoil: () => true, boilLo: 280, boilHi: 520 });
+        const show = faceOf(faqFig);
+        const vis = watchVisible(faqFig);
+        const REST = 'look-up-down-f1';
+        const blinkSeq = ['blink-f2', 'blink-f3', 'blink-f3', 'blink-f2', REST];
+        const blinkMs = (() => { try { return JSON.parse(document.querySelector('[data-hero] [data-face]').getAttribute('data-blink-seq')).stepMs; } catch { return 240; } })();
+        function loop() {
+          setTimeout(() => {
+            if (vis.on && !still()) {
+              blinkSeq.forEach((k, i) => setTimeout(() => show(still() ? REST : k), i * blinkMs));
+            } else show(REST);
+            loop();
+          }, rand(3000, 6000));
+        }
+        loop();
         const steps = [[-7, 0, 8, 0], [10, -4, 10, 3], [-5, 6, -9, 4, 0], [6, -10, 0]];
         const rhythm = [430, 560, 650, 500];
-        let faqVisible = false;
-        new IntersectionObserver((en) => { faqVisible = en[0].isIntersecting; }, { threshold: 0.05 }).observe(faqFig);
         steps.forEach((angles, i) => {
-          const gs = Array.from(faqFig.querySelectorAll(`.ocy-q[data-q="${i}"]`));
+          const g = faqFig.querySelector(`.ocy-q[data-q="${i}"]`);
           let k = 0;
           setInterval(() => {
-            if (still()) { for (const g of gs) g.removeAttribute('transform'); return; }
-            if (!faqVisible) return;
+            if (still()) { g.removeAttribute('transform'); return; }
+            if (!vis.on) return;
             k = (k + 1) % angles.length;
-            for (const g of gs) g.setAttribute('transform', `rotate(${angles[k]})`);
+            g.setAttribute('transform', `rotate(${angles[k]})`);
           }, rhythm[i]);
         });
       }
