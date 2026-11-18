@@ -1,9 +1,9 @@
 ---
 import '../styles/global.css';
-import faviconSvg from '../../../assets/icons/tray/light/tray-active.svg?url';
-import sproutLight from '../../../assets/icons/tray/light/tray-active.svg?url';
-import sproutDark from '../../../assets/icons/tray/dark/tray-active.svg?url';
-import faviconPng from '../../../assets/icons/tray/light/png/tray-active-32.png?url';
+import faviconSvg from '../../../assets/icons/brand/ocy-sprout-light.svg?url';
+import sproutLight from '../../../assets/icons/brand/ocy-sprout-light.svg?url';
+import sproutDark from '../../../assets/icons/brand/ocy-sprout-dark.svg?url';
+import faviconPng from '../../../assets/icons/brand/png/ocy-sprout-light-32.png?url';
 
 interface Props {
   title: string;
@@ -36,6 +36,13 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>
+      // Theme before first paint: 'light' | 'dark' from localStorage, otherwise follow the OS (no attribute).
+      try {
+        var t = localStorage.getItem('ocy-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
     <title>{title}</title>
 
     <link rel="icon" type="image/svg+xml" href={faviconSvg} />
@@ -79,7 +86,7 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <header class="site-header">
       <nav class="nav" aria-label="Primary">
         <a class="brand" href={`${base}/`}>
-          <picture><source media="(prefers-color-scheme: dark)" srcset={sproutDark} /><img src={sproutLight} alt="" width="28" height="28" /></picture>
+          <img class="mascot-light" src={sproutLight} alt="" width="28" height="28" /><img class="mascot-dark" src={sproutDark} alt="" width="28" height="28" />
           <span>Ocy</span>
         </a>
         <div class="nav-links">
@@ -89,6 +96,13 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
           <a class="nav-hide-sm" href={`${base}/#faq`}>FAQ</a>
           <a href={repoUrl}>GitHub</a>
           <a class="nav-cta" href={`${repoUrl}/releases`}>Download</a>
+          <button type="button" class="theme-btn" data-theme-btn aria-label="Theme: Auto, follows your system. Switch to Light.">
+            <svg class="theme-glyph" viewBox="0 0 24 24" aria-hidden="true">
+              <g class="g-auto"><path class="ink" d="M12 3.4 C7 3.2 3.3 7.2 3.5 12.2 C3.7 16.9 7.4 20.6 12.1 20.5" /><path class="ink" d="M12 3.4 C16.8 3.6 20.6 7.3 20.4 12.3 C20.2 16.9 16.7 20.4 12.1 20.5" /><path d="M12 3.6 C16.6 3.8 20.3 7.4 20.2 12.2 C20 16.7 16.6 20.2 12.1 20.3 Z" fill="currentColor" /></g>
+              <g class="g-light"><path class="ink" d="M12.2 8.1 C9.8 8 8 10 8.1 12.2 C8.3 14.4 10 16 12.1 15.9 C14.3 15.8 16 14.1 15.9 12 C15.8 9.9 14.3 8.2 12.2 8.1Z" /><path class="ink" d="M12 2.8 L12.2 5 M12.1 19.1 L12 21.3 M2.9 12.1 L5.1 12 M18.9 12.2 L21.1 12 M5.4 5.6 L6.9 7.1 M17.2 17 L18.6 18.5 M18.5 5.5 L17 7 M6.9 17.1 L5.5 18.4" /></g>
+              <g class="g-dark"><path class="ink" d="M15.8 3.9 C11 3.4 7 7.4 7.4 12.3 C7.8 16.8 11.6 20.3 16.2 19.9 C17.6 19.8 18.8 19.3 19.9 18.6 C15.6 18.4 12.4 15 12.5 10.8 C12.6 7.8 13.9 5.3 15.8 3.9Z" /></g>
+            </svg>
+          </button>
         </div>
       </nav>
     </header>
@@ -96,6 +110,35 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <main id="main">
       <slot />
     </main>
+
+    <script is:inline>
+      (() => {
+        const btn = document.querySelector('[data-theme-btn]');
+        if (!btn) return;
+        const root = document.documentElement;
+        const order = ['auto', 'light', 'dark'];
+        const names = { auto: 'Auto, follows your system', light: 'Light', dark: 'Dark' };
+        const nextName = { auto: 'Light', light: 'Dark', dark: 'Auto' };
+        const current = () => root.getAttribute('data-theme') || 'auto';
+        const label = () => {
+          const c = current();
+          btn.setAttribute('aria-label', `Theme: ${names[c]}. Switch to ${nextName[c]}.`);
+          btn.setAttribute('title', `Theme: ${names[c]}`);
+          btn.setAttribute('data-state', c);
+        };
+        btn.addEventListener('click', () => {
+          const n = order[(order.indexOf(current()) + 1) % order.length];
+          if (n === 'auto') root.removeAttribute('data-theme');
+          else root.setAttribute('data-theme', n);
+          try {
+            if (n === 'auto') localStorage.removeItem('ocy-theme');
+            else localStorage.setItem('ocy-theme', n);
+          } catch (e) {}
+          label();
+        });
+        label();
+      })();
+    </script>
 
     <footer class="site-footer">
       <div>
