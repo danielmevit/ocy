@@ -1,7 +1,9 @@
 # App and tray icons
 
 Original artwork of the Ocy mascot, approved by the owner on 2026-11-17/18.
-- `app/ocy.ico`: the multi-size Windows icon (16–256, PNG entries) used for the exe, the taskbar and the windows.
+- `app/ocy.ico`: the multi-size Windows icon used for the exe, the taskbar and the windows. Owner decision 2026-11-18:
+  **16/20/24/32 = the sprout** (`tray/light/png/tray-active-*`; the face is illegible that small) and **40–256 = the
+  mascot face**. The previous all-face icon is kept as design/icons/app/ocy-face-all-sizes.ico (outside the repo).
   `app/*.svg` are the master and the simplified small-size sources; `app/png/` holds the renders.
 - `tray/light/` and `tray/dark/`: `tray-<active|paused|onbreak|attention>.svg` + `png/` (16/20/24/32), only the
   sprout. Light taskbar: saturated fills with deep outlines (paused stem dark). Dark taskbar: the owner-chosen INVERTED set

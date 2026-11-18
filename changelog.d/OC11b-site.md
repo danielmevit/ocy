@@ -1,1 +1,0 @@
-- Added the Astro product website in `site/` (home, privacy, 404, sitemap, robots, llms.txt) and GitHub Pages workflow `.github/workflows/deploy.yml`.

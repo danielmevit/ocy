@@ -1,1 +1,0 @@
-- Mascot icons integrated: `ocy.ico` application icon for exe and all desktop windows, and packed multi-size sprout tray icons (`tools/icons/pack_tray_ico.py`) replacing runtime drawing.

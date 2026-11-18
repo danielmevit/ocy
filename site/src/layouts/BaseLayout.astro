@@ -1,12 +1,14 @@
 ---
 import '../styles/global.css';
-import faviconSvg from '../../../assets/icons/app/ocy-app.svg?url';
-import faviconPng from '../../../assets/icons/app/png/ocy-app-32.png?url';
+import faviconSvg from '../../../assets/icons/tray/light/tray-active.svg?url';
+import sproutLight from '../../../assets/icons/tray/light/tray-active.svg?url';
+import sproutDark from '../../../assets/icons/tray/dark/tray-active.svg?url';
+import faviconPng from '../../../assets/icons/tray/light/png/tray-active-32.png?url';
 
 interface Props {
   title: string;
   description: string;
-  canonicalPath: string;
+  canonicalPath?: string;
   noindex?: boolean;
   includeOgImage?: boolean;
   ogImageAlt?: string;
@@ -23,8 +25,8 @@ const {
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
-const cleanPath = canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`;
-const canonicalUrl = `${origin}${base}${cleanPath}`;
+const cleanPath = !canonicalPath ? '/' : canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`;
+const canonicalUrl = canonicalPath === undefined ? undefined : `${origin}${base}${cleanPath}`;
 const ogImageUrl = `${origin}${base}/assets/og.png`;
 const repoUrl = 'https://github.com/danielmevit/ocy';
 ---
@@ -38,7 +40,7 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
 
     <link rel="icon" type="image/svg+xml" href={faviconSvg} />
     <link rel="icon" type="image/png" sizes="32x32" href={faviconPng} />
-    <link rel="canonical" href={canonicalUrl} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link
       rel="alternate"
       type="text/plain"
@@ -55,7 +57,7 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content={canonicalUrl} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     <meta property="og:site_name" content="Ocy" />
     {includeOgImage && (
       <>
@@ -65,7 +67,7 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
         <meta name="twitter:image:alt" content={ogImageAlt} />
       </>
     )}
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content={includeOgImage ? 'summary_large_image' : 'summary'} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
 
@@ -77,16 +79,16 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <header class="site-header">
       <nav class="nav" aria-label="Primary">
         <a class="brand" href={`${base}/`}>
-          <img src={faviconSvg} alt="" width="22" height="22" />
+          <picture><source media="(prefers-color-scheme: dark)" srcset={sproutDark} /><img src={sproutLight} alt="" width="28" height="28" /></picture>
           <span>Ocy</span>
         </a>
         <div class="nav-links">
-          <a class="nav-hide-sm" href={`${base}/#why`}>Why Ocy</a>
+          <a class="nav-hide-sm" href={`${base}/#works`}>How it works</a>
           <a class="nav-hide-sm" href={`${base}/#exercises`}>Exercises</a>
-          <a class="nav-hide-sm" href={`${base}/#how`}>Schedule</a>
+          <a class="nav-hide-sm" href={`${base}/#app`}>The app</a>
           <a class="nav-hide-sm" href={`${base}/#faq`}>FAQ</a>
           <a href={repoUrl}>GitHub</a>
-          <a class="nav-cta" href={`${repoUrl}/releases/latest`}>Download</a>
+          <a class="nav-cta" href={`${repoUrl}/releases`}>Download</a>
         </div>
       </nav>
     </header>

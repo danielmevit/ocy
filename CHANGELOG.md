@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.2 — 2026-11-18 (alpha, first public release)
+
+### Added
+- **Hand-drawn exercise illustrations:** all 12 exercises now show Ocy, the sprout-headed mascot. They animate in a few
+  stepped frames, like a flip book, on the short-break card and as suggestions on the long-break card. If Windows
+  "Animation effects" is turned off, they hold still.
+- **The long-break warning uses a warm clay colour.** Clay means "something needs your attention": the warning title,
+  the frames on your other monitors during the warning, the tray icon during the warning, and a "Strict mode is on"
+  note when postponing and skipping are off. Everything else stays calm green.
+- **New app and tray icons:**
+  - The app icon is Ocy's face at larger sizes and the sprout at small sizes (16–32 px), where a face isn't legible.
+  - The tray shows only the sprout, in four states: running, paused (a drooping sprout), on a break, and the clay
+    warning.
+  - There are separate sets for light and dark taskbars, chosen from your Windows taskbar setting, not the app
+    theme.
+- **A website** at https://danielmevit.github.io/ocy/ and a public repository (AGPL-3.0).
+
+### For developers
+- `Ocy.exe --render-screens=<folder>` renders the real cards and settings window to PNG in light and dark (used for the
+  README and the website), with pixel-level tests.
+- `tools/illustrations/svg2axaml.py` and `tools/icons/pack_tray_ico.py` turn the art into app resources, with
+  `--check` modes.
+
 ## 0.1.1 — 2026-11-17 (alpha preview)
 
 ### Changed

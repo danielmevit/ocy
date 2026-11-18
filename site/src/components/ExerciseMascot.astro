@@ -6,7 +6,9 @@ interface Props {
   stepMs: number;
   frozen: number;
   label?: string;
-  size?: 'hero' | 'card';
+  size?: 'hero' | 'card' | 'slide' | 'faq' | 'none';
+  /** optional site-only art: raw SVG strings per frame (1-based order) */
+  art?: { light: string[]; dark: string[] };
 }
 
 const {
@@ -17,6 +19,7 @@ const {
   frozen,
   label,
   size = 'card',
+  art,
 } = Astro.props;
 
 const svgModules = import.meta.glob(
@@ -34,12 +37,12 @@ function findSvg(theme: 'light' | 'dark', frame: number): string {
 }
 
 const frameIndices = Array.from({ length: frames }, (_, idx) => idx + 1);
-const lightFrames = frameIndices.map((n) => ({ n, raw: findSvg('light', n) }));
-const darkFrames = frameIndices.map((n) => ({ n, raw: findSvg('dark', n) }));
+const lightFrames = frameIndices.map((n) => ({ n, raw: art ? art.light[n - 1] : findSvg('light', n) }));
+const darkFrames = frameIndices.map((n) => ({ n, raw: art ? art.dark[n - 1] : findSvg('dark', n) }));
 ---
 
 <div
-  class:list={['mascot-stage', size === 'hero' ? 'mascot-hero' : 'mascot-card']}
+  class:list={['mascot-stage', `mascot-${size}`]}
   data-mascot
   data-exercise={id}
   data-sequence={JSON.stringify(sequence)}

@@ -1,132 +1,142 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ExerciseMascot from '../components/ExerciseMascot.astro';
+import ArtFrame from '../components/ArtFrame.astro';
 import { readAppVersion, readExercises } from '../lib/ocyData';
 import { readPngSize } from '../lib/pngSize';
+import trayActiveL from '../../../assets/icons/tray/light/tray-active.svg?url';
+import trayPausedL from '../../../assets/icons/tray/light/tray-paused.svg?url';
+import trayBreakL from '../../../assets/icons/tray/light/tray-onbreak.svg?url';
+import trayAttnL from '../../../assets/icons/tray/light/tray-attention.svg?url';
+import trayActiveD from '../../../assets/icons/tray/dark/tray-active.svg?url';
+import trayPausedD from '../../../assets/icons/tray/dark/tray-paused.svg?url';
+import trayBreakD from '../../../assets/icons/tray/dark/tray-onbreak.svg?url';
+import trayAttnD from '../../../assets/icons/tray/dark/tray-attention.svg?url';
+import heroLight from '../art/hero/ocy-hero-light.svg?raw';
+import heroDark from '../art/hero/ocy-hero-dark.svg?raw';
 
 const version = readAppVersion();
 const exercises = readExercises();
 const heroExercise = exercises.find((e) => e.id === 'look-left-right') ?? exercises[0];
 
+const faqArtModules = import.meta.glob('../art/faq/*.svg', { query: '?raw', import: 'default', eager: true }) as Record<
+  string,
+  string
+>;
+const faqFrames = (theme: string) =>
+  Object.entries(faqArtModules)
+    .filter(([k]) => k.includes(`ocy-faq-${theme}-f`))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => v);
+const faqArt = { light: faqFrames('light'), dark: faqFrames('dark') };
+// pop in one by one, hold, short rest
+const faqSequence = [1, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5, 1, 1];
+
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repoUrl = 'https://github.com/danielmevit/ocy';
-const releasesLatestUrl = `${repoUrl}/releases/latest`;
+const releasesUrl = `${repoUrl}/releases`;
+
+const whyLines: Record<string, string> = {
+  blink: 'Screens make us blink less. Slow, full blinks spread fresh tears across your eyes.',
+  'look-left-right': 'A change from holding your eyes in one fixed position.',
+  'look-up-down': 'Uses the up-and-down range your eyes hardly touch while reading a screen.',
+  roll: 'Slow circles take your eyes through their full range, then let them rest.',
+  'close-tight': 'A gentle squeeze and release relaxes the muscles around your eyes.',
+  'near-far': 'Changing focus gives your eyes a break from screen distance.',
+  'window-far': 'Looking far away lets your eyes relax from close-up focus.',
+  'figure-eight': 'A slow, smooth path keeps your eyes moving without strain.',
+  palming: 'A warm, dark moment with no screen light, for tired eyes.',
+  'stretch-arms': 'Opens your chest and shoulders after leaning toward a screen.',
+  'neck-shoulders': 'Eases the tension that builds in your neck and shoulders while you sit.',
+  'stand-walk': 'A few steps get you moving and change your posture.',
+};
+
+const moments = [
+  { art: 'blink', frame: 1, title: 'You’re working', line: 'Only time at your PC counts.', alt: 'Ocy looking at the screen' },
+  { art: 'stand-walk', frame: 3, title: 'You step away', line: 'That is your break. No break waiting when you’re back.', alt: 'Ocy walking away from its chair' },
+  { art: 'blink', frame: 3, title: 'Fullscreen or presenting', line: 'It waits until you’re done.', alt: 'Ocy waiting calmly with closed eyes' },
+  { art: 'look-up-down', frame: 1, title: 'A break is due', line: 'On the screen you’re using. The others get a soft frame.', alt: 'Ocy looking up, alert' },
+];
+
+const trayStates = [
+  { label: 'Running', light: trayActiveL, dark: trayActiveD, alt: 'Tray icon while Ocy is running' },
+  { label: 'Paused', light: trayPausedL, dark: trayPausedD, alt: 'Tray icon while breaks are paused' },
+  { label: 'On a break', light: trayBreakL, dark: trayBreakD, alt: 'Tray icon during a break' },
+  { label: 'Long break soon', light: trayAttnL, dark: trayAttnD, alt: 'Tray icon when a long break is coming up', warn: true },
+];
 
 const pageTitle = 'Ocy — a calm break reminder for your eyes (free, open source)';
 const pageDescription =
   'Free, open-source break reminder for Windows to ease eye strain. Short eye exercises every few minutes, a real hourly break, no account or telemetry.';
 
-const whyCards = [
+const shot = (file: string) => {
+  const dims = readPngSize(`assets/screens/light/${file}.png`);
+  return {
+    light: `${base}/assets/screens/light/${file}.png`,
+    dark: `${base}/assets/screens/dark/${file}.png`,
+    w: dims ? Math.round(dims.width / 2) : undefined,
+    h: dims ? Math.round(dims.height / 2) : undefined,
+  };
+};
+const scenes = [
   {
-    title: 'Shows the break where you are looking',
-    body: 'Short breaks and the long-break warning appear on the monitor you are working on. The other monitors get a soft coloured frame, so the reminder never pops up on a screen you cannot see.',
-    isWarning: false,
+    id: 'short',
+    tab: 'Short break',
+    note: 'A small card on the monitor you’re using. Your other screen gets a soft green frame.',
+    img: shot('short-break'),
+    alt: 'Short break card on the main monitor: Look left and right, with Ocy and a progress bar',
   },
   {
-    title: 'Knows when to stay quiet',
-    body: 'Fullscreen apps, games and presentations put breaks on hold until you are done.',
-    isWarning: false,
+    id: 'long',
+    tab: 'Long break',
+    note: 'Every hour, the screen dims for a real five-minute break.',
+    img: shot('long-break'),
+    alt: 'Long break over a dimmed screen: Back to your screen in 4:12, Time to step away, with two suggestions',
   },
   {
-    title: 'Time away counts as rest',
-    body: 'Step away from the keyboard, lock the PC or put it to sleep, and Ocy counts it as a break. You will not come back to a "time for a break!" message.',
-    isWarning: false,
-  },
-  {
-    title: 'Hand-drawn exercises, gently animated',
-    body: 'Twelve original exercises drawn in a few frames each, like a flip book. If Windows animations are turned off, they hold still.',
-    isWarning: false,
-  },
-  {
-    title: 'Gentle first, firm when you want it',
-    body: 'A warning a minute before each long break lets you start it, postpone it a few times or skip it. Turn on strict mode and long breaks keep to the schedule.',
-    isWarning: true,
-  },
-  {
-    title: 'Private and at home in Windows',
-    body: 'No account, no telemetry, no ads and no network code; settings stay in %APPDATA%\\Ocy. Light and dark themes follow your Windows setting, and the sprout tray icon matches your taskbar.',
-    isWarning: false,
-  },
-];
-
-const screenDefs = [
-  {
-    file: 'short-break',
-    caption: 'Short break, on the monitor you are using',
-    alt: 'Short break card: Look left and right, with Ocy looking to the side and a countdown',
-    isWarning: false,
-  },
-  {
-    file: 'long-break',
-    caption: 'Long break, every hour',
-    alt: 'Long break card: Look into the distance, with Ocy looking out of a window and a countdown',
-    isWarning: false,
-  },
-  {
-    file: 'warning',
-    caption: 'A heads-up before the long break',
+    id: 'warning',
+    tab: 'Warning',
+    note: 'A minute before a long break: start it now, postpone or skip.',
+    img: shot('warning'),
     alt: 'Warning card: Long break in 0:42, with Start now, Postpone and Skip',
-    isWarning: true,
   },
   {
-    file: 'settings',
-    caption: 'Settings apply as you change them',
-    alt: 'Settings window with short break, long break and behaviour options',
-    isWarning: false,
-  },
-].map((item) => {
-  const dims =
-    readPngSize(`assets/screens/light/${item.file}.png`) ??
-    readPngSize(`assets/screens/dark/${item.file}.png`);
-  return { ...item, dims };
-});
-
-const scheduleRows = [
-  {
-    label: 'Short break',
-    defaultValue: 'every 10 min, for 15 s',
-    range: 'every 2–60 min, 5–120 s',
-    isWarning: false,
-  },
-  {
-    label: 'Long break',
-    defaultValue: 'every 60 min, for 5 min',
-    range: 'every 15–240 min, 1–30 min',
-    isWarning: false,
-  },
-  {
-    label: 'Warning before a long break',
-    defaultValue: '60 s',
-    range: '0–300 s',
-    isWarning: true,
-  },
-  {
-    label: 'Postpone',
-    defaultValue: '3 min, up to 3 times',
-    range: '1–30 min, 0–10 times',
-    isWarning: false,
-  },
-  {
-    label: 'You count as away after',
-    defaultValue: '2 min without input',
-    range: '30 s – 30 min',
-    isWarning: false,
+    id: 'settings',
+    tab: 'Settings',
+    note: 'Changes apply right away. Light and dark follow Windows.',
+    img: shot('settings'),
+    alt: 'Ocy settings window with short break, long break and behaviour options',
   },
 ];
 
-const faqs = [
+const defaultsRows = [
+  ['Short break', 'every 10 min, for 15 s'],
+  ['Long break', 'every 60 min, for 5 min'],
+  ['Warning before a long break', '60 s'],
+  ['Postpone', '3 min, up to 3 times'],
+  ['You count as away after', '2 min without input'],
+];
+
+const faqs: { q: string; a: string; table?: boolean }[] = [
   {
     q: 'Is Ocy an alternative to EyeLeo?',
     a: 'Yes. If you used EyeLeo, which hasn’t been updated in years, Ocy covers the same daily routine: short eye exercises, regular long breaks and quiet during fullscreen work. It also shows breaks on the monitor you are using, counts time away as rest, and is built to run on Windows, macOS and Linux. Ocy is an independent project, and its code, exercises and art are all original.',
   },
   {
-    q: 'Is it free?',
-    a: 'Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.',
+    q: 'Windows warns me when I first run it — is it safe?',
+    a: 'Ocy isn’t code-signed yet, so Windows SmartScreen may warn on the first run. Choose More info, then Run anyway. The code is open on GitHub.',
   },
   {
-    q: 'Does it need the internet?',
-    a: 'No. Ocy has no network code at all. It works fully offline and never phones home.',
+    q: 'How do I start it with Windows, or remove it?',
+    a: 'Turn on Start with system in Settings. To remove Ocy, quit it from the tray and delete its folder, plus %APPDATA%\\Ocy if you also want to remove your settings.',
   },
+  {
+    q: 'What are the defaults?',
+    a: 'Short break every 10 min, for 15 s. Long break every 60 min, for 5 min. Warning 60 s before a long break. Postpone 3 min, up to 3 times. You count as away after 2 min without input. All of it is adjustable in Settings.',
+    table: true,
+  },
+  { q: 'Is it free?', a: 'Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.' },
+  { q: 'Does it need the internet?', a: 'No. Ocy has no network code at all. It works fully offline and never phones home.' },
   {
     q: 'Will it interrupt my game, video call or presentation?',
     a: 'Fullscreen apps and presentations hold breaks until you are done. Detecting calls in windowed apps is on the roadmap.',
@@ -150,24 +160,12 @@ const softwareLd = {
   operatingSystem: 'Windows 10, Windows 11',
   softwareVersion: version,
   url: 'https://danielmevit.github.io/ocy/',
-  downloadUrl: releasesLatestUrl,
+  downloadUrl: releasesUrl,
   license: 'https://www.gnu.org/licenses/agpl-3.0.html',
   isAccessibleForFree: true,
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
-  },
-  author: {
-    '@type': 'Person',
-    name: 'Daniel Mevit',
-    url: 'https://github.com/danielmevit',
-  },
-  publisher: {
-    '@type': 'Organization',
-    name: 'damt.xyz',
-    url: 'https://damt.xyz',
-  },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: 'Daniel Mevit', url: 'https://github.com/danielmevit' },
+  publisher: { '@type': 'Organization', name: 'damt.xyz', url: 'https://damt.xyz' },
 };
 
 const faqLd = {
@@ -176,10 +174,7 @@ const faqLd = {
   mainEntity: faqs.map((item) => ({
     '@type': 'Question',
     name: item.q,
-    acceptedAnswer: {
-      '@type': 'Answer',
-      text: item.a,
-    },
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
   })),
 };
 ---
@@ -194,16 +189,15 @@ const faqLd = {
     <div class="hero-copy">
       <div class="hero-titles">
         <h1 id="hero-heading">A calm break reminder for your eyes</h1>
+        <svg class="hero-underline" viewBox="0 0 360 16" aria-hidden="true" preserveAspectRatio="none">
+          <path class="ink" d="M4 10 C 60 5, 120 12, 180 8 S 300 4, 356 9" />
+        </svg>
         <p class="hero-sub">
           Short eye exercises every few minutes, a real break every hour, and quiet when you need focus.
         </p>
       </div>
-      <p class="hero-lead">
-        Every ten minutes a small card shows one illustrated eye exercise for fifteen seconds. Every hour it asks for
-        a real five-minute break away from the screen. Between breaks it stays out of the way.
-      </p>
       <div class="btn-row">
-        <a class="btn btn-accent" href={releasesLatestUrl}>Download for Windows</a>
+        <a class="btn btn-accent" href={releasesUrl}>Download for Windows</a>
         <a class="btn btn-outline" href={repoUrl}>View on GitHub</a>
       </div>
       <p class="hero-meta">
@@ -211,260 +205,296 @@ const faqLd = {
       </p>
     </div>
 
-    <aside class="hero-card" aria-label="Example short-break card">
-      <div class="hero-card-top">
-        <ExerciseMascot
-          id={heroExercise.id}
-          frames={heroExercise.frames}
-          sequence={heroExercise.sequence}
-          stepMs={heroExercise.stepMs}
-          frozen={heroExercise.frozen}
-          label={`Ocy mascot demonstrating: ${heroExercise.title}`}
-          size="hero"
-        />
-        <div class="hero-card-text">
-          <p class="hero-card-kicker">Short break &middot; 15 s</p>
-          <p class="hero-card-title">{heroExercise.title}</p>
-          <p class="hero-card-body">{heroExercise.body}</p>
+    <div class="hero-stage">
+      <svg class="hero-deco" viewBox="0 0 600 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <path class="ink ink-dash" d="M70 430 C 140 486, 270 498, 360 480" />
+        <path class="ink" d="M500 70 l 12 -14 M518 88 l 18 -6 M486 58 l 2 -18" />
+      </svg>
+      <div class="hero-figure" data-hero data-mode="loop">
+        <div class="disc disc-hero">
+          <div class="hero-loop">
+            <ExerciseMascot
+              id={heroExercise.id}
+              frames={heroExercise.frames}
+              sequence={heroExercise.sequence}
+              stepMs={heroExercise.stepMs}
+              frozen={heroExercise.frozen}
+              label="Ocy, a small green sprout, looking around"
+              size="hero"
+            />
+          </div>
+          <div class="hero-follow mascot-hero" aria-hidden="true">
+            <span class="mascot-light" set:html={heroLight} />
+            <span class="mascot-dark" set:html={heroDark} />
+          </div>
         </div>
       </div>
-      <div class="hero-progress" aria-hidden="true">
-        <div class="hero-progress-fill"></div>
-      </div>
-    </aside>
+    </div>
   </section>
 
-  <section id="why" class="section" aria-labelledby="why-heading">
+  <section id="works" class="section works" aria-labelledby="works-heading">
     <div class="section-head">
-      <h2 id="why-heading">Why Ocy</h2>
-      <p class="section-sub">Quiet between breaks, respectful of your attention when one arrives.</p>
+      <h2 id="works-heading">It works around you</h2>
     </div>
-    <div class="why-grid">
-      {whyCards.map((card) => (
-        <article class="card">
-          <h3>
-            {card.isWarning ? (
-              <span class="warning-label">
-                <span class="clay-sq" aria-hidden="true" />
-                <span>{card.title}</span>
-              </span>
-            ) : (
-              card.title
+    <ol class="moments">
+      <svg class="moments-path" viewBox="0 0 1000 60" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ink ink-dash" vector-effect="non-scaling-stroke" d="M40 30 C 180 6, 300 54, 500 30 S 820 6, 960 30" />
+      </svg>
+      {moments.map((m, i) => (
+        <li class="moment">
+          <span class="disc disc-moment">
+            <ArtFrame id={m.art} frame={m.frame} label={m.alt} />
+          </span>
+          <span class="moment-num" aria-hidden="true">{i + 1}</span>
+          <h3>{m.title}</h3>
+          <p>{m.line}</p>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section id="exercises" class="band exercises" aria-labelledby="exercises-heading">
+    <div class="section-head">
+      <h2 id="exercises-heading">Twelve tiny exercises</h2>
+      <p class="section-sub">Hand-drawn, a few frames each, like a flip book.</p>
+    </div>
+    <div class="slideshow" data-slideshow>
+      <div class="slides" aria-roledescription="carousel" aria-label="Exercises">
+        {exercises.map((ex, i) => (
+          <div
+            class="slide"
+            data-slide={String(i)}
+            data-active={i === 0 ? 'true' : undefined}
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`${i + 1} of ${exercises.length}: ${ex.title}`}
+          >
+            <span class="disc disc-slide">
+              <ExerciseMascot
+                id={ex.id}
+                frames={ex.frames}
+                sequence={ex.sequence}
+                stepMs={ex.stepMs}
+                frozen={ex.frozen}
+                label={`Ocy demonstrating: ${ex.title}`}
+                size="slide"
+              />
+            </span>
+            <div class="slide-text">
+              <span class="slide-count">{String(i + 1).padStart(2, '0')} / {exercises.length}</span>
+              <h3>{ex.title}</h3>
+              <p>{whyLines[ex.id]}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div class="rail" role="group" aria-label="Choose an exercise">
+        {exercises.map((ex, i) => (
+          <button
+            type="button"
+            class="thumb"
+            data-go={String(i)}
+            aria-label={ex.title}
+            aria-current={i === 0 ? 'true' : undefined}
+          >
+            <span class="disc disc-thumb"><ArtFrame id={ex.id} frame={ex.frozen} /></span>
+          </button>
+        ))}
+      </div>
+      <p class="visually-hidden" aria-live="polite" data-announce></p>
+    </div>
+  </section>
+
+  <section id="app" class="section app" aria-labelledby="app-heading">
+    <div class="app-side">
+      <div class="section-head">
+        <h2 id="app-heading">The real app</h2>
+        <p class="section-sub">Follows your Windows light or dark theme.</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label="App screens">
+        {scenes.map((s, i) => (
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            id={`tab-${s.id}`}
+            aria-controls={`scene-${s.id}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+            data-tab={s.id}
+          >
+            {s.id === 'warning' && <span class="clay-sq" aria-hidden="true" />}
+            <span>{s.tab}</span>
+          </button>
+        ))}
+      </div>
+      {scenes.map((s, i) => (
+        <p class="scene-note" data-note={s.id} hidden={i !== 0}>{s.note}</p>
+      ))}
+    </div>
+
+    <div class="desk">
+      {scenes.map((s, i) => (
+        <div
+          class={`scene scene-${s.id}`}
+          id={`scene-${s.id}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${s.id}`}
+          hidden={i !== 0}
+        >
+          <div class="monitors">
+            <div class="monitor monitor-main">
+              <div class="screen">
+                <span class="wall" aria-hidden="true" />
+                <picture class={`shot shot-${s.id}`}>
+                  <source media="(prefers-color-scheme: dark)" srcset={s.img.dark} />
+                  <img src={s.img.light} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
+                </picture>
+                <span class="taskbar" aria-hidden="true" />
+              </div>
+              <span class="stand" aria-hidden="true" />
+            </div>
+            {s.id === 'short' && (
+              <div class="monitor monitor-side" aria-hidden="true">
+                <div class="screen framed">
+                  <span class="wall" />
+                </div>
+                <span class="stand" />
+              </div>
             )}
-          </h3>
-          <p>{card.body}</p>
-        </article>
-      ))}
-    </div>
-  </section>
-
-  <section id="screenshots" class="section-bleed" aria-labelledby="screens-heading">
-    <div class="section-head">
-      <h2 id="screens-heading">Screenshots</h2>
-      <p class="section-sub">Follows your Windows light and dark theme across every card and the tray.</p>
-    </div>
-    <div class="screens-grid">
-      {screenDefs.map((shot) => (
-        <figure class="screen-card">
-          <div class:list={['screen-media', !shot.dims && 'screen-fallback']}>
-            <picture>
-              <source
-                media="(prefers-color-scheme: dark)"
-                srcset={`${base}/assets/screens/dark/${shot.file}.png`}
-              />
-              <img
-                src={`${base}/assets/screens/light/${shot.file}.png`}
-                alt={shot.alt}
-                width={shot.dims?.width}
-                height={shot.dims?.height}
-                loading="lazy"
-                decoding="async"
-              />
-            </picture>
           </div>
-          <figcaption class="screen-caption">
-            {shot.isWarning && <span class="clay-sq" aria-hidden="true" />}
-            <span class={shot.isWarning ? 'clay-text' : undefined}>{shot.caption}</span>
-          </figcaption>
-        </figure>
+        </div>
       ))}
     </div>
   </section>
 
-  <section id="exercises" class="section-bleed" aria-labelledby="exercises-heading">
-    <div class="section-head">
-      <h2 id="exercises-heading">Twelve original exercises</h2>
-      <p class="section-sub">
-        All text and art are original. Each exercise is described in a sentence or two, so you can follow it without
-        looking at the screen.
-      </p>
-    </div>
-    <div class="exercises-grid">
-      {exercises.map((ex) => (
-        <article class="exercise-card">
-          <ExerciseMascot
-            id={ex.id}
-            frames={ex.frames}
-            sequence={ex.sequence}
-            stepMs={ex.stepMs}
-            frozen={ex.frozen}
-            size="card"
-          />
-          <div class="exercise-text">
-            <h3>{ex.title}</h3>
-            <p>{ex.body}</p>
-          </div>
-        </article>
-      ))}
-    </div>
-  </section>
-
-  <section id="how" class="section" aria-labelledby="how-heading">
-    <div class="section-head">
-      <h2 id="how-heading">How it decides when to remind you</h2>
-      <p class="section-sub">Sensible defaults out of the box, adjustable without restarting.</p>
-    </div>
-    <div class="schedule-layout">
-      <div class="table-wrap">
-        <table class="defaults-table">
-          <thead>
-            <tr>
-              <th scope="col">Setting</th>
-              <th scope="col">Default</th>
-              <th scope="col">Range</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scheduleRows.map((row) => (
-              <tr>
-                <td>
-                  {row.isWarning ? (
-                    <span class="warning-label">
-                      <span class="clay-sq" aria-hidden="true" />
-                      <span class="clay-text">{row.label}</span>
-                    </span>
-                  ) : (
-                    row.label
-                  )}
-                </td>
-                <td>{row.defaultValue}</td>
-                <td>{row.range}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  <section id="tray" class="band tray-band" aria-labelledby="tray-heading">
+    <div class="tray">
+      <div class="section-head">
+        <h2 id="tray-heading">Lives in your tray</h2>
+        <p class="section-sub">A small sprout that matches your taskbar. Right-click for settings, pause and quit.</p>
       </div>
-
-      <ul class="rules-list">
-        <li>
-          The clock counts <strong>active screen time</strong>, not wall-clock time. Idle time, a locked screen and
-          sleep don&rsquo;t count towards your next break.
-        </li>
-        <li>
-          An absence at least as long as a break <strong>counts as that break</strong>. A long absence counts as a
-          long break.
-        </li>
-        <li>
-          With <strong>Pause in fullscreen</strong> on (the default), breaks that fall due during a fullscreen app or
-          presentation wait until you leave it.
-        </li>
-        <li>
-          From the tray you can <strong>pause</strong> for 1 hour, for 3 hours or until you resume, or{' '}
-          <strong>take a long break now</strong>.
-        </li>
+      <ul class="tray-strip">
+        {trayStates.map((s) => (
+          <li>
+            <span class="tray-icon">
+              <img class="mascot-light" src={s.light} alt={s.alt} width="32" height="32" />
+              <img class="mascot-dark" src={s.dark} alt={s.alt} width="32" height="32" />
+            </span>
+            <span class="tray-label">
+              {s.warn && <span class="clay-sq" aria-hidden="true" />}
+              {s.label}
+            </span>
+          </li>
+        ))}
       </ul>
     </div>
   </section>
 
   <section id="install" class="section" aria-labelledby="install-heading">
     <div class="section-head">
-      <h2 id="install-heading">Install on Windows 10 or 11 (64-bit)</h2>
-      <p class="section-sub">
-        Portable ZIP — no installer needed. macOS and Linux are planned using the same core (see the{' '}
-        <a href={`${repoUrl}/blob/main/ROADMAP.md`}>roadmap</a>).
-      </p>
+      <h2 id="install-heading">Install in a minute</h2>
+      <p class="section-sub">Windows 10 or 11, 64-bit. A portable ZIP, no installer.</p>
     </div>
-
-    <div class="steps-grid">
-      <article class="step-card">
-        <span class="step-num">Step 1</span>
+    <ol class="steps">
+      <svg class="steps-path" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ink ink-dash" vector-effect="non-scaling-stroke" d="M30 20 C 180 4, 300 34, 500 20 S 820 6, 980 20" />
+      </svg>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">1</span>
         <h3>Download the ZIP</h3>
-        <p>
-          Get <code>Ocy-{version}-win-x64.zip</code> from{' '}
-          <a href={releasesLatestUrl}>GitHub Releases</a>.
-        </p>
-      </article>
-      <article class="step-card">
-        <span class="step-num">Step 2</span>
+        <p><code>Ocy-{version}-win-x64.zip</code> from <a href={releasesUrl}>Releases</a></p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">2</span>
         <h3>Unzip and run</h3>
-        <p>
-          Unzip it anywhere, for example <code>Documents\Ocy</code>, and run <code>Ocy.exe</code>. Nothing else
-          needs installing.
-        </p>
-      </article>
-      <article class="step-card">
-        <span class="step-num">Step 3</span>
-        <h3>Control from the tray</h3>
-        <p>
-          Ocy appears in the tray as a small green sprout. Right-click it for settings, pause and quit.
-        </p>
-      </article>
-    </div>
-
-    <p class="install-note">
-      The app isn&rsquo;t code-signed yet, so Windows SmartScreen may warn on the first run: choose{' '}
-      <strong>More info &rarr; Run anyway</strong>. To start Ocy when you sign in, turn on{' '}
-      <strong>Start with system</strong> in Settings. To remove it, quit Ocy from the tray and delete the folder,
-      plus <code>%APPDATA%\Ocy</code> if you also want to remove your settings.
-    </p>
+        <p>Anywhere, then open <code>Ocy.exe</code></p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">3</span>
+        <h3>Find the sprout</h3>
+        <p>In your tray. Right-click for settings.</p>
+      </li>
+    </ol>
   </section>
 
-  <section id="faq" class="section" aria-labelledby="faq-heading">
-    <div class="section-head">
-      <h2 id="faq-heading">Frequently asked questions</h2>
-      <p class="section-sub">Straight answers about how Ocy works.</p>
+  <section id="faq" class="band faq" aria-labelledby="faq-heading">
+    <div class="faq-main">
+      <div class="section-head">
+        <h2 id="faq-heading">Questions</h2>
+      </div>
+      <div class="faq-list">
+        {faqs.map((item) => (
+          <details class="faq-item">
+            <summary>{item.q}</summary>
+            {item.table ? (
+              <div class="faq-answer">
+                <table class="defaults-table">
+                  <tbody>
+                    {defaultsRows.map(([k, v]) => (
+                      <tr>
+                        <th scope="row">{k}</th>
+                        <td>{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p>All of it is adjustable in Settings, without a restart.</p>
+              </div>
+            ) : item.q.startsWith('How do I start') ? (
+              <p>
+                Turn on <strong>Start with system</strong> in Settings. To remove Ocy, quit it from the tray and delete
+                its folder, plus <code>%APPDATA%\Ocy</code> if you also want to remove your settings.
+              </p>
+            ) : item.q.startsWith('Windows warns') ? (
+              <p>
+                Ocy isn&rsquo;t code-signed yet, so Windows SmartScreen may warn on the first run. Choose{' '}
+                <strong>More info &rarr; Run anyway</strong>. The code is open on <a href={repoUrl}>GitHub</a>.
+              </p>
+            ) : (
+              <p>{item.a}</p>
+            )}
+          </details>
+        ))}
+      </div>
     </div>
-    <div class="faq-list">
-      {faqs.map((item) => (
-        <details class="faq-item">
-          <summary>{item.q}</summary>
-          <p>{item.a}</p>
-        </details>
-      ))}
+    <div class="faq-art">
+      <span class="disc disc-faq">
+        <ExerciseMascot
+          id="faq"
+          frames={faqArt.light.length}
+          sequence={faqSequence}
+          stepMs={340}
+          frozen={5}
+          art={faqArt}
+          label="Ocy looking up, with question marks popping up around its head"
+          size="faq"
+        />
+      </span>
     </div>
   </section>
 
   <script is:inline>
     (() => {
-      const stages = Array.from(document.querySelectorAll('[data-mascot]'));
-      if (stages.length === 0) return;
-
       const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      /* ---------- stepped frame player ---------- */
+      const stages = Array.from(document.querySelectorAll('[data-mascot]'));
       const stateMap = new WeakMap();
 
       function showFrame(el, frameNum) {
-        const themes = el.querySelectorAll('.mascot-theme');
-        for (const theme of themes) {
-          const frames = theme.querySelectorAll('.mascot-frame');
-          for (const frame of frames) {
-            if (Number(frame.getAttribute('data-frame')) === frameNum) {
-              frame.setAttribute('data-active', 'true');
-            } else {
-              frame.removeAttribute('data-active');
-            }
-          }
+        for (const frame of el.querySelectorAll('.mascot-frame')) {
+          if (Number(frame.getAttribute('data-frame')) === frameNum) frame.setAttribute('data-active', 'true');
+          else frame.removeAttribute('data-active');
         }
       }
-
       function stopStage(el) {
         const st = stateMap.get(el);
-        if (!st) return;
-        if (st.timer !== null) {
+        if (st && st.timer !== null) {
           clearInterval(st.timer);
           st.timer = null;
         }
       }
-
       function freezeStage(el) {
         stopStage(el);
         const st = stateMap.get(el);
@@ -472,7 +502,6 @@ const faqLd = {
         st.index = 0;
         showFrame(el, st.frozen);
       }
-
       function startStage(el) {
         const st = stateMap.get(el);
         if (!st || st.timer !== null) return;
@@ -486,7 +515,6 @@ const faqLd = {
           showFrame(el, st.sequence[st.index]);
         }, st.stepMs);
       }
-
       for (const el of stages) {
         let sequence = [1];
         try {
@@ -499,7 +527,6 @@ const faqLd = {
         const frozen = Number(el.getAttribute('data-frozen') || '1');
         stateMap.set(el, { sequence, stepMs, frozen, index: 0, timer: null, visible: false });
       }
-
       const observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
@@ -507,39 +534,159 @@ const faqLd = {
             const st = stateMap.get(el);
             if (!st) continue;
             st.visible = entry.isIntersecting;
-            if (motionQuery.matches) {
-              freezeStage(el);
-            } else if (st.visible && !document.hidden) {
-              startStage(el);
-            } else {
-              stopStage(el);
-            }
+            if (motionQuery.matches) freezeStage(el);
+            else if (st.visible && !document.hidden) startStage(el);
+            else stopStage(el);
           }
         },
         { threshold: 0.05 }
       );
-
-      for (const el of stages) {
-        observer.observe(el);
-      }
-
+      for (const el of stages) observer.observe(el);
       function syncAll() {
         for (const el of stages) {
-          if (motionQuery.matches) {
-            freezeStage(el);
-          } else {
-            const st = stateMap.get(el);
-            if (st && st.visible && !document.hidden) {
-              startStage(el);
-            } else {
-              stopStage(el);
+          const st = stateMap.get(el);
+          if (motionQuery.matches) freezeStage(el);
+          else if (st && st.visible && !document.hidden) startStage(el);
+          else stopStage(el);
+        }
+      }
+      motionQuery.addEventListener('change', syncAll);
+      document.addEventListener('visibilitychange', syncAll);
+
+      /* ---------- hero: eyes follow the pointer, in jumps ---------- */
+      const hero = document.querySelector('[data-hero]');
+      if (hero) {
+        const eyes = Array.from(hero.querySelectorAll('.ocy-eyes'));
+        const disc = hero.querySelector('.disc-hero');
+        let idleTimer = null;
+        let last = 0;
+        let lastKey = '';
+        let pending = null;
+        let trailing = null;
+        const DX = 2.2;
+        const DY = 1.7;
+        function setMode(mode) {
+          hero.setAttribute('data-mode', mode);
+        }
+        function place(dx, dy) {
+          const key = dx + ',' + dy;
+          if (key === lastKey) return;
+          lastKey = key;
+          for (const g of eyes) g.setAttribute('transform', `translate(${dx} ${dy})`);
+        }
+        window.addEventListener(
+          'pointermove',
+          (ev) => {
+            if (ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') return;
+            if (motionQuery.matches) return;
+            const now = performance.now();
+            if (now - last < 125) {
+              // Throttled: keep the latest position and apply it once the window ends, so the eyes
+              // always settle on where the cursor actually stopped.
+              pending = ev;
+              if (!trailing) trailing = setTimeout(() => { trailing = null; if (pending) { const e = pending; pending = null; aim(e); } }, 125 - (now - last));
+              return;
             }
-          }
+            pending = null;
+            if (trailing) { clearTimeout(trailing); trailing = null; }
+            aim(ev);
+          },
+          { passive: true }
+        );
+        function aim(ev) {
+            last = performance.now();
+            const r = disc.getBoundingClientRect();
+            if (r.bottom < 0 || r.top > window.innerHeight) return;
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height * 0.58;
+            const vx = ev.clientX - cx;
+            const vy = ev.clientY - cy;
+            if (Math.hypot(vx, vy) < r.width * 0.18) place(0, 0);
+            else {
+              const oct = Math.round(Math.atan2(vy, vx) / (Math.PI / 4));
+              const a = oct * (Math.PI / 4);
+              place(Math.round(Math.cos(a) * DX * 10) / 10, Math.round(Math.sin(a) * DY * 10) / 10);
+            }
+            setMode('follow');
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => setMode('loop'), 4000);
         }
       }
 
-      motionQuery.addEventListener('change', syncAll);
-      document.addEventListener('visibilitychange', syncAll);
+      /* ---------- exercise slideshow ---------- */
+      const show = document.querySelector('[data-slideshow]');
+      if (show) {
+        const slides = Array.from(show.querySelectorAll('[data-slide]'));
+        const thumbs = Array.from(show.querySelectorAll('[data-go]'));
+        const announce = show.querySelector('[data-announce]');
+        let current = 0;
+        let timer = null;
+        let hovered = false;
+        let focused = false;
+        let onScreen = false;
+        function go(i, speak) {
+          current = (i + slides.length) % slides.length;
+          slides.forEach((s, n) => (n === current ? s.setAttribute('data-active', 'true') : s.removeAttribute('data-active')));
+          thumbs.forEach((t, n) => (n === current ? t.setAttribute('aria-current', 'true') : t.removeAttribute('aria-current')));
+          if (speak && announce) announce.textContent = slides[current].getAttribute('aria-label') || '';
+        }
+        function tick() {
+          stop();
+          if (motionQuery.matches || hovered || focused || !onScreen || document.hidden) return;
+          timer = setTimeout(() => {
+            go(current + 1, false);
+            tick();
+          }, 6000);
+        }
+        function stop() {
+          if (timer !== null) clearTimeout(timer);
+          timer = null;
+        }
+        thumbs.forEach((t, n) =>
+          t.addEventListener('click', () => {
+            go(n, true);
+            tick();
+          })
+        );
+        show.addEventListener('pointerenter', () => { hovered = true; stop(); });
+        show.addEventListener('pointerleave', () => { hovered = false; tick(); });
+        show.addEventListener('focusin', () => { focused = true; stop(); });
+        show.addEventListener('focusout', (e) => {
+          if (!show.contains(e.relatedTarget)) { focused = false; tick(); }
+        });
+        new IntersectionObserver((en) => { onScreen = en[0].isIntersecting; tick(); }, { threshold: 0.3 }).observe(show);
+        motionQuery.addEventListener('change', tick);
+        document.addEventListener('visibilitychange', tick);
+      }
+
+      /* ---------- app scene tabs ---------- */
+      const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+      function selectTab(tab, focus) {
+        for (const t of tabs) {
+          const on = t === tab;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+          const id = t.getAttribute('data-tab');
+          document.getElementById('scene-' + id).hidden = !on;
+          const note = document.querySelector(`[data-note="${id}"]`);
+          if (note) note.hidden = !on;
+        }
+        if (focus) tab.focus();
+      }
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => selectTab(t, false));
+        t.addEventListener('keydown', (e) => {
+          let n = null;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') n = 0;
+          else if (e.key === 'End') n = tabs.length - 1;
+          if (n !== null) {
+            e.preventDefault();
+            selectTab(tabs[n], true);
+          }
+        });
+      });
     })();
   </script>
 </BaseLayout>
