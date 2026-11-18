@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Ocy.Desktop.Windows.EdgeFrameWindow"
+        Topmost="True"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+    <Window.Styles>
+        <Style Selector="Window.warning Border#FrameBorder">
+            <Setter Property="BorderBrush" Value="{DynamicResource AttentionFrameBrush}" />
+        </Style>
+    </Window.Styles>
+    <Border x:Name="FrameBorder"
+            BorderThickness="3"
+            BorderBrush="{DynamicResource EdgeFrameBrush}"
+            Background="Transparent" />
+</Window>

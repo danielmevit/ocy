@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- FROZEN platform contracts. Interfaces and enums only. Lead-owned: workers must not edit. -->
+  <PropertyGroup>
+    <RootNamespace>Ocy.Abstractions</RootNamespace>
+  </PropertyGroup>
+
+</Project>

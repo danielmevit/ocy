@@ -1,0 +1,71 @@
+---
+interface Props {
+  id: string;
+  frames: number;
+  sequence: number[];
+  stepMs: number;
+  frozen: number;
+  label?: string;
+  size?: 'hero' | 'card';
+}
+
+const {
+  id,
+  frames,
+  sequence,
+  stepMs,
+  frozen,
+  label,
+  size = 'card',
+} = Astro.props;
+
+const svgModules = import.meta.glob(
+  '../../../assets/illustrations/ocy-v1f/svg/*.svg',
+  { query: '?raw', import: 'default', eager: true }
+) as Record<string, string>;
+
+function findSvg(theme: 'light' | 'dark', frame: number): string {
+  const suffix = `/${id}-${theme}-f${frame}.svg`;
+  const entry = Object.entries(svgModules).find(([key]) => key.endsWith(suffix));
+  if (!entry) {
+    throw new Error(`Missing SVG frame: ${suffix}`);
+  }
+  return entry[1];
+}
+
+const frameIndices = Array.from({ length: frames }, (_, idx) => idx + 1);
+const lightFrames = frameIndices.map((n) => ({ n, raw: findSvg('light', n) }));
+const darkFrames = frameIndices.map((n) => ({ n, raw: findSvg('dark', n) }));
+---
+
+<div
+  class:list={['mascot-stage', size === 'hero' ? 'mascot-hero' : 'mascot-card']}
+  data-mascot
+  data-exercise={id}
+  data-sequence={JSON.stringify(sequence)}
+  data-step-ms={String(stepMs)}
+  data-frozen={String(frozen)}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+>
+  <div class="mascot-theme mascot-light" aria-hidden="true">
+    {lightFrames.map(({ n, raw }) => (
+      <span
+        class="mascot-frame"
+        data-frame={String(n)}
+        data-active={n === frozen ? 'true' : undefined}
+        set:html={raw}
+      />
+    ))}
+  </div>
+  <div class="mascot-theme mascot-dark" aria-hidden="true">
+    {darkFrames.map(({ n, raw }) => (
+      <span
+        class="mascot-frame"
+        data-frame={String(n)}
+        data-active={n === frozen ? 'true' : undefined}
+        set:html={raw}
+      />
+    ))}
+  </div>
+</div>

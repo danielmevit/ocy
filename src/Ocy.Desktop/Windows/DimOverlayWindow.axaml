@@ -1,0 +1,12 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Ocy.Desktop.Windows.DimOverlayWindow"
+        Topmost="True"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+    <Panel Background="{DynamicResource OverlayBrush}" />
+</Window>

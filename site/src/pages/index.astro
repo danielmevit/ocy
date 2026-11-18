@@ -1,0 +1,545 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ExerciseMascot from '../components/ExerciseMascot.astro';
+import { readAppVersion, readExercises } from '../lib/ocyData';
+import { readPngSize } from '../lib/pngSize';
+
+const version = readAppVersion();
+const exercises = readExercises();
+const heroExercise = exercises.find((e) => e.id === 'look-left-right') ?? exercises[0];
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repoUrl = 'https://github.com/danielmevit/ocy';
+const releasesLatestUrl = `${repoUrl}/releases/latest`;
+
+const pageTitle = 'Ocy — a calm break reminder for your eyes (free, open source)';
+const pageDescription =
+  'Free, open-source break reminder for Windows to ease eye strain. Short eye exercises every few minutes, a real hourly break, no account or telemetry.';
+
+const whyCards = [
+  {
+    title: 'Shows the break where you are looking',
+    body: 'Short breaks and the long-break warning appear on the monitor you are working on. The other monitors get a soft coloured frame, so the reminder never pops up on a screen you cannot see.',
+    isWarning: false,
+  },
+  {
+    title: 'Knows when to stay quiet',
+    body: 'Fullscreen apps, games and presentations put breaks on hold until you are done.',
+    isWarning: false,
+  },
+  {
+    title: 'Time away counts as rest',
+    body: 'Step away from the keyboard, lock the PC or put it to sleep, and Ocy counts it as a break. You will not come back to a "time for a break!" message.',
+    isWarning: false,
+  },
+  {
+    title: 'Hand-drawn exercises, gently animated',
+    body: 'Twelve original exercises drawn in a few frames each, like a flip book. If Windows animations are turned off, they hold still.',
+    isWarning: false,
+  },
+  {
+    title: 'Gentle first, firm when you want it',
+    body: 'A warning a minute before each long break lets you start it, postpone it a few times or skip it. Turn on strict mode and long breaks keep to the schedule.',
+    isWarning: true,
+  },
+  {
+    title: 'Private and at home in Windows',
+    body: 'No account, no telemetry, no ads and no network code; settings stay in %APPDATA%\\Ocy. Light and dark themes follow your Windows setting, and the sprout tray icon matches your taskbar.',
+    isWarning: false,
+  },
+];
+
+const screenDefs = [
+  {
+    file: 'short-break',
+    caption: 'Short break, on the monitor you are using',
+    alt: 'Short break card: Look left and right, with Ocy looking to the side and a countdown',
+    isWarning: false,
+  },
+  {
+    file: 'long-break',
+    caption: 'Long break, every hour',
+    alt: 'Long break card: Look into the distance, with Ocy looking out of a window and a countdown',
+    isWarning: false,
+  },
+  {
+    file: 'warning',
+    caption: 'A heads-up before the long break',
+    alt: 'Warning card: Long break in 0:42, with Start now, Postpone and Skip',
+    isWarning: true,
+  },
+  {
+    file: 'settings',
+    caption: 'Settings apply as you change them',
+    alt: 'Settings window with short break, long break and behaviour options',
+    isWarning: false,
+  },
+].map((item) => {
+  const dims =
+    readPngSize(`assets/screens/light/${item.file}.png`) ??
+    readPngSize(`assets/screens/dark/${item.file}.png`);
+  return { ...item, dims };
+});
+
+const scheduleRows = [
+  {
+    label: 'Short break',
+    defaultValue: 'every 10 min, for 15 s',
+    range: 'every 2–60 min, 5–120 s',
+    isWarning: false,
+  },
+  {
+    label: 'Long break',
+    defaultValue: 'every 60 min, for 5 min',
+    range: 'every 15–240 min, 1–30 min',
+    isWarning: false,
+  },
+  {
+    label: 'Warning before a long break',
+    defaultValue: '60 s',
+    range: '0–300 s',
+    isWarning: true,
+  },
+  {
+    label: 'Postpone',
+    defaultValue: '3 min, up to 3 times',
+    range: '1–30 min, 0–10 times',
+    isWarning: false,
+  },
+  {
+    label: 'You count as away after',
+    defaultValue: '2 min without input',
+    range: '30 s – 30 min',
+    isWarning: false,
+  },
+];
+
+const faqs = [
+  {
+    q: 'Is Ocy an alternative to EyeLeo?',
+    a: 'Yes. If you used EyeLeo, which hasn’t been updated in years, Ocy covers the same daily routine: short eye exercises, regular long breaks and quiet during fullscreen work. It also shows breaks on the monitor you are using, counts time away as rest, and is built to run on Windows, macOS and Linux. Ocy is an independent project, and its code, exercises and art are all original.',
+  },
+  {
+    q: 'Is it free?',
+    a: 'Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.',
+  },
+  {
+    q: 'Does it need the internet?',
+    a: 'No. Ocy has no network code at all. It works fully offline and never phones home.',
+  },
+  {
+    q: 'Will it interrupt my game, video call or presentation?',
+    a: 'Fullscreen apps and presentations hold breaks until you are done. Detecting calls in windowed apps is on the roadmap.',
+  },
+  {
+    q: 'Can I make it stricter or gentler?',
+    a: 'Yes. Change how often breaks come and how long they last, or turn off postponing and skipping with strict mode.',
+  },
+  {
+    q: 'Is this medical advice?',
+    a: 'No. Ocy is a habit tool. If your eyes hurt or your vision changes, see an eye-care professional.',
+  },
+];
+
+const softwareLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Ocy',
+  description: pageDescription,
+  applicationCategory: 'HealthApplication',
+  operatingSystem: 'Windows 10, Windows 11',
+  softwareVersion: version,
+  url: 'https://danielmevit.github.io/ocy/',
+  downloadUrl: releasesLatestUrl,
+  license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  isAccessibleForFree: true,
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  author: {
+    '@type': 'Person',
+    name: 'Daniel Mevit',
+    url: 'https://github.com/danielmevit',
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'damt.xyz',
+    url: 'https://damt.xyz',
+  },
+};
+
+const faqLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.a,
+    },
+  })),
+};
+---
+
+<BaseLayout title={pageTitle} description={pageDescription} canonicalPath="/">
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(softwareLd)} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(faqLd)} />
+  </Fragment>
+
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="hero-copy">
+      <div class="hero-titles">
+        <h1 id="hero-heading">A calm break reminder for your eyes</h1>
+        <p class="hero-sub">
+          Short eye exercises every few minutes, a real break every hour, and quiet when you need focus.
+        </p>
+      </div>
+      <p class="hero-lead">
+        Every ten minutes a small card shows one illustrated eye exercise for fifteen seconds. Every hour it asks for
+        a real five-minute break away from the screen. Between breaks it stays out of the way.
+      </p>
+      <div class="btn-row">
+        <a class="btn btn-accent" href={releasesLatestUrl}>Download for Windows</a>
+        <a class="btn btn-outline" href={repoUrl}>View on GitHub</a>
+      </div>
+      <p class="hero-meta">
+        Windows 10 and 11 &middot; v{version} alpha &middot; Free, AGPL-3.0 &middot; No account, no telemetry
+      </p>
+    </div>
+
+    <aside class="hero-card" aria-label="Example short-break card">
+      <div class="hero-card-top">
+        <ExerciseMascot
+          id={heroExercise.id}
+          frames={heroExercise.frames}
+          sequence={heroExercise.sequence}
+          stepMs={heroExercise.stepMs}
+          frozen={heroExercise.frozen}
+          label={`Ocy mascot demonstrating: ${heroExercise.title}`}
+          size="hero"
+        />
+        <div class="hero-card-text">
+          <p class="hero-card-kicker">Short break &middot; 15 s</p>
+          <p class="hero-card-title">{heroExercise.title}</p>
+          <p class="hero-card-body">{heroExercise.body}</p>
+        </div>
+      </div>
+      <div class="hero-progress" aria-hidden="true">
+        <div class="hero-progress-fill"></div>
+      </div>
+    </aside>
+  </section>
+
+  <section id="why" class="section" aria-labelledby="why-heading">
+    <div class="section-head">
+      <h2 id="why-heading">Why Ocy</h2>
+      <p class="section-sub">Quiet between breaks, respectful of your attention when one arrives.</p>
+    </div>
+    <div class="why-grid">
+      {whyCards.map((card) => (
+        <article class="card">
+          <h3>
+            {card.isWarning ? (
+              <span class="warning-label">
+                <span class="clay-sq" aria-hidden="true" />
+                <span>{card.title}</span>
+              </span>
+            ) : (
+              card.title
+            )}
+          </h3>
+          <p>{card.body}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section id="screenshots" class="section-bleed" aria-labelledby="screens-heading">
+    <div class="section-head">
+      <h2 id="screens-heading">Screenshots</h2>
+      <p class="section-sub">Follows your Windows light and dark theme across every card and the tray.</p>
+    </div>
+    <div class="screens-grid">
+      {screenDefs.map((shot) => (
+        <figure class="screen-card">
+          <div class:list={['screen-media', !shot.dims && 'screen-fallback']}>
+            <picture>
+              <source
+                media="(prefers-color-scheme: dark)"
+                srcset={`${base}/assets/screens/dark/${shot.file}.png`}
+              />
+              <img
+                src={`${base}/assets/screens/light/${shot.file}.png`}
+                alt={shot.alt}
+                width={shot.dims?.width}
+                height={shot.dims?.height}
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
+          </div>
+          <figcaption class="screen-caption">
+            {shot.isWarning && <span class="clay-sq" aria-hidden="true" />}
+            <span class={shot.isWarning ? 'clay-text' : undefined}>{shot.caption}</span>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  </section>
+
+  <section id="exercises" class="section-bleed" aria-labelledby="exercises-heading">
+    <div class="section-head">
+      <h2 id="exercises-heading">Twelve original exercises</h2>
+      <p class="section-sub">
+        All text and art are original. Each exercise is described in a sentence or two, so you can follow it without
+        looking at the screen.
+      </p>
+    </div>
+    <div class="exercises-grid">
+      {exercises.map((ex) => (
+        <article class="exercise-card">
+          <ExerciseMascot
+            id={ex.id}
+            frames={ex.frames}
+            sequence={ex.sequence}
+            stepMs={ex.stepMs}
+            frozen={ex.frozen}
+            size="card"
+          />
+          <div class="exercise-text">
+            <h3>{ex.title}</h3>
+            <p>{ex.body}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section id="how" class="section" aria-labelledby="how-heading">
+    <div class="section-head">
+      <h2 id="how-heading">How it decides when to remind you</h2>
+      <p class="section-sub">Sensible defaults out of the box, adjustable without restarting.</p>
+    </div>
+    <div class="schedule-layout">
+      <div class="table-wrap">
+        <table class="defaults-table">
+          <thead>
+            <tr>
+              <th scope="col">Setting</th>
+              <th scope="col">Default</th>
+              <th scope="col">Range</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scheduleRows.map((row) => (
+              <tr>
+                <td>
+                  {row.isWarning ? (
+                    <span class="warning-label">
+                      <span class="clay-sq" aria-hidden="true" />
+                      <span class="clay-text">{row.label}</span>
+                    </span>
+                  ) : (
+                    row.label
+                  )}
+                </td>
+                <td>{row.defaultValue}</td>
+                <td>{row.range}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul class="rules-list">
+        <li>
+          The clock counts <strong>active screen time</strong>, not wall-clock time. Idle time, a locked screen and
+          sleep don&rsquo;t count towards your next break.
+        </li>
+        <li>
+          An absence at least as long as a break <strong>counts as that break</strong>. A long absence counts as a
+          long break.
+        </li>
+        <li>
+          With <strong>Pause in fullscreen</strong> on (the default), breaks that fall due during a fullscreen app or
+          presentation wait until you leave it.
+        </li>
+        <li>
+          From the tray you can <strong>pause</strong> for 1 hour, for 3 hours or until you resume, or{' '}
+          <strong>take a long break now</strong>.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="install" class="section" aria-labelledby="install-heading">
+    <div class="section-head">
+      <h2 id="install-heading">Install on Windows 10 or 11 (64-bit)</h2>
+      <p class="section-sub">
+        Portable ZIP — no installer needed. macOS and Linux are planned using the same core (see the{' '}
+        <a href={`${repoUrl}/blob/main/ROADMAP.md`}>roadmap</a>).
+      </p>
+    </div>
+
+    <div class="steps-grid">
+      <article class="step-card">
+        <span class="step-num">Step 1</span>
+        <h3>Download the ZIP</h3>
+        <p>
+          Get <code>Ocy-{version}-win-x64.zip</code> from{' '}
+          <a href={releasesLatestUrl}>GitHub Releases</a>.
+        </p>
+      </article>
+      <article class="step-card">
+        <span class="step-num">Step 2</span>
+        <h3>Unzip and run</h3>
+        <p>
+          Unzip it anywhere, for example <code>Documents\Ocy</code>, and run <code>Ocy.exe</code>. Nothing else
+          needs installing.
+        </p>
+      </article>
+      <article class="step-card">
+        <span class="step-num">Step 3</span>
+        <h3>Control from the tray</h3>
+        <p>
+          Ocy appears in the tray as a small green sprout. Right-click it for settings, pause and quit.
+        </p>
+      </article>
+    </div>
+
+    <p class="install-note">
+      The app isn&rsquo;t code-signed yet, so Windows SmartScreen may warn on the first run: choose{' '}
+      <strong>More info &rarr; Run anyway</strong>. To start Ocy when you sign in, turn on{' '}
+      <strong>Start with system</strong> in Settings. To remove it, quit Ocy from the tray and delete the folder,
+      plus <code>%APPDATA%\Ocy</code> if you also want to remove your settings.
+    </p>
+  </section>
+
+  <section id="faq" class="section" aria-labelledby="faq-heading">
+    <div class="section-head">
+      <h2 id="faq-heading">Frequently asked questions</h2>
+      <p class="section-sub">Straight answers about how Ocy works.</p>
+    </div>
+    <div class="faq-list">
+      {faqs.map((item) => (
+        <details class="faq-item">
+          <summary>{item.q}</summary>
+          <p>{item.a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <script is:inline>
+    (() => {
+      const stages = Array.from(document.querySelectorAll('[data-mascot]'));
+      if (stages.length === 0) return;
+
+      const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const stateMap = new WeakMap();
+
+      function showFrame(el, frameNum) {
+        const themes = el.querySelectorAll('.mascot-theme');
+        for (const theme of themes) {
+          const frames = theme.querySelectorAll('.mascot-frame');
+          for (const frame of frames) {
+            if (Number(frame.getAttribute('data-frame')) === frameNum) {
+              frame.setAttribute('data-active', 'true');
+            } else {
+              frame.removeAttribute('data-active');
+            }
+          }
+        }
+      }
+
+      function stopStage(el) {
+        const st = stateMap.get(el);
+        if (!st) return;
+        if (st.timer !== null) {
+          clearInterval(st.timer);
+          st.timer = null;
+        }
+      }
+
+      function freezeStage(el) {
+        stopStage(el);
+        const st = stateMap.get(el);
+        if (!st) return;
+        st.index = 0;
+        showFrame(el, st.frozen);
+      }
+
+      function startStage(el) {
+        const st = stateMap.get(el);
+        if (!st || st.timer !== null) return;
+        if (motionQuery.matches || document.hidden || !st.visible) return;
+        if (st.sequence.length <= 1) {
+          showFrame(el, st.sequence[0] ?? st.frozen);
+          return;
+        }
+        st.timer = window.setInterval(() => {
+          st.index = (st.index + 1) % st.sequence.length;
+          showFrame(el, st.sequence[st.index]);
+        }, st.stepMs);
+      }
+
+      for (const el of stages) {
+        let sequence = [1];
+        try {
+          const parsed = JSON.parse(el.getAttribute('data-sequence') || '[1]');
+          if (Array.isArray(parsed) && parsed.length > 0) sequence = parsed;
+        } catch {
+          sequence = [1];
+        }
+        const stepMs = Math.max(80, Number(el.getAttribute('data-step-ms') || '300'));
+        const frozen = Number(el.getAttribute('data-frozen') || '1');
+        stateMap.set(el, { sequence, stepMs, frozen, index: 0, timer: null, visible: false });
+      }
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const el = entry.target;
+            const st = stateMap.get(el);
+            if (!st) continue;
+            st.visible = entry.isIntersecting;
+            if (motionQuery.matches) {
+              freezeStage(el);
+            } else if (st.visible && !document.hidden) {
+              startStage(el);
+            } else {
+              stopStage(el);
+            }
+          }
+        },
+        { threshold: 0.05 }
+      );
+
+      for (const el of stages) {
+        observer.observe(el);
+      }
+
+      function syncAll() {
+        for (const el of stages) {
+          if (motionQuery.matches) {
+            freezeStage(el);
+          } else {
+            const st = stateMap.get(el);
+            if (st && st.visible && !document.hidden) {
+              startStage(el);
+            } else {
+              stopStage(el);
+            }
+          }
+        }
+      }
+
+      motionQuery.addEventListener('change', syncAll);
+      document.addEventListener('visibilitychange', syncAll);
+    })();
+  </script>
+</BaseLayout>

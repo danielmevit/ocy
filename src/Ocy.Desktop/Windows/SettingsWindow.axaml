@@ -1,0 +1,251 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:Ocy.Desktop.Controls"
+        xmlns:loc="using:Ocy.Desktop.Localization"
+        x:Class="Ocy.Desktop.Windows.SettingsWindow"
+        Width="560"
+        Height="640"
+        MinWidth="480"
+        MinHeight="400"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BgBrush}"
+        Foreground="{DynamicResource TextBrush}">
+    <Window.Styles>
+        <Style Selector="Border.section">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource CardCornerRadius}" />
+            <Setter Property="Padding" Value="16,10" />
+        </Style>
+        <Style Selector="TextBlock.sectionHeader">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="Theme" Value="{StaticResource CompactToggleSwitch}" />
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Width" Value="92" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="ButtonSpinnerLocation" Value="Right" />
+            <Setter Property="Increment" Value="1" />
+            <Setter Property="FormatString" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="NumericUpDown /template/ TextBox">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="8,0,4,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="NumericUpDown /template/ TextBox:pointerover /template/ Border#PART_BorderElement, NumericUpDown /template/ TextBox:focus /template/ Border#PART_BorderElement, NumericUpDown /template/ TextBox:disabled /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="NumericUpDown /template/ ButtonSpinner">
+            <Setter Property="Theme" Value="{StaticResource CompactButtonSpinner}" />
+        </Style>
+        <Style Selector="Button.tryLink">
+            <Setter Property="Padding" Value="0,6" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        <TextBlock x:Name="SaveErrorText"
+                   Grid.Row="0"
+                   Margin="16,10,16,0"
+                   FontSize="12"
+                   Foreground="{DynamicResource ErrorBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="False"
+                   Text="{loc:Str settings.saveFailed}" />
+        <ScrollViewer x:Name="SettingsScroll" Grid.Row="1" Padding="16,10">
+            <StackPanel Spacing="10">
+                <Border x:Name="GeneralSectionCard" Classes="section">
+                    <StackPanel>
+                        <TextBlock x:Name="GeneralSectionHeader" Classes="sectionHeader" Text="{loc:Str settings.section.general}" />
+                        <StackPanel x:Name="GeneralRows" Margin="0,4,0,0">
+                        <ctl:SettingRow x:Name="StartWithSystemRow"
+                                        Label="{loc:Str settings.startWithSystem.label}"
+                                        Help="{loc:Str settings.startWithSystem.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="StartWithSystemToggle" />
+                        </ctl:SettingRow>
+                        <TextBlock x:Name="StartWithSystemError"
+                                   FontSize="12"
+                                   Margin="0,0,0,6"
+                                   Foreground="{DynamicResource ErrorBrush}"
+                                   TextWrapping="Wrap"
+                                   IsVisible="False" />
+                        <ctl:SettingRow x:Name="LanguageRow"
+                                        Label="{loc:Str settings.language.label}"
+                                        Help="{loc:Str settings.language.help}"
+                                        IsVisible="False">
+                            <ComboBox x:Name="LanguageCombo" Width="92" FontSize="13" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="SoundsRow"
+                                        Label="{loc:Str settings.sounds.label}"
+                                        Help="{loc:Str settings.sounds.help}"
+                                        HorizontalContentAlignment="Right" IsVisible="False">
+                            <ToggleSwitch x:Name="SoundsToggle" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="StatusNotificationsRow"
+                                        Label="{loc:Str settings.statusNotifications.label}"
+                                        Help="{loc:Str settings.statusNotifications.help}"
+                                        HorizontalContentAlignment="Right" IsVisible="False">
+                            <ToggleSwitch x:Name="StatusNotificationsToggle" />
+                        </ctl:SettingRow>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ShortBreaksSectionCard" Classes="section">
+                    <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="ShortBreaksSectionHeader"
+                                       Grid.Column="0"
+                                       Classes="sectionHeader"
+                                       VerticalAlignment="Center"
+                                       Text="{loc:Str settings.section.shortBreaks}" />
+                            <ToggleSwitch x:Name="ShortBreaksEnabledToggle"
+                                          Grid.Column="1"
+                                          AutomationProperties.Name="{loc:Str settings.shortBreaks.enabled.label}" />
+                        </Grid>
+                        <StackPanel x:Name="ShortBreakRows" Margin="0,4,0,0">
+                        <ctl:SettingRow x:Name="ShortIntervalRow"
+                                        Label="{loc:Str settings.shortBreaks.intervalMinutes.label}"
+                                        Help="{loc:Str settings.shortBreaks.intervalMinutes.help}"
+                                        Unit="{loc:Str unit.minutes}">
+                            <NumericUpDown x:Name="ShortIntervalInput" Minimum="2" Maximum="60" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="ShortDurationRow"
+                                        Label="{loc:Str settings.shortBreaks.durationSeconds.label}"
+                                        Help="{loc:Str settings.shortBreaks.durationSeconds.help}"
+                                        Unit="{loc:Str unit.seconds}">
+                            <NumericUpDown x:Name="ShortDurationInput" Minimum="5" Maximum="120" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="ShortFullscreenRow"
+                                        Label="{loc:Str settings.shortBreaks.fullscreen.label}"
+                                        Help="{loc:Str settings.shortBreaks.fullscreen.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="ShortFullscreenToggle" />
+                        </ctl:SettingRow>
+                        </StackPanel>
+                        <Button x:Name="TryShortBreakButton" Classes="text tryLink" Content="{loc:Str settings.tryShortBreak}" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="LongBreaksSectionCard" Classes="section">
+                    <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="LongBreaksSectionHeader"
+                                       Grid.Column="0"
+                                       Classes="sectionHeader"
+                                       VerticalAlignment="Center"
+                                       Text="{loc:Str settings.section.longBreaks}" />
+                            <ToggleSwitch x:Name="LongBreaksEnabledToggle"
+                                          Grid.Column="1"
+                                          AutomationProperties.Name="{loc:Str settings.longBreaks.enabled.label}" />
+                        </Grid>
+                        <StackPanel x:Name="LongBreakRows" Margin="0,4,0,0">
+                        <ctl:SettingRow x:Name="LongIntervalRow"
+                                        Label="{loc:Str settings.longBreaks.intervalMinutes.label}"
+                                        Help="{loc:Str settings.longBreaks.intervalMinutes.help}"
+                                        Unit="{loc:Str unit.minutes}">
+                            <NumericUpDown x:Name="LongIntervalInput" Minimum="15" Maximum="240" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="LongDurationRow"
+                                        Label="{loc:Str settings.longBreaks.durationMinutes.label}"
+                                        Help="{loc:Str settings.longBreaks.durationMinutes.help}"
+                                        Unit="{loc:Str unit.minutes}">
+                            <NumericUpDown x:Name="LongDurationInput" Minimum="1" Maximum="30" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="LongWarningRow"
+                                        Label="{loc:Str settings.longBreaks.warningSeconds.label}"
+                                        Help="{loc:Str settings.longBreaks.warningSeconds.help}"
+                                        Unit="{loc:Str unit.seconds}">
+                            <NumericUpDown x:Name="LongWarningInput" Minimum="0" Maximum="300" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="LongPostponeRow"
+                                        Label="{loc:Str settings.longBreaks.postponeMinutes.label}"
+                                        Help="{loc:Str settings.longBreaks.postponeMinutes.help}"
+                                        Unit="{loc:Str unit.minutes}">
+                            <NumericUpDown x:Name="LongPostponeInput" Minimum="1" Maximum="30" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="LongMaxPostponesRow"
+                                        Label="{loc:Str settings.longBreaks.maxPostpones.label}"
+                                        Help="{loc:Str settings.longBreaks.maxPostpones.help}">
+                            <NumericUpDown x:Name="LongMaxPostponesInput" Minimum="0" Maximum="10" />
+                        </ctl:SettingRow>
+                        </StackPanel>
+                        <Button x:Name="TryLongBreakButton" Classes="text tryLink" Content="{loc:Str settings.tryLongBreak}" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="BehaviourSectionCard" Classes="section">
+                    <StackPanel>
+                        <TextBlock x:Name="BehaviourSectionHeader" Classes="sectionHeader" Text="{loc:Str settings.section.behaviour}" />
+                        <StackPanel x:Name="BehaviourRows" Margin="0,4,0,0">
+                        <ctl:SettingRow x:Name="StrictModeRow"
+                                        Label="{loc:Str settings.strictMode.label}"
+                                        Help="{loc:Str settings.strictMode.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="StrictModeToggle" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="InactivityTrackingRow"
+                                        Label="{loc:Str settings.inactivityTracking.label}"
+                                        Help="{loc:Str settings.inactivityTracking.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="InactivityTrackingToggle" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="AwayThresholdRow"
+                                        Label="{loc:Str settings.awayThresholdSeconds.label}"
+                                        Help="{loc:Str settings.awayThresholdSeconds.help}"
+                                        Unit="{loc:Str unit.seconds}">
+                            <NumericUpDown x:Name="AwayThresholdInput" Minimum="30" Maximum="1800" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="PauseFullscreenRow"
+                                        Label="{loc:Str settings.pauseDuringFullscreen.label}"
+                                        Help="{loc:Str settings.pauseDuringFullscreen.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="PauseFullscreenToggle" />
+                        </ctl:SettingRow>
+                        <ctl:SettingRow x:Name="HasWindowNearbyRow"
+                                        Label="{loc:Str settings.hasWindowNearby.label}"
+                                        Help="{loc:Str settings.hasWindowNearby.help}"
+                                        HorizontalContentAlignment="Right">
+                            <ToggleSwitch x:Name="HasWindowNearbyToggle" />
+                        </ctl:SettingRow>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="AboutSectionCard" Classes="section">
+                    <StackPanel>
+                        <TextBlock x:Name="AboutSectionHeader" Classes="sectionHeader" Text="{loc:Str settings.section.about}" />
+                        <StackPanel Margin="0,6,0,0" Spacing="2">
+                            <TextBlock x:Name="AboutAppNameVersion"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}" />
+                            <TextBlock x:Name="AboutTagline"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="{loc:Str app.tagline}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

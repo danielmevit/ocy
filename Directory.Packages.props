@@ -1,0 +1,21 @@
+<Project>
+
+  <!-- Central package versions. Add or bump packages ONLY here. Checked against NuGet 2026-11-17. -->
+  <ItemGroup>
+    <!-- UI (no Inter font package: use the OS UI font, see docs/ai/DESIGN_SYSTEM.md) -->
+    <PackageVersion Include="Avalonia" Version="12.1.6" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.6" />
+
+    <!-- Windows services -->
+    <PackageVersion Include="Microsoft.Win32.SystemEvents" Version="10.0.15" />
+
+    <!-- Tests: xunit v3 3.2.x matches Avalonia.Headless.XUnit 12.1.6 (xunit.v3.extensibility.core 3.2.2) -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
+  </ItemGroup>
+
+</Project>

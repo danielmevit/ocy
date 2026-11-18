@@ -1,0 +1,1 @@
+- Added native vector mascot exercise illustrations (build-time SVG-to-AXAML converter, `ExerciseIllustration` control with stepped animation and reduced-motion support, integrated into short-break cards and long-break suggestions).

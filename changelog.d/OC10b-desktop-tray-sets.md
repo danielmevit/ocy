@@ -1,0 +1,1 @@
+- Dual tray icon sets (light and dark taskbars) packed and embedded; dynamically selected from Windows taskbar theme with app theme fallback.

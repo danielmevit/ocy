@@ -1,0 +1,21 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <Product>Ocy</Product>
+    <Company>damt.xyz</Company>
+    <Authors>Daniel Mitev (Daniel Mevit)</Authors>
+    <Copyright>Copyright (c) 2026 Daniel Mitev (Daniel Mevit)</Copyright>
+    <Version>0.1.2</Version>
+  </PropertyGroup>
+
+</Project>

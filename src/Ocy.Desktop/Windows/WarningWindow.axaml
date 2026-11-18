@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Ocy.Desktop.Windows.WarningWindow"
+        Topmost="True"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Width="392"
+        SizeToContent="Height">
+    <Panel>
+        <Border x:Name="CardBorder"
+                Margin="16"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="14,12"
+                BoxShadow="0 4 16 0 #2A000000">
+            <Grid RowDefinitions="Auto,Auto">
+                <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+                    <TextBlock x:Name="TitleText"
+                               FontWeight="SemiBold"
+                               FontSize="15"
+                               Foreground="{DynamicResource AttentionBrush}"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <TextBlock x:Name="StrictMarkerText"
+                               FontSize="12"
+                               Foreground="{DynamicResource AttentionBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               IsVisible="False" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Bottom">
+                    <Button x:Name="StartNowButton"
+                            Classes="accent"
+                            FontWeight="SemiBold"
+                            FontSize="13"
+                            Padding="12,6"
+                            Cursor="Hand" />
+
+                    <Button x:Name="PostponeButton"
+                            Classes="outline"
+                            FontSize="13"
+                            Padding="10,6"
+                            Cursor="Hand" />
+
+                    <Button x:Name="SkipButton"
+                            Classes="text"
+                            FontSize="13"
+                            Padding="8,6"
+                            Cursor="Hand" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Panel>
+</Window>

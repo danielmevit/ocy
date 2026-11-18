@@ -1,0 +1,474 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="using:Ocy.Desktop.Controls"
+             x:Class="Ocy.Desktop.App"
+             RequestedThemeVariant="Default">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Ocy/Illustrations/Generated/Illustrations.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <FontFamily x:Key="AppFontFamily">Segoe UI Variable, Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif</FontFamily>
+            <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
+            <CornerRadius x:Key="ButtonCornerRadius">6</CornerRadius>
+            <x:Double x:Key="Spacing2">2</x:Double>
+            <x:Double x:Key="Spacing4">4</x:Double>
+            <x:Double x:Key="Spacing6">6</x:Double>
+            <x:Double x:Key="Spacing8">8</x:Double>
+            <x:Double x:Key="Spacing10">10</x:Double>
+            <x:Double x:Key="Spacing16">16</x:Double>
+
+            <!-- Settings row: label + help on the left, a fixed 132 DIP control column on the right. -->
+            <ControlTheme x:Key="{x:Type ctl:SettingRow}" TargetType="ctl:SettingRow">
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <StackPanel>
+                            <Border x:Name="PART_Divider"
+                                    Height="1"
+                                    Margin="0"
+                                    Background="{DynamicResource DividerBrush}"
+                                    IsVisible="{TemplateBinding ShowDivider}" />
+                            <Border x:Name="PART_RowBorder" Padding="0,6" MinHeight="44">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel x:Name="PART_Text"
+                                                Grid.Column="0"
+                                                Spacing="2"
+                                                Margin="0,0,16,0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock x:Name="PART_Label"
+                                                   Text="{TemplateBinding Label}"
+                                                   FontSize="13"
+                                                   FontWeight="Regular"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock x:Name="PART_Help"
+                                                   Text="{TemplateBinding Help}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   IsVisible="{TemplateBinding Help, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                    <Panel Grid.Column="1"
+                                           Width="{x:Static ctl:SettingRow.ControlColumnWidth}"
+                                           VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal"
+                                                    Spacing="6"
+                                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}">
+                                            <ContentPresenter x:Name="PART_ContentPresenter"
+                                                              Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                              VerticalAlignment="Center" />
+                                            <TextBlock x:Name="PART_Unit"
+                                                       Text="{TemplateBinding Unit}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{TemplateBinding Unit, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        </StackPanel>
+                                    </Panel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:disabled /template/ StackPanel#PART_Text">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Style>
+                <Style Selector="^:disabled /template/ TextBlock#PART_Unit">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Style>
+            </ControlTheme>
+
+            <!-- Compact spinner for NumericUpDown: small stacked up/down buttons on the right. -->
+            <ControlTheme x:Key="CompactSpinnerRepeatButton" TargetType="RepeatButton">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover">
+                    <Setter Property="Background" Value="{DynamicResource ButtonOutlineHoverBrush}" />
+                </Style>
+                <Style Selector="^:pressed">
+                    <Setter Property="Background" Value="{DynamicResource ButtonOutlinePressedBrush}" />
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="CompactButtonSpinner" TargetType="ButtonSpinner">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{DynamicResource ButtonCornerRadius}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border x:Name="PART_Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                ClipToBounds="True">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ContentPresenter x:Name="PART_ContentPresenter"
+                                                  Grid.Column="0"
+                                                  Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  Padding="{TemplateBinding Padding}"
+                                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                <Grid Grid.Column="1"
+                                      Width="18"
+                                      RowDefinitions="*,*"
+                                      IsVisible="{TemplateBinding ShowButtonSpinner}">
+                                    <RepeatButton x:Name="PART_IncreaseButton"
+                                                  Grid.Row="0"
+                                                  Theme="{StaticResource CompactSpinnerRepeatButton}">
+                                        <Path Data="M0,4 L4,0 L8,4"
+                                              Stroke="{DynamicResource TextMutedBrush}"
+                                              StrokeThickness="1.2" />
+                                    </RepeatButton>
+                                    <RepeatButton x:Name="PART_DecreaseButton"
+                                                  Grid.Row="1"
+                                                  Theme="{StaticResource CompactSpinnerRepeatButton}">
+                                        <Path Data="M0,0 L4,4 L8,0"
+                                              Stroke="{DynamicResource TextMutedBrush}"
+                                              StrokeThickness="1.2" />
+                                    </RepeatButton>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover /template/ Border#PART_Border">
+                    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+                </Style>
+                <Style Selector="^:focus-within /template/ Border#PART_Border">
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </Style>
+                <Style Selector="^:disabled">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Style>
+            </ControlTheme>
+
+            <!-- Compact toggle: the 40x20 switch only, without the On/Off content column, so right edges align.
+                 Same knob style as the Fluent overrides: accent family in both states. -->
+            <ControlTheme x:Key="CompactToggleSwitch" TargetType="ToggleSwitch">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Grid x:Name="SwitchAreaGrid" Width="40" Height="20" Background="Transparent">
+                            <Border x:Name="OuterBorder"
+                                    CornerRadius="10"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ToggleSwitchFillOff}"
+                                    BorderBrush="{DynamicResource ToggleSwitchStrokeOff}" />
+                            <Border x:Name="SwitchKnobBounds"
+                                    CornerRadius="10"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ToggleSwitchFillOn}"
+                                    BorderBrush="{DynamicResource ToggleSwitchStrokeOn}" />
+                            <Canvas x:Name="PART_SwitchKnob" Width="20" Height="20" HorizontalAlignment="Left">
+                                <Grid x:Name="PART_MovingKnobs" Width="20" Height="20">
+                                    <Ellipse x:Name="SwitchKnobOn"
+                                             Width="10"
+                                             Height="10"
+                                             Fill="{DynamicResource ToggleSwitchKnobFillOn}" />
+                                    <Ellipse x:Name="SwitchKnobOff"
+                                             Width="10"
+                                             Height="10"
+                                             Fill="{DynamicResource ToggleSwitchKnobFillOff}" />
+                                </Grid>
+                            </Canvas>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:checked /template/ Border#OuterBorder">
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+                <Style Selector="^:checked /template/ Ellipse#SwitchKnobOff">
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+                <Style Selector="^:unchecked /template/ Border#SwitchKnobBounds">
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+                <Style Selector="^:unchecked /template/ Ellipse#SwitchKnobOn">
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+                <Style Selector="^:pointerover /template/ Border#SwitchKnobBounds">
+                    <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnPointerOver}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnPointerOver}" />
+                </Style>
+                <Style Selector="^:pointerover /template/ Border#OuterBorder">
+                    <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOffPointerOver}" />
+                </Style>
+                <Style Selector="^:pointerover /template/ Ellipse#SwitchKnobOff">
+                    <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOffPointerOver}" />
+                </Style>
+                <Style Selector="^:pressed /template/ Border#SwitchKnobBounds">
+                    <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnPressed}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnPressed}" />
+                </Style>
+                <Style Selector="^:pressed /template/ Border#OuterBorder">
+                    <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOffPressed}" />
+                </Style>
+                <Style Selector="^:disabled">
+                    <Setter Property="Opacity" Value="0.4" />
+                </Style>
+            </ControlTheme>
+
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="BgColor">#F6F7F5</Color>
+                    <Color x:Key="SurfaceColor">#FFFFFF</Color>
+                    <Color x:Key="TextColor">#1B1E1F</Color>
+                    <Color x:Key="TextMutedColor">#5A6064</Color>
+                    <Color x:Key="AccentColor">#2F7D62</Color>
+                    <Color x:Key="OnAccentColor">#FFFFFF</Color>
+                    <Color x:Key="ErrorColor">#B3261E</Color>
+                    <Color x:Key="AttentionColor">#B04E2C</Color>
+                    <Color x:Key="BorderColor">#665A6064</Color>
+                    <Color x:Key="OverlayColor">#C7000000</Color>
+                    <Color x:Key="DividerColor">#141B1E1F</Color>
+
+                    <!-- Fluent accent overrides (Light) -->
+                    <Color x:Key="SystemAccentColor">#2F7D62</Color>
+                    <Color x:Key="SystemAccentColorLight1">#469377</Color>
+                    <Color x:Key="SystemAccentColorLight2">#66AB91</Color>
+                    <Color x:Key="SystemAccentColorLight3">#8EC4AF</Color>
+                    <Color x:Key="SystemAccentColorDark1">#24654F</Color>
+                    <Color x:Key="SystemAccentColorDark2">#1A4D3C</Color>
+                    <Color x:Key="SystemAccentColorDark3">#11352A</Color>
+
+                    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+                    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="{StaticResource OnAccentColor}" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+                    <SolidColorBrush x:Key="AttentionBrush" Color="{StaticResource AttentionColor}" />
+                    <SolidColorBrush x:Key="AttentionFrameBrush" Color="{StaticResource AttentionColor}" Opacity="0.55" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+                    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}" />
+                    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}" />
+                    <SolidColorBrush x:Key="ProgressBarTrackBrush" Color="#1A1B1E1F" />
+                    <SolidColorBrush x:Key="EdgeFrameBrush" Color="{StaticResource AccentColor}" Opacity="0.55" />
+
+                    <!-- Button state brushes (Light) -->
+                    <SolidColorBrush x:Key="ButtonAccentHoverBrush" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ButtonAccentPressedBrush" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ButtonOutlineHoverBrush" Color="#121B1E1F" />
+                    <SolidColorBrush x:Key="ButtonOutlinePressedBrush" Color="#1F1B1E1F" />
+
+                    <!-- Fluent ToggleSwitch overrides (Light) -->
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="BgColor">#17191A</Color>
+                    <Color x:Key="SurfaceColor">#212426</Color>
+                    <Color x:Key="TextColor">#ECEEEC</Color>
+                    <Color x:Key="TextMutedColor">#A4ABAF</Color>
+                    <Color x:Key="AccentColor">#5FBF97</Color>
+                    <Color x:Key="OnAccentColor">#0F1A15</Color>
+                    <Color x:Key="ErrorColor">#FF8A80</Color>
+                    <Color x:Key="AttentionColor">#E08A64</Color>
+                    <Color x:Key="BorderColor">#4DA4ABAF</Color>
+                    <Color x:Key="OverlayColor">#D1000000</Color>
+                    <Color x:Key="DividerColor">#14ECEEEC</Color>
+
+                    <!-- Fluent accent overrides (Dark) -->
+                    <Color x:Key="SystemAccentColor">#5FBF97</Color>
+                    <Color x:Key="SystemAccentColorLight1">#78CBA9</Color>
+                    <Color x:Key="SystemAccentColorLight2">#95D7BC</Color>
+                    <Color x:Key="SystemAccentColorLight3">#B6E5D1</Color>
+                    <Color x:Key="SystemAccentColorDark1">#4DA380</Color>
+                    <Color x:Key="SystemAccentColorDark2">#3B8769</Color>
+                    <Color x:Key="SystemAccentColorDark3">#2A6B53</Color>
+
+                    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+                    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="{StaticResource OnAccentColor}" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+                    <SolidColorBrush x:Key="AttentionBrush" Color="{StaticResource AttentionColor}" />
+                    <SolidColorBrush x:Key="AttentionFrameBrush" Color="{StaticResource AttentionColor}" Opacity="0.55" />
+                    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+                    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}" />
+                    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}" />
+                    <SolidColorBrush x:Key="ProgressBarTrackBrush" Color="#1AECEEEC" />
+                    <SolidColorBrush x:Key="EdgeFrameBrush" Color="{StaticResource AccentColor}" Opacity="0.55" />
+
+                    <!-- Button state brushes (Dark) -->
+                    <SolidColorBrush x:Key="ButtonAccentHoverBrush" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ButtonAccentPressedBrush" Color="{StaticResource SystemAccentColorDark2}" />
+                    <SolidColorBrush x:Key="ButtonOutlineHoverBrush" Color="#12ECEEEC" />
+                    <SolidColorBrush x:Key="ButtonOutlinePressedBrush" Color="#1FECEEEC" />
+
+                    <!-- Fluent ToggleSwitch overrides (Dark) -->
+                    <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{StaticResource SurfaceColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="Transparent" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{StaticResource AccentColor}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{StaticResource SystemAccentColorLight1}" />
+                    <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{StaticResource SystemAccentColorDark1}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Light" Accent="#2F7D62" RegionColor="#F6F7F5" ErrorText="#B3261E" />
+                <ColorPaletteResources x:Key="Dark" Accent="#5FBF97" RegionColor="#17191A" ErrorText="#FF8A80" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="ToggleSwitch:checked /template/ Ellipse#SwitchKnobOn">
+            <Setter Property="Fill" Value="{DynamicResource SurfaceBrush}" />
+        </Style>
+        <Style Selector="ToggleSwitch:unchecked /template/ Border#SwitchKnobBounds">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="ToggleSwitch:unchecked /template/ Ellipse#SwitchKnobOff">
+            <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+            <Setter Property="FontStyle" Value="Normal" />
+            <Setter Property="Background" Value="{DynamicResource BgBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+            <Setter Property="FontStyle" Value="Normal" />
+        </Style>
+
+        <!-- App-level Button Classes -->
+        <!-- Button.accent -->
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ButtonCornerRadius}" />
+        </Style>
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonAccentHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        </Style>
+        <Style Selector="Button.accent:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonAccentPressedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        </Style>
+        <Style Selector="Button.accent:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+
+        <!-- Button.outline -->
+        <Style Selector="Button.outline">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ButtonCornerRadius}" />
+        </Style>
+        <Style Selector="Button.outline:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonOutlineHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="Button.outline:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonOutlinePressedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="Button.outline:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+
+        <!-- Button.text -->
+        <Style Selector="Button.text">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="Button.text:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="Button.text:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+        <Style Selector="Button.text:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+    </Application.Styles>
+</Application>

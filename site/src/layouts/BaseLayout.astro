@@ -1,0 +1,112 @@
+---
+import '../styles/global.css';
+import faviconSvg from '../../../assets/icons/app/ocy-app.svg?url';
+import faviconPng from '../../../assets/icons/app/png/ocy-app-32.png?url';
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  noindex?: boolean;
+  includeOgImage?: boolean;
+  ogImageAlt?: string;
+}
+
+const {
+  title,
+  description,
+  canonicalPath,
+  noindex = false,
+  includeOgImage = true,
+  ogImageAlt = 'Ocy, a calm break reminder for your eyes on Windows, showing its sprout mascot and a short eye-exercise card.',
+} = Astro.props;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
+const cleanPath = canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`;
+const canonicalUrl = `${origin}${base}${cleanPath}`;
+const ogImageUrl = `${origin}${base}/assets/og.png`;
+const repoUrl = 'https://github.com/danielmevit/ocy';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+
+    <link rel="icon" type="image/svg+xml" href={faviconSvg} />
+    <link rel="icon" type="image/png" sizes="32x32" href={faviconPng} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href={`${base}/llms.txt`}
+      title="LLM Summary"
+    />
+
+    <meta name="description" content={description} />
+    <meta name="author" content="Daniel Mevit" />
+    <meta name="theme-color" content="#F6F7F5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#17191A" media="(prefers-color-scheme: dark)" />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content="Ocy" />
+    {includeOgImage && (
+      <>
+        <meta property="og:image" content={ogImageUrl} />
+        <meta property="og:image:alt" content={ogImageAlt} />
+        <meta name="twitter:image" content={ogImageUrl} />
+        <meta name="twitter:image:alt" content={ogImageAlt} />
+      </>
+    )}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary">
+        <a class="brand" href={`${base}/`}>
+          <img src={faviconSvg} alt="" width="22" height="22" />
+          <span>Ocy</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-hide-sm" href={`${base}/#why`}>Why Ocy</a>
+          <a class="nav-hide-sm" href={`${base}/#exercises`}>Exercises</a>
+          <a class="nav-hide-sm" href={`${base}/#how`}>Schedule</a>
+          <a class="nav-hide-sm" href={`${base}/#faq`}>FAQ</a>
+          <a href={repoUrl}>GitHub</a>
+          <a class="nav-cta" href={`${repoUrl}/releases/latest`}>Download</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        &copy; 2026 <a href="https://github.com/danielmevit">Daniel Mevit</a> &middot; Made by
+        <a href="https://damt.xyz">damt.xyz</a>
+      </div>
+      <div class="footer-links">
+        <a href={repoUrl}>GitHub</a>
+        <a href={`${repoUrl}/releases`}>Releases</a>
+        <a href={`${repoUrl}/blob/main/CHANGELOG.md`}>Changelog</a>
+        <a href={`${repoUrl}/blob/main/LICENSE`}>License</a>
+        <a href={`${base}/privacy/`}>Privacy</a>
+      </div>
+    </footer>
+  </body>
+</html>

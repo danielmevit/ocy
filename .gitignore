@@ -1,0 +1,26 @@
+# build output
+bin/
+obj/
+artifacts/
+publish/
+*.binlog
+TestResults/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# local tooling
+.codegraph/
+*.log
+.DS_Store
+Thumbs.db
+
+# Astro site
+site/node_modules/
+site/dist/
+site/.astro/
+

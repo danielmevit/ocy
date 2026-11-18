@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Ocy</AssemblyName>
+    <RootNamespace>Ocy.Desktop</RootNamespace>
+    <ApplicationIcon>..\..\assets\icons\app\ocy.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ocy.Abstractions\Ocy.Abstractions.csproj" />
+    <ProjectReference Include="..\Ocy.Core\Ocy.Core.csproj" />
+    <ProjectReference Include="..\Ocy.Platform.Windows\Ocy.Platform.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="../../assets/icons/app/ocy.ico" Link="Assets/ocy.ico" />
+    <AvaloniaResource Include="Assets/Tray/**/*.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../../content/strings/en.json" LogicalName="Ocy.Strings.en.json" Link="Resources/en.json" />
+    <EmbeddedResource Include="Illustrations/Generated/manifest.json" LogicalName="Ocy.Illustrations.manifest.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Ocy.Desktop.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Ocy.Desktop.RenderTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

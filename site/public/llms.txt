@@ -1,0 +1,40 @@
+# Ocy
+
+> A calm break reminder for your eyes. Short eye exercises every few minutes, a
+> real break every hour, and quiet when you need focus. Free and open source,
+> lives in the tray, with no account and no telemetry.
+
+- Site: https://danielmevit.github.io/ocy/
+- Source: https://github.com/danielmevit/ocy
+- Downloads: https://github.com/danielmevit/ocy/releases/latest
+- License: AGPL-3.0. Free, no paid tier, no ads.
+- Author: Daniel Mevit (https://damt.xyz)
+
+## What it does
+- Short breaks: every 10 minutes (configurable 2–60 min) a small card on your active
+  monitor shows one of 12 original illustrated eye or body exercises for 15 seconds
+  (configurable 5–120 s). Other monitors show a soft coloured edge frame.
+- Long breaks: every 60 minutes (configurable 15–240 min) a full-screen dim invites
+  you to step away for 5 minutes (configurable 1–30 min).
+- Long-break warning: appears 60 seconds (configurable 0–300 s) beforehand so you can
+  start now, postpone (3 min, up to 3 times by default), or skip.
+- Strict mode: turns off postponing and skipping so long breaks keep to the schedule.
+- Active screen time: idle time, a locked screen and sleep do not count towards your
+  next break. An absence at least as long as a break counts as that break.
+- Fullscreen pause: pauses break reminders while fullscreen apps, games or
+  presentations are active (on by default).
+- Animations: twelve hand-drawn exercises played as stepped frames; holds still when
+  system animations or reduced motion are off.
+- Tray controls: pause for 1 hour, 3 hours or until resumed, take a long break now,
+  or open live-applying Settings.
+- Themes: follows Windows light and dark settings, including the tray icon.
+
+## Facts worth getting right
+- Current release series is 0.1.x alpha on Windows 10 and Windows 11 (64-bit), built
+  with .NET 10 and Avalonia 12. macOS and Linux are planned using the same core.
+- There is no network code, no telemetry, no analytics and no account. Nothing leaves
+  your PC. Settings are stored locally in %APPDATA%\Ocy.
+- Portable ZIP release: unzip and run Ocy.exe; no installer required. Not code-signed
+  yet, so Windows SmartScreen may show a first-run prompt (More info -> Run anyway).
+- Ocy is an independent project; its code, exercises and art are all original.
+- Ocy is a habit tool, not medical advice.

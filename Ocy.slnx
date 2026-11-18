@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ocy.Abstractions/Ocy.Abstractions.csproj" />
+    <Project Path="src/Ocy.Core/Ocy.Core.csproj" />
+    <Project Path="src/Ocy.Desktop/Ocy.Desktop.csproj" />
+    <Project Path="src/Ocy.Platform.Windows/Ocy.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ocy.Core.Tests/Ocy.Core.Tests.csproj" />
+    <Project Path="tests/Ocy.Desktop.Tests/Ocy.Desktop.Tests.csproj" />
+    <Project Path="tests/Ocy.Desktop.RenderTests/Ocy.Desktop.RenderTests.csproj" />
+    <Project Path="tests/Ocy.Platform.Windows.Tests/Ocy.Platform.Windows.Tests.csproj" />
+  </Folder>
+</Solution>

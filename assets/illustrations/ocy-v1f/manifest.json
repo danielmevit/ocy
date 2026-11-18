@@ -1,0 +1,226 @@
+{
+  "version": "v1f",
+  "palette": "green",
+  "viewBox": [
+    0,
+    0,
+    64,
+    64
+  ],
+  "exercises": {
+    "blink": {
+      "frames": 3,
+      "sequence": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        3,
+        3,
+        2
+      ],
+      "stepMs": 240,
+      "frozen": 1
+    },
+    "look-left-right": {
+      "frames": 3,
+      "sequence": [
+        1,
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        2
+      ],
+      "stepMs": 320,
+      "frozen": 1
+    },
+    "stretch-arms": {
+      "frames": 3,
+      "sequence": [
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        3,
+        2
+      ],
+      "stepMs": 380,
+      "frozen": 3
+    },
+    "close-tight": {
+      "frames": 4,
+      "sequence": [
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        4,
+        4,
+        1
+      ],
+      "stepMs": 280,
+      "frozen": 1
+    },
+    "roll": {
+      "frames": 6,
+      "sequence": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "stepMs": 340,
+      "frozen": 1
+    },
+    "look-up-down": {
+      "frames": 3,
+      "sequence": [
+        1,
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        2
+      ],
+      "stepMs": 320,
+      "frozen": 1
+    },
+    "near-far": {
+      "frames": 2,
+      "sequence": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "stepMs": 420,
+      "frozen": 1
+    },
+    "window-far": {
+      "frames": 3,
+      "sequence": [
+        1,
+        2,
+        1,
+        2,
+        1,
+        2,
+        3,
+        1
+      ],
+      "stepMs": 440,
+      "frozen": 1
+    },
+    "palming": {
+      "frames": 4,
+      "sequence": [
+        1,
+        2,
+        3,
+        2,
+        1,
+        2,
+        3,
+        2,
+        1,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "stepMs": 240,
+      "frozen": 4
+    },
+    "figure-eight": {
+      "frames": 7,
+      "sequence": [
+        1,
+        2,
+        3,
+        4,
+        1,
+        5,
+        6,
+        7
+      ],
+      "stepMs": 300,
+      "frozen": 1
+    },
+    "neck-shoulders": {
+      "frames": 8,
+      "sequence": [
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        2,
+        1,
+        4,
+        5,
+        5,
+        5,
+        4,
+        1,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        1,
+        1
+      ],
+      "stepMs": 360,
+      "frozen": 1
+    },
+    "stand-walk": {
+      "frames": 4,
+      "sequence": [
+        1,
+        1,
+        1,
+        2,
+        2,
+        3,
+        4,
+        4,
+        4
+      ],
+      "stepMs": 360,
+      "frozen": 2
+    }
+  }
+}
