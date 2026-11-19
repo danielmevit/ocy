@@ -1,0 +1,27 @@
+[package]
+name = "ocy-ui"
+description = "Ocy's Slint UI surfaces: short-break card, long-break warning, long-break card and settings window."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# Software renderer only (PLAN D2): never enable femtovg. The host adds its backend features.
+slint = { version = "=1.19.0", default-features = false, features = ["std", "compat-1-18", "renderer-software"] }
+
+[build-dependencies]
+slint-build.workspace = true
+damt-ui = { path = "../../../crates/damt-ui" }
+
+[dev-dependencies]
+damt-art = { path = "../../../crates/damt-art" }
+png = "=0.18.1"
+i-slint-backend-testing = "=1.19.0"
+
+[[example]]
+name = "gallery"
+
+[lints]
+workspace = true

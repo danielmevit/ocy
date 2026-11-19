@@ -1,0 +1,94 @@
+name: Rust
+
+# Builds and tests the Rust workspace (rust/) on Linux and Windows. See docs/rust/PLAN.md.
+on:
+  push:
+    branches: ["main", "dev"]
+    paths: ["rust/**", ".github/workflows/rust.yml", "assets/**", "content/strings/**", "tests/Ocy.Core.Tests/**"]
+  pull_request:
+    paths: ["rust/**", ".github/workflows/rust.yml"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --workspace --locked
+      - name: Parity with the C# engine tests
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: python3 rust/tools/parity_check.py
+      - name: Release tools unit tests
+        if: runner.os == 'Linux'
+        working-directory: .
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover rust/tools/tests
+
+  windows-release:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Toolchain (from rust-toolchain.toml)
+        working-directory: rust
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Build release binary
+        working-directory: rust
+        run: cargo build -p ocy-app --release --locked
+      - name: Check Ocy.exe size budget (<= 15 MB)
+        shell: pwsh
+        run: |
+          $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "rust/target" }
+          $exePath = Join-Path $targetDir "release/Ocy.exe"
+          $exe = Get-Item $exePath
+          $bytes = $exe.Length
+          $mib = [math]::Round($bytes / 1MB, 2)
+          $budgetBytes = 15 * 1024 * 1024
+          Write-Host ("Ocy.exe size: {0} bytes ({1} MiB; budget: {2} bytes / 15 MiB)" -f $bytes, $mib, $budgetBytes)
+          if ($bytes -gt $budgetBytes) {
+            Write-Error ("Ocy.exe exceeds 15 MiB budget: {0} bytes > {1} bytes" -f $bytes, $budgetBytes)
+            exit 1
+          }
+      - name: Generate third-party notices
+        run: python rust/tools/notices.py --out "${{ runner.temp }}/THIRD-PARTY-NOTICES.txt"
+      - name: Build deterministic release zip
+        shell: pwsh
+        run: |
+          $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "rust/target" }
+          $exePath = Join-Path $targetDir "release/Ocy.exe"
+          python rust/tools/dist.py --exe $exePath --notices "${{ runner.temp }}/THIRD-PARTY-NOTICES.txt" --out dist
+      - name: Upload release zip and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-win-x64
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error

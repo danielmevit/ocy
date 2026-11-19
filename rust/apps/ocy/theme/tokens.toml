@@ -1,0 +1,153 @@
+# Ocy's design tokens — the single source of truth for the app's colours, radii, spacing and type
+# sizes (docs/ai/DESIGN_SYSTEM.md). The damt-theme crate validates this file and generates
+# theme.slint / tokens.css / tokens.rs into generated/:
+#
+#   cargo run -p damt-theme --example gen -- apps/ocy/theme/tokens.toml apps/ocy/theme/generated
+#
+# Format: [color.<name>] with `light`/`dark` hex values (#RRGGBB or #RRGGBBAA), or a shared
+# `ref` + `alpha` (0..=1) that re-tints another token's alpha channel. `alpha` may be per-theme
+# (`{ light = …, dark = … }`), and `light`/`dark` may each be a `{ ref = "…" }` table.
+#
+# Website name mapping (site/src/styles/global.css keeps its own shorter names):
+#   --color-bg → --bg            --color-text-muted → --muted
+#   --color-surface → --surface --color-accent → --accent
+#   --color-text → --text        --color-on-accent → --on-accent
+#   --color-attention → --clay   --color-divider → --divider
+#   --color-border → --border
+# The site also keeps its own --radius-card (10px, airier than the app's 8px) and art-only
+# variables (--tint, --mint, --wash, --disc, --bezel, --wall-*, --taskbar*, --line, --shadow);
+# only the shared colour tokens above are meant to follow this file.
+
+# --- Core palette (DESIGN_SYSTEM token table) ----------------------------------------------
+
+[color.bg]
+light = "#F6F7F5"          # windows
+dark = "#17191A"
+
+[color.surface]
+light = "#FFFFFF"           # cards
+dark = "#212426"
+
+[color.text]
+light = "#1B1E1F"           # primary text
+dark = "#ECEEEC"
+
+[color.text-muted]
+light = "#5A6064"           # secondary text (AA on Surface)
+dark = "#A4ABAF"
+
+[color.accent]
+light = "#2F7D62"           # buttons, progress, focus ring
+dark = "#5FBF97"
+
+[color.on-accent]
+light = "#FFFFFF"           # text on accent-filled buttons (AA)
+dark = "#0F1A15"
+
+[color.error]
+light = "#B3261E"           # inline error text (AA)
+dark = "#FF8A80"
+
+[color.attention]
+light = "#B04E2C"           # clay: the warning state (AA on Surface)
+dark = "#E08A64"
+
+# --- Derived colours (the design system's "@ x %" rules) -----------------------------------
+
+[color.border]
+ref = "text-muted"          # BorderColor: TextMuted @ 40 % light, @ 30 % dark
+alpha = { light = 0.40, dark = 0.30 }
+
+[color.overlay]
+light = "#000000C7"         # long-break dim: black @ 78 % light, @ 82 % dark
+dark = "#000000D1"
+
+[color.divider]
+ref = "text"                # DividerColor: Text @ 8 % in both themes
+alpha = 0.08
+
+[color.progress-track]
+ref = "text"                # ProgressBarTrackBrush: Text @ 10 %
+alpha = 0.10
+
+[color.button-outline-hover]
+ref = "text"                # ButtonOutlineHoverBrush: Text @ 7 %
+alpha = 0.07
+
+[color.button-outline-pressed]
+ref = "text"                # ButtonOutlinePressedBrush: Text @ 12 %
+alpha = 0.12
+
+[color.attention-frame]
+ref = "attention"           # AttentionFrameBrush: Attention @ 55 % brush alpha
+alpha = 0.55
+
+[color.edge-frame]
+ref = "accent"              # EdgeFrameBrush: the 3 DIP edge indicator, Accent @ 55 % brush alpha
+alpha = 0.55
+
+# --- Fluent accent ramp (SystemAccentColor* in App.axaml) ----------------------------------
+
+[color.system-accent]
+light = "#2F7D62"
+dark = "#5FBF97"
+
+[color.system-accent-light-1]
+light = "#469377"
+dark = "#78CBA9"
+
+[color.system-accent-light-2]
+light = "#66AB91"
+dark = "#95D7BC"
+
+[color.system-accent-light-3]
+light = "#8EC4AF"
+dark = "#B6E5D1"
+
+[color.system-accent-dark-1]
+light = "#24654F"
+dark = "#4DA380"
+
+[color.system-accent-dark-2]
+light = "#1A4D3C"
+dark = "#3B8769"
+
+[color.system-accent-dark-3]
+light = "#11352A"
+dark = "#2A6B53"
+
+# --- Button state colours (ButtonAccent*Brush in App.axaml) --------------------------------
+
+[color.button-accent-hover]
+light = { ref = "system-accent-light-1" }
+dark = { ref = "system-accent-dark-1" }
+
+[color.button-accent-pressed]
+light = { ref = "system-accent-dark-1" }
+dark = { ref = "system-accent-dark-2" }
+
+# --- Corner radii (px) ----------------------------------------------------------------------
+
+[radius]
+card = 8                    # CardCornerRadius
+button = 6                  # ButtonCornerRadius
+toggle = 10                  # the 40x20 toggle pill
+
+# --- Spacing scale (px) ---------------------------------------------------------------------
+
+[space]
+2 = 2                       # Spacing2
+4 = 4                       # Spacing4
+6 = 6                       # Spacing6
+8 = 8                       # Spacing8
+10 = 10                     # Spacing10
+16 = 16                     # Spacing16
+
+# --- Font sizes (px) ------------------------------------------------------------------------
+
+[font.size]
+help = 12                   # SettingRow help/unit text
+label = 13                  # SettingRow label
+body = 14                   # long-break body
+title = 20                  # long-break title (SemiBold)
+countdown = 56              # the long-break countdown numerals

@@ -99,6 +99,7 @@
   "tray.menu.quit": "Quit Ocy",
   "tray.menu.resume": "Resume reminders",
   "tray.menu.settings": "Settings",
+  "tray.menu.takeShortBreak": "Take a short break now",
   "tray.menu.takeLongBreak": "Take a long break now",
   "tray.tooltip.onBreak": "On a break",
   "tray.tooltip.paused": "Paused for {time} more",

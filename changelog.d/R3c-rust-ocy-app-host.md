@@ -1,0 +1,1 @@
+- Added `rust/apps/ocy/ocy-app` (`Ocy.exe`): single-instance tray host, 1 s engine tick, session-event forwarding, autosave, localized tray menu with light/dark taskbar icon selection, break coordinator with real `damt-overlay` edge frames/dims and stubbed card traits, Windows per-monitor-v2 manifest, `--report-memory` diagnostic flag, and 48 ported desktop tests.

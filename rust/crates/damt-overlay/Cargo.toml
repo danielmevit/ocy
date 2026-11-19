@@ -1,0 +1,17 @@
+[package]
+name = "damt-overlay"
+description = "Native layered Win32 overlay windows for the damt.xyz apps: click-through edge frames and long-break dims."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+damt-platform.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[lints]
+workspace = true

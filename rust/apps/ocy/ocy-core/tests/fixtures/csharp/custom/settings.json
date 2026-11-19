@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "shortBreaks": {
+    "enabled": false,
+    "intervalMinutes": 7,
+    "durationSeconds": 25,
+    "fullscreen": true
+  },
+  "longBreaks": {
+    "enabled": true,
+    "intervalMinutes": 45,
+    "durationMinutes": 8,
+    "warningSeconds": 30,
+    "postponeMinutes": 5,
+    "maxPostpones": 2
+  },
+  "strictMode": true,
+  "sounds": true,
+  "inactivityTracking": false,
+  "awayThresholdSeconds": 300,
+  "pauseDuringFullscreen": false,
+  "hasWindowNearby": false,
+  "statusNotifications": false,
+  "startWithSystem": true,
+  "language": "mk"
+}

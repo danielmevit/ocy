@@ -1,0 +1,1 @@
+- Rust (`ocy-core`): ported Ocy's break engine, settings, statistics, exercise catalogue/picker, schedule calculator, and atomic .NET-compatible JSON persistence (`settings.json`, `state.json`, `stats.json`) with full 67/67 C# test parity, byte-identical fixture round-trips, and 3 `proptest` invariants.

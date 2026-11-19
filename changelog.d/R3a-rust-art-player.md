@@ -1,0 +1,2 @@
+- Added the `damt-art` Rust crate with manifest parsing, stepped sequencing, SVG frame sources, resvg rasterisation, and a bounded LRU image cache.
+- Fixed SVG rasterisation to scale and position every frame on the 64-unit artboard, and reduced resvg features to eliminate unused font and image dependencies.

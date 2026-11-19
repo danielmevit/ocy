@@ -24,3 +24,10 @@ site/node_modules/
 site/dist/
 site/.astro/
 
+
+# Rust (builds use CARGO_TARGET_DIR outside the repo; this catches accidental local builds)
+rust/target/
+
+# Python
+__pycache__/
+*.py[cod]

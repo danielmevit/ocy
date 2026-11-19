@@ -1,0 +1,38 @@
+[package]
+name = "ocy-app"
+description = "Ocy desktop application host: tray, break coordination, native overlays, and Windows packaging."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "Ocy"
+path = "src/main.rs"
+
+[dependencies]
+damt-app = { path = "../../../crates/damt-app" }
+damt-art = { path = "../../../crates/damt-art" }
+damt-overlay = { path = "../../../crates/damt-overlay" }
+damt-platform.workspace = true
+damt-platform-win = { path = "../../../crates/damt-platform-win" }
+damt-theme = { path = "../../../crates/damt-theme" }
+jiff.workspace = true
+ocy-core = { path = "../ocy-core" }
+ocy-ui = { path = "../ocy-ui" }
+raw-window-handle.workspace = true
+resvg.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+slint.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_System_Console", "Win32_System_ProcessStatus"] }
+
+[build-dependencies]
+damt-build.workspace = true
+embed-manifest.workspace = true
+
+[lints]
+workspace = true

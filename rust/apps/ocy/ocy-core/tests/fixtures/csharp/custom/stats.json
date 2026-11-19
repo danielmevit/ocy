@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "days": [
+    {
+      "date": "2026-11-18",
+      "shortCompleted": 21,
+      "shortSkipped": 3,
+      "longCompleted": 4,
+      "longSkipped": 1,
+      "longPostponed": 2,
+      "absencesCredited": 5,
+      "activeMinutes": 412
+    },
+    {
+      "date": "2026-11-19",
+      "shortCompleted": 6,
+      "shortSkipped": 0,
+      "longCompleted": 0,
+      "longSkipped": 0,
+      "longPostponed": 0,
+      "absencesCredited": 0,
+      "activeMinutes": 95
+    }
+  ]
+}
