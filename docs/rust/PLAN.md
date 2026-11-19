@@ -217,6 +217,13 @@ faster to start.
 | Antivirus false positives on a small unsigned exe | code signing in R5; submit to Microsoft for analysis if flagged |
 
 ## 12. Roadmap after 0.2.0 (all 0.2.x; owner, 2026-11-19)
+**The split (owner, 2026-11-19):**
+- **0.2.0** = the Rust parity release: R4a–R4g (incl. D12/D13 tray), green CI on Linux and Windows, runtime
+  parity checks, README/site update.
+- **0.2.1** = everything below, starting with the Settings redesign + palette (owner picks from V1/V2) and the
+  away/deferred wake-up optimisation.
+- No deadline: "no one is waiting for the push, take your time".
+
 Things already built will get proper adjustments when their turn comes.
 - **Colours and contrast (Opus):**
   - audit every text, surface, border, state and overlay pair in light and dark against WCAG AA (normal text
