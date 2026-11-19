@@ -38,6 +38,13 @@ function repoRoot(): string {
 }
 
 export function readAppVersion(): string {
+  // 0.2.0+: the Rust workspace version is the app version.
+  const cargoPath = path.join(repoRoot(), 'rust', 'Cargo.toml');
+  if (fs.existsSync(cargoPath)) {
+    const ws = fs.readFileSync(cargoPath, 'utf8').split('[workspace.package]')[1];
+    const m = ws?.match(/^version\s*=\s*"([^"]+)"/m);
+    if (m && m[1]) return m[1];
+  }
   const propsPath = path.join(repoRoot(), 'Directory.Build.props');
   if (!fs.existsSync(propsPath)) {
     throw new Error(`Directory.Build.props not found at ${propsPath}`);

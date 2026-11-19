@@ -10,16 +10,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/danielmevit/ocy/releases"><img src="https://img.shields.io/github/v/release/danielmevit/ocy?include_prereleases&display_name=tag&sort=semver&color=2F7D62&label=download" alt="Latest release"/></a>
+  <a href="https://github.com/danielmevit/ocy/releases/latest"><img src="https://img.shields.io/github/v/release/danielmevit/ocy?include_prereleases&display_name=tag&sort=semver&color=2F7D62&label=download" alt="Latest release"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-2F7D62" alt="AGPL-3.0 license"/></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-2F7D62" alt="Windows 10 and 11"/>
   <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Linux-planned-7B8387" alt="macOS and Linux planned"/>
-  <img src="https://img.shields.io/badge/.NET%2010%20%C2%B7%20Avalonia%2012-512BD4" alt=".NET 10 and Avalonia 12"/>
+  <img src="https://img.shields.io/badge/Rust%20%C2%B7%20Slint-2F7D62" alt="Built with Rust and Slint"/>
 </p>
 
 <p align="center">
   <a href="https://danielmevit.github.io/ocy/">Website</a> ·
-  <a href="https://github.com/danielmevit/ocy/releases">Download</a> ·
+  <a href="https://github.com/danielmevit/ocy/releases/latest">Download</a> ·
   <a href="#how-it-decides-when-to-remind-you">How it works</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="ROADMAP.md">Roadmap</a>
@@ -32,8 +32,9 @@ and then. **Ocy is a break reminder that makes it easy to actually do it.** Ever
 illustrated eye exercise for fifteen seconds. Every hour it asks for a real five-minute break away from the screen.
 Between breaks it stays out of the way.
 
-> **Alpha.** Ocy is in its 0.1 series: Windows first, with macOS and Linux to follow. It works day to day, and
-> feedback is very welcome in [Issues](https://github.com/danielmevit/ocy/issues).
+> **0.2.0 is a rebuild in Rust.** One 12 MB file instead of a 70 MB zip of 230 files, about 3.7 MB of memory while it waits
+> (0.1.x used about 130 MB), and settings and stats carry over automatically. Still alpha and Windows first;
+> feedback is welcome in [Issues](https://github.com/danielmevit/ocy/issues).
 
 <p align="center">
   <picture>
@@ -46,6 +47,8 @@ Between breaks it stays out of the way.
 
 - **It shows the break where you are looking.** Short breaks and the long-break warning appear on the monitor you are
   working on. The other monitors get a soft coloured frame, so the reminder never pops up on a screen you can't see.
+- **It waits for a natural moment.** When a break is due, Ocy waits up to a minute for a short pause in your typing
+  or mouse use, so it never interrupts mid-sentence. Breaks never steal focus or add a taskbar button.
 - **It knows when to stay quiet.** Fullscreen apps, games and presentations put breaks on hold until you are done.
 - **Time away counts as rest.** Step away from the keyboard, lock the PC or put it to sleep, and Ocy counts it as a
   break. You won't come back to a "time for a break!" message.
@@ -55,7 +58,9 @@ Between breaks it stays out of the way.
   few times or skip it. Turn on **strict mode** and long breaks keep to the schedule.
 - **Private by design.** No account, no telemetry, no ads and no network code. Settings stay in `%APPDATA%\Ocy`.
 - **At home in Windows.** Light and dark themes follow your Windows setting, and the sprout tray icon matches your
-  taskbar.
+  taskbar. Screen readers such as Narrator can read it through Windows UI Automation.
+- **Light on your PC.** About 3.7 MB of memory at idle, about 5–6 MB during a break, and it checks in about six
+  times a minute. A break card appears in about 14–23 ms.
 
 ## Screenshots
 
@@ -98,9 +103,11 @@ Between breaks it stays out of the way.
 
 **Windows 10 or 11 (64-bit):**
 
-1. Download `Ocy-<version>-win-x64.zip` from [Releases](https://github.com/danielmevit/ocy/releases).
-2. Unzip it anywhere, for example `Documents\Ocy`, and run `Ocy.exe`. Nothing else needs installing.
-3. Ocy appears in the tray as a small green sprout. Right-click it for settings, pause and quit.
+1. Download `Ocy-<version>-win-x64.zip` from the [latest release](https://github.com/danielmevit/ocy/releases/latest).
+   It holds `Ocy.exe` (about 12 MB) plus `LICENSE.txt`, `README.txt` and `THIRD-PARTY-NOTICES.txt`.
+2. Unzip it anywhere, for example `Documents\Ocy`, and run `Ocy.exe`. Nothing to install.
+3. Ocy appears in the tray as a small green sprout. Click it for settings; right-click to pause, take a short break
+   now or quit.
 
 The app isn't code-signed yet, so Windows SmartScreen may warn on the first run: choose **More info → Run anyway**.
 To start Ocy when you sign in, turn on **Start with system** in Settings. To remove it, quit Ocy from the tray and delete
@@ -135,13 +142,16 @@ looking at the screen.
 - An absence at least as long as a break **counts as that break**. A long absence counts as a long break.
 - With **Pause in fullscreen** on (the default), breaks that fall due during a fullscreen app or presentation wait
   until you leave it.
-- From the tray you can **pause** for 1 hour, for 3 hours or until you resume, or **take a long break now**.
+- When a break is due, Ocy waits up to 60 s for a **natural moment**: a short pause in your typing or mouse use.
+- From the tray you can **pause** for 1 hour, for 3 hours or until you resume, **take a short break now** or
+  **take a long break now**. The pause menu shows your choice and the time left, for example
+  "Paused until 15:40 · 1 h 15 min left".
 
 ## Is Ocy an alternative to EyeLeo?
 
 Yes. If you used EyeLeo, which hasn't been updated in years, Ocy covers the same daily routine: short eye
 exercises, regular long breaks and quiet during fullscreen work. It also shows breaks on the monitor you are using,
-counts time away as rest, and is built to run on Windows, macOS and Linux. Ocy is an independent project, and its
+counts time away as rest, and runs on Windows today, with macOS and Linux planned. Ocy is an independent project, and its
 code, exercises and art are all original.
 
 ## FAQ
@@ -149,6 +159,11 @@ code, exercises and art are all original.
 **Is it free?** Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.
 
 **Does it need the internet?** No. Ocy has no network code at all. It works fully offline and never phones home.
+
+**Does it slow my PC down?** No. About 3.7 MB of memory while it waits, about 5–6 MB during a break, and it checks in
+about six times a minute. The whole app is one 12 MB file.
+
+**Can I use a screen reader?** Yes. Ocy supports Windows UI Automation, so Narrator can read it.
 
 **Will it interrupt my game, video call or presentation?** Fullscreen apps and presentations hold breaks until you
 are done. Detecting calls in windowed apps is on the roadmap.
@@ -161,26 +176,18 @@ professional.
 
 ## Build from source
 
-Requirements: the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+Requirements: Rust 1.95 (pinned in `rust/rust-toolchain.toml`, so `rustup` picks it up).
 
 ```sh
 git clone https://github.com/danielmevit/ocy.git
-cd ocy
-dotnet build Ocy.slnx -c Release
-dotnet test Ocy.slnx -c Release
-dotnet run --project src/Ocy.Desktop/Ocy.Desktop.csproj -c Release
-# self-contained Windows build:
-dotnet publish src/Ocy.Desktop/Ocy.Desktop.csproj -c Release -r win-x64 --self-contained -o publish/win-x64
+cd ocy/rust
+cargo build -p ocy-app --release
+cargo test --workspace
+# cross-compiling from Linux or WSL:
+cargo xwin build --target x86_64-pc-windows-msvc
 ```
 
-The solution has four projects:
-- `Ocy.Core`: the break engine and settings, with no UI and no OS calls
-- `Ocy.Abstractions`: small platform contracts
-- `Ocy.Platform.Windows`: idle time, fullscreen, session events and the taskbar theme
-- `Ocy.Desktop`: the Avalonia tray app
-
-The engine runs on an injected clock and is covered by unit tests. The UI is tested headless. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The C# 0.1.x source (`src/`, `Ocy.slnx`) stays in the repo for reference.
 
 ## Contributing
 
@@ -190,8 +197,10 @@ stay at 0 warnings, and new behaviour needs tests. Project conventions are in [A
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE). Copyright © 2026 Daniel Mitev (Daniel Mevit).
+[GNU Affero General Public License v3.0](LICENSE). Ocy is built with [Slint](https://slint.dev) under its GPL-3.0
+option. Third-party licences ship in `THIRD-PARTY-NOTICES.txt`; see also [docs/rust/LICENSES.md](docs/rust/LICENSES.md).
+Copyright © 2026 Daniel Mitev (Daniel Mevit).
 Made by [damt.xyz](https://damt.xyz).
 
 <sub>Keywords: break reminder, eye strain, eye care, eye exercises, 20-20-20 rule, rest reminder, screen time,
-digital eye strain, posture and stretch reminder, tray app, Windows break timer, EyeLeo alternative, open source.</sub>
+digital eye strain, posture and stretch reminder, tray app, Windows break timer, lightweight, screen reader, EyeLeo alternative, open source.</sub>

@@ -50,7 +50,7 @@ const marks = QPLACES.map(([x, y, rot, sc], i) => ({ t: `translate(${x} ${y}) ro
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repoUrl = 'https://github.com/danielmevit/ocy';
-const releasesUrl = `${repoUrl}/releases`;
+const releasesUrl = `${repoUrl}/releases/latest`;
 
 const whyLines: Record<string, string> = {
   blink: 'Screens make us blink less. Slow, full blinks spread fresh tears across your eyes.',
@@ -71,7 +71,7 @@ const moments = [
   { art: 'blink', frame: 1, title: 'You’re working', line: 'Only time at your PC counts.', alt: 'Ocy looking at the screen' },
   { art: 'stand-walk', frame: 3, title: 'You step away', line: 'That is your break. No break waiting when you’re back.', alt: 'Ocy walking away from its chair' },
   { art: 'blink', frame: 3, title: 'Fullscreen or presenting', line: 'It waits until you’re done.', alt: 'Ocy waiting calmly with closed eyes' },
-  { art: 'look-up-down', frame: 1, title: 'A break is due', line: 'On the screen you’re using. The others get a soft frame.', alt: 'Ocy looking up, alert' },
+  { art: 'look-up-down', frame: 1, title: 'A break is due', line: 'It waits for a pause in your typing, then shows on the screen you’re using.', alt: 'Ocy looking up, alert' },
 ];
 
 const trayStates = [
@@ -136,7 +136,7 @@ const defaultsRows = [
 const faqs: { q: string; a: string; table?: boolean }[] = [
   {
     q: 'Is Ocy an alternative to EyeLeo?',
-    a: 'Yes. If you used EyeLeo, which hasn’t been updated in years, Ocy covers the same daily routine: short eye exercises, regular long breaks and quiet during fullscreen work. It also shows breaks on the monitor you are using, counts time away as rest, and is built to run on Windows, macOS and Linux. Ocy is an independent project, and its code, exercises and art are all original.',
+    a: 'Yes. If you used EyeLeo, which hasn’t been updated in years, Ocy covers the same daily routine: short eye exercises, regular long breaks and quiet during fullscreen work. It also shows breaks on the monitor you are using, counts time away as rest, and runs on Windows today, with macOS and Linux planned. Ocy is an independent project, and its code, exercises and art are all original.',
   },
   {
     q: 'Windows warns me when I first run it — is it safe?',
@@ -150,6 +150,14 @@ const faqs: { q: string; a: string; table?: boolean }[] = [
     q: 'What are the defaults?',
     a: 'Short break every 10 min, for 15 s. Long break every 60 min, for 5 min. Warning 60 s before a long break. Postpone 3 min, up to 3 times. You count as away after 2 min without input. All of it is adjustable in Settings.',
     table: true,
+  },
+  {
+    q: 'Does it slow my PC down?',
+    a: 'No. Ocy uses about 3.7 MB of memory while it waits and about 5–6 MB during a break. It checks in about six times a minute, and the whole app is one 12 MB file.',
+  },
+  {
+    q: 'Can I use a screen reader?',
+    a: 'Yes. Ocy supports Windows UI Automation, so Narrator can read it. Breaks never steal focus from what you are doing.',
   },
   { q: 'Is it free?', a: 'Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.' },
   { q: 'Does it need the internet?', a: 'No. Ocy has no network code at all. It works fully offline and never phones home.' },
@@ -217,7 +225,7 @@ const faqLd = {
         <a class="btn btn-outline" href={repoUrl}>View on GitHub</a>
       </div>
       <p class="hero-meta">
-        Windows 10 and 11 &middot; v{version} alpha &middot; Free, AGPL-3.0 &middot; No account, no telemetry
+        Windows 10 and 11 &middot; v{version} alpha &middot; One 12 MB file &middot; Free, AGPL-3.0 &middot; No account, no telemetry
       </p>
     </div>
 
@@ -381,7 +389,7 @@ const faqLd = {
     <div class="tray">
       <div class="section-head">
         <h2 id="tray-heading">Lives in your tray</h2>
-        <p class="section-sub">A small sprout that matches your taskbar. Right-click for settings, pause and quit.</p>
+        <p class="section-sub">A small sprout that matches your taskbar. Click for settings. Right-click to pause, take a short break now or quit.</p>
       </div>
       <ul class="tray-strip">
         {trayStates.map((s) => (
@@ -403,7 +411,7 @@ const faqLd = {
   <section id="install" class="section" aria-labelledby="install-heading">
     <div class="section-head">
       <h2 id="install-heading">Install in a minute</h2>
-      <p class="section-sub">Windows 10 or 11, 64-bit. A portable ZIP, no installer.</p>
+      <p class="section-sub">Windows 10 or 11, 64-bit. One 12 MB app in a ZIP, nothing to install.</p>
     </div>
     <ol class="steps">
       <svg class="steps-path" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true">
@@ -422,7 +430,7 @@ const faqLd = {
       <li class="step">
         <span class="step-num" aria-hidden="true">3</span>
         <h3>Find the sprout</h3>
-        <p>In your tray. Right-click for settings.</p>
+        <p>In your tray. Click it for settings.</p>
       </li>
     </ol>
   </section>
