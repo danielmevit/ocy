@@ -96,6 +96,8 @@
   "tray.menu.pause1h": "Pause for 1 hour",
   "tray.menu.pause3h": "Pause for 3 hours",
   "tray.menu.pauseUntilResumed": "Pause until resumed",
+  "tray.menu.pausedIndefinitely": "Paused until you resume",
+  "tray.menu.pausedUntil": "Paused until {clock} · {time} left",
   "tray.menu.quit": "Quit Ocy",
   "tray.menu.resume": "Resume reminders",
   "tray.menu.settings": "Settings",

@@ -9,6 +9,7 @@ pub mod art;
 pub mod break_logic;
 pub mod coordinator;
 pub mod host;
+pub mod instance;
 pub mod layout;
 pub mod scheduler;
 pub mod settings_logic;

@@ -1,0 +1,3 @@
+- Tray left-click now opens or focuses Settings via Slint's `SystemTrayIcon.clicked` callback (right-click still opens the menu).
+- Active pause menu option (`Pause for 1 hour`, `Pause for 3 hours`, or `Pause until resumed`) now displays a checkmark while paused, including persisted indefinite pauses after restart.
+- Added a disabled pause status line at the top of the tray menu while paused (`Paused until HH:mm · <time> left` or `Paused until you resume`), hidden when not paused.

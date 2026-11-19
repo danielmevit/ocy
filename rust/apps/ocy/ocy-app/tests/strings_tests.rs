@@ -100,9 +100,17 @@ fn settings_window_title_formats_with_app_name() {
 }
 
 #[test]
-fn key_count_matches_expected_113() {
+fn key_count_matches_expected_115() {
     let strings = Strings::from_embedded().unwrap();
-    assert_eq!(strings.key_count(), 113);
+    assert_eq!(strings.key_count(), 115);
+    assert_eq!(
+        strings.get("tray.menu.pausedUntil"),
+        "Paused until {clock} \u{00b7} {time} left"
+    );
+    assert_eq!(
+        strings.get("tray.menu.pausedIndefinitely"),
+        "Paused until you resume"
+    );
 }
 
 #[test]

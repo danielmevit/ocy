@@ -1,8 +1,10 @@
 //! Tray icon presenter, theme set selector, and controller (port of `Tray/*.cs`).
 
+use std::cell::Cell;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
 use damt_platform::{AppThemeProvider, Clock, TaskbarThemeProvider};
 use jiff::{SignedDuration, Timestamp};
@@ -99,12 +101,33 @@ pub fn decode_tray_icon_rgba(
     Ok((pixmap.width(), pixmap.height(), pixmap.take()))
 }
 
+/// Which tray pause menu option initiated the current pause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PauseSource {
+    OneHour,
+    ThreeHours,
+    UntilResumed,
+}
+
+impl PauseSource {
+    /// Duration passed to `BreakEngine::pause_for` (`None` for indefinite pause).
+    #[must_use]
+    pub const fn duration(self) -> Option<Duration> {
+        match self {
+            Self::OneHour => Some(Duration::from_secs(3_600)),
+            Self::ThreeHours => Some(Duration::from_secs(3 * 3_600)),
+            Self::UntilResumed => None,
+        }
+    }
+}
+
 /// Presentation state of a single tray menu item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrayMenuItemState {
     pub text: String,
     pub is_visible: bool,
     pub is_enabled: bool,
+    pub is_checked: bool,
 }
 
 impl TrayMenuItemState {
@@ -113,6 +136,16 @@ impl TrayMenuItemState {
             text: text.to_owned(),
             is_visible,
             is_enabled,
+            is_checked: false,
+        }
+    }
+
+    fn checkable(text: &str, is_visible: bool, is_enabled: bool, is_checked: bool) -> Self {
+        Self {
+            text: text.to_owned(),
+            is_visible,
+            is_enabled,
+            is_checked,
         }
     }
 }
@@ -120,6 +153,7 @@ impl TrayMenuItemState {
 /// Logical slot in the tray context menu, in top-to-bottom display order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TrayMenuSlot {
+    PauseStatus,
     TakeShortBreakNow,
     TakeLongBreakNow,
     Separator1,
@@ -133,7 +167,8 @@ pub enum TrayMenuSlot {
 }
 
 /// Canonical top-to-bottom order of entries in the tray context menu.
-pub const TRAY_MENU_ORDER: [TrayMenuSlot; 10] = [
+pub const TRAY_MENU_ORDER: [TrayMenuSlot; 11] = [
+    TrayMenuSlot::PauseStatus,
     TrayMenuSlot::TakeShortBreakNow,
     TrayMenuSlot::TakeLongBreakNow,
     TrayMenuSlot::Separator1,
@@ -175,6 +210,7 @@ pub const fn can_take_long_break_now(snapshot: &EngineSnapshot) -> bool {
 pub struct TrayPresentation {
     pub tooltip: String,
     pub icon_state: TrayIconState,
+    pub pause_status: TrayMenuItemState,
     pub take_short_break_now: TrayMenuItemState,
     pub take_long_break_now: TrayMenuItemState,
     pub pause_1_hour: TrayMenuItemState,
@@ -192,6 +228,7 @@ impl TrayPresentation {
         TRAY_MENU_ORDER
             .iter()
             .map(|&slot| match slot {
+                TrayMenuSlot::PauseStatus => TrayMenuEntry::Item(slot, &self.pause_status),
                 TrayMenuSlot::TakeShortBreakNow => {
                     TrayMenuEntry::Item(slot, &self.take_short_break_now)
                 }
@@ -214,6 +251,7 @@ impl TrayPresentation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TrayMenuSnapshot {
+    pause_status: TrayMenuItemState,
     take_short_break_now: TrayMenuItemState,
     take_long_break_now: TrayMenuItemState,
     pause_1_hour: TrayMenuItemState,
@@ -227,6 +265,7 @@ struct TrayMenuSnapshot {
 impl From<&TrayPresentation> for TrayMenuSnapshot {
     fn from(p: &TrayPresentation) -> Self {
         Self {
+            pause_status: p.pause_status.clone(),
             take_short_break_now: p.take_short_break_now.clone(),
             take_long_break_now: p.take_long_break_now.clone(),
             pause_1_hour: p.pause_1_hour.clone(),
@@ -243,11 +282,14 @@ impl From<&TrayPresentation> for TrayMenuSnapshot {
 pub struct TrayPresenter {
     strings: Arc<Strings>,
     clock: Arc<dyn Clock>,
+    active_pause_source: Cell<Option<PauseSource>>,
 }
 
 impl fmt::Debug for TrayPresenter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TrayPresenter").finish_non_exhaustive()
+        f.debug_struct("TrayPresenter")
+            .field("active_pause_source", &self.active_pause_source.get())
+            .finish_non_exhaustive()
     }
 }
 
@@ -255,18 +297,60 @@ impl TrayPresenter {
     /// Creates a `TrayPresenter` backed by `strings` and `clock`.
     #[must_use]
     pub fn new(strings: Arc<Strings>, clock: Arc<dyn Clock>) -> Self {
-        Self { strings, clock }
+        Self {
+            strings,
+            clock,
+            active_pause_source: Cell::new(None),
+        }
+    }
+
+    /// Records which tray pause option initiated the current pause.
+    pub fn record_pause(&self, source: PauseSource) {
+        self.active_pause_source.set(Some(source));
+    }
+
+    /// Clears the remembered pause option (used when paused outside the tray presets or resumed).
+    pub fn clear_pause_source(&self) {
+        self.active_pause_source.set(None);
+    }
+
+    /// Returns the currently remembered pause source, if any.
+    #[must_use]
+    pub fn active_pause_source(&self) -> Option<PauseSource> {
+        self.active_pause_source.get()
     }
 
     /// Computes the tray presentation for `snapshot` at `now` (defaults to `clock.now()`).
     #[must_use]
     pub fn present(&self, snapshot: &EngineSnapshot, now: Option<Timestamp>) -> TrayPresentation {
-        let current_utc = now.unwrap_or_else(|| self.clock.now().timestamp());
+        let current_zoned = self.clock.now();
+        let current_utc = now.unwrap_or_else(|| current_zoned.timestamp());
         let icon_state = compute_icon_state(snapshot.phase);
         let tooltip = self.compute_tooltip(snapshot, current_utc);
 
         let is_strict_long_break = snapshot.phase == EnginePhase::LongBreak && snapshot.strict_mode;
         let is_paused = snapshot.phase == EnginePhase::Paused;
+
+        let effective_pause_source = if !is_paused {
+            self.active_pause_source.set(None);
+            None
+        } else {
+            match snapshot.paused_until_utc {
+                None | Some(Paused::UntilResumed) => Some(PauseSource::UntilResumed),
+                Some(Paused::Until(_)) => match self.active_pause_source.get() {
+                    Some(PauseSource::OneHour) => Some(PauseSource::OneHour),
+                    Some(PauseSource::ThreeHours) => Some(PauseSource::ThreeHours),
+                    Some(PauseSource::UntilResumed) | None => None,
+                },
+            }
+        };
+
+        let pause_status = if is_paused {
+            let text = self.compute_pause_status_text(snapshot, &current_zoned, current_utc);
+            TrayMenuItemState::new(&text, true, false)
+        } else {
+            TrayMenuItemState::new("", false, false)
+        };
 
         let take_short_break_text = self.strings.get("tray.menu.takeShortBreak");
         let take_long_break_text = self.strings.get("tray.menu.takeLongBreak");
@@ -281,6 +365,7 @@ impl TrayPresenter {
             return TrayPresentation {
                 tooltip,
                 icon_state,
+                pause_status,
                 take_short_break_now: TrayMenuItemState::new(take_short_break_text, true, false),
                 take_long_break_now: TrayMenuItemState::new(take_long_break_text, true, false),
                 pause_1_hour: TrayMenuItemState::new(pause_1h_text, true, false),
@@ -298,6 +383,7 @@ impl TrayPresenter {
         TrayPresentation {
             tooltip,
             icon_state,
+            pause_status,
             take_short_break_now: TrayMenuItemState::new(
                 take_short_break_text,
                 true,
@@ -308,12 +394,63 @@ impl TrayPresenter {
                 true,
                 can_start_long_break,
             ),
-            pause_1_hour: TrayMenuItemState::new(pause_1h_text, true, true),
-            pause_3_hours: TrayMenuItemState::new(pause_3h_text, true, true),
-            pause_until_resumed: TrayMenuItemState::new(pause_until_resumed_text, true, true),
+            pause_1_hour: TrayMenuItemState::checkable(
+                pause_1h_text,
+                true,
+                true,
+                effective_pause_source == Some(PauseSource::OneHour),
+            ),
+            pause_3_hours: TrayMenuItemState::checkable(
+                pause_3h_text,
+                true,
+                true,
+                effective_pause_source == Some(PauseSource::ThreeHours),
+            ),
+            pause_until_resumed: TrayMenuItemState::checkable(
+                pause_until_resumed_text,
+                true,
+                true,
+                effective_pause_source == Some(PauseSource::UntilResumed),
+            ),
             resume: TrayMenuItemState::new(resume_text, is_paused, is_paused),
             settings: TrayMenuItemState::new(settings_text, true, true),
             quit: TrayMenuItemState::new(quit_text, true, true),
+        }
+    }
+
+    fn compute_pause_status_text(
+        &self,
+        snapshot: &EngineSnapshot,
+        current_zoned: &jiff::ZonedDateTime,
+        now: Timestamp,
+    ) -> String {
+        match snapshot.paused_until_utc {
+            None | Some(Paused::UntilResumed) => {
+                self.strings.get("tray.menu.pausedIndefinitely").to_owned()
+            }
+            Some(Paused::Until(until)) => {
+                let remaining = until
+                    .timestamp()
+                    .duration_since(now)
+                    .max(SignedDuration::ZERO);
+                let time_text = self.format_pause_remainder(remaining);
+                let local_until = until
+                    .timestamp()
+                    .to_zoned_datetime(current_zoned.time_zone().clone());
+                let clock_text = format!("{:02}:{:02}", local_until.hour(), local_until.minute());
+                self.strings.format(
+                    "tray.menu.pausedUntil",
+                    &[("clock", &clock_text), ("time", &time_text)],
+                )
+            }
+        }
+    }
+
+    fn format_pause_remainder(&self, remaining: SignedDuration) -> String {
+        if remaining < SignedDuration::from_mins(1) {
+            format!("under 1 {}", self.strings.get("time.minutes"))
+        } else {
+            self.strings.format_time_signed(remaining)
         }
     }
 
@@ -488,6 +625,25 @@ impl<S: TraySink> TrayController<S> {
     #[must_use]
     pub const fn current_icon_state(&self) -> Option<TrayIconState> {
         self.current_icon_state
+    }
+
+    /// Records which tray pause option initiated the current pause and invalidates the cached
+    /// menu snapshot so the next `update` forces a sink sync (restoring Slint check state even if
+    /// the user re-clicked the already-checked option).
+    pub fn record_pause(&mut self, source: PauseSource) {
+        self.presenter.record_pause(source);
+        self.last_menu = None;
+    }
+
+    /// Clears the remembered pause option.
+    pub fn clear_pause_source(&mut self) {
+        self.presenter.clear_pause_source();
+    }
+
+    /// Returns a shared reference to the underlying [`TrayPresenter`].
+    #[must_use]
+    pub const fn presenter(&self) -> &TrayPresenter {
+        &self.presenter
     }
 
     /// Returns a shared reference to the underlying [`TraySink`].

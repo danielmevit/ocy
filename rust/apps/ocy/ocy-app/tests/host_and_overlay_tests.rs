@@ -16,7 +16,7 @@ use ocy_app::tokens::{
     EDGE_FRAME_THICKNESS_DIP, attention_frame_color, edge_frame_color, overlay_dim_color,
 };
 use ocy_app::tray::{
-    AppTheme, TrayController, TrayIconState, TrayPresentation, TrayPresenter, TraySink,
+    AppTheme, PauseSource, TrayController, TrayIconState, TrayPresentation, TrayPresenter, TraySink,
 };
 use ocy_core::engine::{BreakEngine, BreakInfo, EnginePhase, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
@@ -65,6 +65,7 @@ impl SettingsWindow for DummySettingsWindow {
 #[derive(Debug, Default)]
 struct DummyTraySink {
     last_state: Option<TrayIconState>,
+    last_presentation: Option<TrayPresentation>,
 }
 
 impl TraySink for DummyTraySink {
@@ -72,7 +73,9 @@ impl TraySink for DummyTraySink {
     fn set_icon(&mut self, state: TrayIconState, _use_light_set: bool) {
         self.last_state = Some(state);
     }
-    fn set_menu(&mut self, _presentation: &TrayPresentation) {}
+    fn set_menu(&mut self, presentation: &TrayPresentation) {
+        self.last_presentation = Some(presentation.clone());
+    }
 }
 
 #[derive(Debug)]
@@ -263,4 +266,75 @@ fn overlay_tokens_match_design_system_values() {
         overlay_dim_color(false),
         damt_overlay::Rgba::new(0x00, 0x00, 0x00, 0xC7)
     );
+}
+
+#[test]
+fn host_tray_left_click_shows_and_reactivates_settings_and_pause_from_tray_tracks_state() {
+    let dir = temp_dir("tray-click-pause");
+    let clock = Arc::new(FakeClock::from_fixed_offset(2026, 11, 19, 14, 0, 0, 1).unwrap());
+    let clock_dyn: Arc<dyn Clock> = clock.clone();
+    let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
+    let engine =
+        BreakEngine::with_defaults(OcySettings::default(), platform, Arc::clone(&clock_dyn));
+    let snapshot = engine.snapshot();
+    let strings = Arc::new(Strings::from_embedded().unwrap());
+    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme(Some(false)));
+    let tray = TrayController::new(
+        presenter,
+        DummyTraySink::default(),
+        theme,
+        clock_dyn,
+        Some(AppTheme::Dark),
+        &snapshot,
+    );
+    let coordinator =
+        BreakUiCoordinator::new(DummyBreakWindows::default(), DummySettingsWindow::default());
+    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+
+    let mut host = AppHost::new(engine, coordinator, tray, error_log);
+    assert_eq!(host.coordinator().settings_window().show_count, 0);
+
+    // Left-click opens Settings; a second left-click restores/focuses it via the same show path.
+    host.on_tray_left_click();
+    assert_eq!(host.coordinator().settings_window().show_count, 1);
+    host.on_tray_left_click();
+    assert_eq!(host.coordinator().settings_window().show_count, 2);
+
+    // Pause for 1 hour via tray seam -> status visible, 1 h item checked.
+    host.pause_from_tray(PauseSource::OneHour);
+    let pres_1h = host.tray().sink().last_presentation.as_ref().unwrap();
+    assert!(pres_1h.pause_status.is_visible);
+    assert!(!pres_1h.pause_status.is_enabled);
+    assert_eq!(
+        pres_1h.pause_status.text,
+        "Paused until 15:00 \u{00b7} 1 h 00 min left"
+    );
+    assert!(pres_1h.pause_1_hour.is_checked);
+    assert!(!pres_1h.pause_3_hours.is_checked);
+    assert!(!pres_1h.pause_until_resumed.is_checked);
+
+    // Pause expires on tick -> status hidden, checkmarks cleared.
+    clock.advance(Duration::from_secs(3600));
+    host.on_tick();
+    assert_eq!(host.engine().phase(), EnginePhase::Working);
+    let pres_after = host.tray().sink().last_presentation.as_ref().unwrap();
+    assert!(!pres_after.pause_status.is_visible);
+    assert!(!pres_after.pause_1_hour.is_checked);
+    assert!(!pres_after.pause_3_hours.is_checked);
+    assert!(!pres_after.pause_until_resumed.is_checked);
+
+    // Pause until resumed, then explicit resume -> clears checkmark & status.
+    host.pause_from_tray(PauseSource::UntilResumed);
+    let pres_indef = host.tray().sink().last_presentation.as_ref().unwrap();
+    assert!(pres_indef.pause_status.is_visible);
+    assert_eq!(pres_indef.pause_status.text, "Paused until you resume");
+    assert!(pres_indef.pause_until_resumed.is_checked);
+
+    host.resume();
+    let pres_resumed = host.tray().sink().last_presentation.as_ref().unwrap();
+    assert!(!pres_resumed.pause_status.is_visible);
+    assert!(!pres_resumed.pause_until_resumed.is_checked);
+
+    let _ = fs::remove_dir_all(&dir);
 }

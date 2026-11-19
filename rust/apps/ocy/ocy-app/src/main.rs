@@ -14,6 +14,7 @@ use jiff::{SignedDuration, ZonedDateTime};
 use ocy_app::break_logic::{DemoBreak, build_demo_launch_plan, parse_cli_args};
 use ocy_app::coordinator::{BreakUiCoordinator, OverlayBreakWindows};
 use ocy_app::host::AppHost;
+use ocy_app::instance::{is_probe_mode, parse_instance_scope, resolve_instance_id};
 use ocy_app::scheduler;
 use ocy_app::settings_logic::{DemoPlatformServices, SettingsCallbacks};
 use ocy_app::slint_breaks::{
@@ -22,14 +23,13 @@ use ocy_app::slint_breaks::{
 use ocy_app::slint_settings::SlintSettingsWindow;
 use ocy_app::slint_tray::{OcyTray, SlintTraySink};
 use ocy_app::strings::Strings;
-use ocy_app::tray::{AppTheme, TrayController, TrayPresenter};
+use ocy_app::tray::{AppTheme, PauseSource, TrayController, TrayPresenter};
 use ocy_app::win32_window::{OwnerWindow, apply_window_attributes_for_role};
 use ocy_core::engine::BreakEngine;
 use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
 use slint::{Timer, TimerMode};
 
-const APP_ID: &str = "xyz.damt.ocy";
 const APP_DATA_DIR_NAME: &str = "Ocy";
 const ERROR_LOG_PREFIX: &str = "ocy";
 
@@ -262,15 +262,26 @@ fn print_latency_line(sample: Option<BreakLatencySample>) {
 }
 
 fn main() -> ExitCode {
-    let cli = parse_cli_args(std::env::args().skip(1));
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    let instance_scope = match parse_instance_scope(&raw_args) {
+        Ok(scope) => scope,
+        Err(err) => {
+            #[cfg(windows)]
+            attach_parent_console_if_needed();
+            eprintln!("{err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let cli = parse_cli_args(raw_args);
 
     #[cfg(windows)]
     if cli.report_memory || cli.demo_break.is_some() {
         attach_parent_console_if_needed();
     }
 
-    let is_demo_or_probe = cli.demo_break.is_some() || cli.demo_settings || cli.report_memory;
-    let temp_demo_dir = if is_demo_or_probe {
+    let is_demo_or_probe = is_probe_mode(&cli);
+    let is_isolated = is_demo_or_probe || instance_scope.is_some();
+    let temp_demo_dir = if is_isolated {
         Some(std::env::temp_dir().join(format!("ocy-demo-{}", std::process::id())))
     } else {
         None
@@ -281,9 +292,15 @@ fn main() -> ExitCode {
     let error_log = ErrorLog::new(&data_dir, ERROR_LOG_PREFIX);
     install_panic_hook(error_log.clone());
 
-    let mut single_instance_guard = match SingleInstance::acquire(APP_ID) {
+    let instance_id = resolve_instance_id(&cli, instance_scope.as_deref(), std::process::id());
+    let mut single_instance_guard = match SingleInstance::acquire(&instance_id) {
         Acquire::First(guard) => guard,
-        Acquire::AlreadyRunning => return ExitCode::SUCCESS,
+        Acquire::AlreadyRunning => {
+            if let Some(dir) = temp_demo_dir {
+                let _ = std::fs::remove_dir_all(dir);
+            }
+            return ExitCode::SUCCESS;
+        }
     };
 
     let owner_window = match OwnerWindow::create() {
@@ -312,7 +329,7 @@ fn main() -> ExitCode {
         Strings::default()
     }));
 
-    let mut settings = if is_demo_or_probe {
+    let mut settings = if is_isolated {
         OcySettings::default()
     } else {
         AppDataStore::new(&data_dir, Arc::new(SystemClock)).load_settings()
@@ -342,7 +359,7 @@ fn main() -> ExitCode {
         None
     };
 
-    let (platform, _holder) = build_platform_services(&error_log, is_demo_or_probe);
+    let (platform, _holder) = build_platform_services(&error_log, is_isolated);
     let initial_settings = settings.clone();
     let engine = BreakEngine::new(
         settings,
@@ -462,6 +479,7 @@ fn main() -> ExitCode {
     {
         let host_ref = host.borrow();
         let tray = host_ref.tray().sink().component();
+        tray.on_tray_clicked(|| with_ui_host(LiveHost::on_tray_left_click));
         tray.on_take_short_break_clicked(|| {
             with_ui_host(|h| {
                 let _ = h.start_short_break_now();
@@ -473,15 +491,15 @@ fn main() -> ExitCode {
             arm_next_tick();
         });
         tray.on_pause_1h_clicked(|| {
-            with_ui_host(|h| h.pause_for(Some(Duration::from_secs(3600))));
+            with_ui_host(|h| h.pause_from_tray(PauseSource::OneHour));
             arm_next_tick();
         });
         tray.on_pause_3h_clicked(|| {
-            with_ui_host(|h| h.pause_for(Some(Duration::from_secs(3 * 3600))));
+            with_ui_host(|h| h.pause_from_tray(PauseSource::ThreeHours));
             arm_next_tick();
         });
         tray.on_pause_until_resumed_clicked(|| {
-            with_ui_host(|h| h.pause_for(None));
+            with_ui_host(|h| h.pause_from_tray(PauseSource::UntilResumed));
             arm_next_tick();
         });
         tray.on_resume_clicked(|| {

@@ -10,7 +10,7 @@ use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
 
 use crate::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
-use crate::tray::{TrayController, TraySink};
+use crate::tray::{PauseSource, TrayController, TraySink};
 
 /// Autosave interval in seconds (1 tick = 1 second).
 const AUTOSAVE_INTERVAL_SECONDS: u32 = 60;
@@ -177,12 +177,30 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         skipped
     }
 
+    /// Pauses reminders from one of the tray pause options, remembering which option started it.
+    pub fn pause_from_tray(&mut self, source: PauseSource) {
+        if self.shut_down {
+            return;
+        }
+
+        self.tray.record_pause(source);
+        self.apply_pause(source.duration());
+    }
+
     /// Pauses reminders for `duration`, or indefinitely when `None`.
     pub fn pause_for(&mut self, duration: Option<Duration>) {
         if self.shut_down {
             return;
         }
 
+        match duration {
+            None => self.tray.record_pause(PauseSource::UntilResumed),
+            Some(_) => self.tray.clear_pause_source(),
+        }
+        self.apply_pause(duration);
+    }
+
+    fn apply_pause(&mut self, duration: Option<Duration>) {
         let events = self.engine.pause_for(duration);
         let snapshot = self.engine.snapshot();
         self.coordinator
@@ -197,12 +215,18 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
             return;
         }
 
+        self.tray.clear_pause_source();
         let events = self.engine.resume();
         let snapshot = self.engine.snapshot();
         self.coordinator
             .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
+    }
+
+    /// Handles a left-click on the tray icon by opening or focusing Settings.
+    pub fn on_tray_left_click(&mut self) {
+        self.show_settings();
     }
 
     /// Opens or focuses the Settings window.

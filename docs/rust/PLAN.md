@@ -193,6 +193,27 @@ faster to start.
   - Alt+F4 can't close break windows in strict mode
 - **Files:** existing settings/state/stats are read and preserved; error log capped at 256 KB.
 
+**Runtime verification on the owner's PC (2026-11-19, lead; Windows 11, 3 monitors, dark app theme):**
+- **Verified:**
+  - break on the active monitor + click-through frames elsewhere
+  - long-break dim on all 3 monitors with the card on the active one
+  - the warning frame in clay on the other monitors (measured #855641 vs a computed #865742)
+  - no focus theft, no taskbar button, never activated by a click
+  - a close request (Alt+F4 / WM_CLOSE) refused during a break
+  - a second launch opens Settings
+  - live apply (400 ms debounce, CRLF file)
+  - the dark-taskbar sprout icon (pixel-exact)
+  - per-monitor DPI awareness = 2
+  - 6 wake-ups/min while working; idle ≈ 3.7 MB private
+  - the owner's real data files written by the Rust build are valid (C# schema, CRLF)
+  - screen-reader tree (UIA) for Settings
+  - × closes on the first click (owner)
+- **Covered by tests only, not observed at runtime here:**
+  - mixed-DPI monitors (all the owner's monitors are 100 %)
+  - reduced motion (the owner's animations are on)
+  - the real autostart registry write (never toggled on the owner's PC; the CI Windows tests cover damt-platform-win)
+  - the 4 tray icon states × themes (the owner's hands-on)
+
 ## 10. Process (Unio)
 - **Worker routing (owner rule, 2026-11-19):**
   - **all visual work → Opus 5.5 low only** (run directly): app UI and redesigns, colours and contrast, icons,
