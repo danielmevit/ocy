@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — 2026-11-20 (alpha, the Rust rebuild)
+## 0.2.0 — 2026-11-20 (the Rust rebuild)
 
 Ocy is rebuilt from the ground up in Rust. It does everything 0.1.2 did, with a much lighter footprint, and a few
 things it couldn't. Your settings and stats carry over automatically (same files in `%APPDATA%\Ocy`).
@@ -40,7 +40,7 @@ things it couldn't. Your settings and stats carry over automatically (same files
   isolated from a running Ocy.
 - The C# 0.1.x source stays in the repository for reference.
 
-## 0.1.2 — 2026-11-18 (alpha, first public release)
+## 0.1.2 — 2026-11-18 (first public release)
 
 ### Added
 - **Hand-drawn exercise illustrations:** all 12 exercises now show Ocy, the sprout-headed mascot. They animate in a few
@@ -63,7 +63,7 @@ things it couldn't. Your settings and stats carry over automatically (same files
 - `tools/illustrations/svg2axaml.py` and `tools/icons/pack_tray_ico.py` turn the art into app resources, with
   `--check` modes.
 
-## 0.1.1 — 2026-11-17 (alpha preview)
+## 0.1.1 — 2026-11-17 (preview)
 
 ### Changed
 - **Breaks appear on the monitor you're working on**: the one with the active window, or the mouse if no window is

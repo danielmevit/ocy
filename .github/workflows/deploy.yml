@@ -14,7 +14,7 @@ on:
       - "assets/illustrations/**"
       - "assets/icons/app/**"
       - "assets/icons/tray/**"
-      - "content/strings/en.json"
+      - "content/strings/**"
       - "Directory.Build.props"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:

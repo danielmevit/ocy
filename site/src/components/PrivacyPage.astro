@@ -1,0 +1,85 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { pageHref, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
+
+interface Props {
+  lang: string;
+}
+
+const { lang } = Astro.props;
+
+const pageTitle = t(lang, 'privacy.meta.title');
+const pageDescription = t(lang, 'privacy.meta.description');
+const repoUrl = 'https://github.com/danielmevit/ocy';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const homeHref = pageHref(base, lang, 'home');
+
+const storedIntroParts = splitTemplateParts(rawTemplate(lang, 'privacy.stored.intro'));
+const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource.body'));
+---
+
+<BaseLayout
+  lang={lang}
+  pageType="privacy"
+  title={pageTitle}
+  description={pageDescription}
+  includeOgImage={false}
+>
+  <section class="prose-band" aria-labelledby="privacy-heading">
+    <div class="section-head">
+      <h1 id="privacy-heading">{t(lang, 'privacy.heading')}</h1>
+      <p class="section-sub">{t(lang, 'privacy.sub')}</p>
+    </div>
+
+    <p class="prose-lede">
+      {t(lang, 'privacy.lede')}
+    </p>
+
+    <div class="prose-grid">
+      <article class="prose-card">
+        <h2>{t(lang, 'privacy.stored.heading')}</h2>
+        <p>
+          {storedIntroParts.map((part) =>
+            part.type === 'text' ? (
+              part.value
+            ) : part.name === 'appdata' ? (
+              <code>%APPDATA%\Ocy</code>
+            ) : null
+          )}
+        </p>
+        <ul class="file-list">
+          <li><code>settings.json</code><span>{t(lang, 'privacy.stored.settings')}</span></li>
+          <li><code>state.json</code><span>{t(lang, 'privacy.stored.state')}</span></li>
+          <li><code>stats.json</code><span>{t(lang, 'privacy.stored.stats')}</span></li>
+          <li><code>ocy-errors.log</code><span>{t(lang, 'privacy.stored.errors')}</span></li>
+        </ul>
+        <p>{t(lang, 'privacy.stored.outro')}</p>
+      </article>
+
+      <article class="prose-card">
+        <h2>{t(lang, 'privacy.activity.heading')}</h2>
+        <p>{t(lang, 'privacy.activity.body')}</p>
+      </article>
+
+      <article class="prose-card">
+        <h2>{t(lang, 'privacy.website.heading')}</h2>
+        <p>{t(lang, 'privacy.website.body')}</p>
+      </article>
+
+      <article class="prose-card">
+        <h2>{t(lang, 'privacy.opensource.heading')}</h2>
+        <p>
+          {openSourceParts.map((part) =>
+            part.type === 'text' ? (
+              part.value
+            ) : part.name === 'github' ? (
+              <a href={repoUrl}>{t(lang, 'nav.github')}</a>
+            ) : part.name === 'homeLink' ? (
+              <a href={homeHref}>{t(lang, 'privacy.opensource.homeLink')}</a>
+            ) : null
+          )}
+        </p>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

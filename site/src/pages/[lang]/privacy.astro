@@ -1,0 +1,19 @@
+---
+import PrivacyPage from '../../components/PrivacyPage.astro';
+import { getNonDefaultLanguages, langSlug } from '../../lib/i18n';
+
+export function getStaticPaths() {
+  return getNonDefaultLanguages().map((lang) => ({
+    params: { lang: langSlug(lang) },
+    props: { lang },
+  }));
+}
+
+interface Props {
+  lang: string;
+}
+
+const { lang } = Astro.props;
+---
+
+<PrivacyPage lang={lang} />

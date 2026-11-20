@@ -1,0 +1,783 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ExerciseMascot from './ExerciseMascot.astro';
+import ArtFrame from './ArtFrame.astro';
+import { readAppVersion, readExercises } from '../lib/ocyData';
+import { readPngSize } from '../lib/pngSize';
+import { DEFAULT_LANG, pageAbsoluteUrl, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
+import trayActiveL from '../../../assets/icons/tray/light/tray-active.svg?url';
+import trayPausedL from '../../../assets/icons/tray/light/tray-paused.svg?url';
+import trayBreakL from '../../../assets/icons/tray/light/tray-onbreak.svg?url';
+import trayAttnL from '../../../assets/icons/tray/light/tray-attention.svg?url';
+import trayActiveD from '../../../assets/icons/tray/dark/tray-active.svg?url';
+import trayPausedD from '../../../assets/icons/tray/dark/tray-paused.svg?url';
+import trayBreakD from '../../../assets/icons/tray/dark/tray-onbreak.svg?url';
+import trayAttnD from '../../../assets/icons/tray/dark/tray-attention.svg?url';
+
+interface Props {
+  lang: string;
+}
+
+const { lang } = Astro.props;
+
+const version = readAppVersion();
+const exercises = readExercises(lang);
+
+// Hero + FAQ faces: only the illustrator's original frame SVGs (assets/illustrations/ocy-v1f), never redrawn.
+const frameModules = import.meta.glob('../../../assets/illustrations/ocy-v1f/svg/*.svg', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const frameSvg = (key: string) => {
+  const e = Object.entries(frameModules).find(([k]) => k.endsWith(`/${key}.svg`));
+  if (!e) throw new Error(`Missing frame ${key}`);
+  return e[1];
+};
+const faceFrames = (list: [string, number][]) =>
+  list.map(([ex, n]) => ({
+    key: `${ex}-f${n}`,
+    light: { src: `${ex}-light-f${n}`, svg: frameSvg(`${ex}-light-f${n}`) },
+    dark: { src: `${ex}-dark-f${n}`, svg: frameSvg(`${ex}-dark-f${n}`) },
+  }));
+const ex3 = (ex: string): [string, number][] => [1, 2, 3].map((n) => [ex, n]);
+const heroFrames = faceFrames([...ex3('blink'), ...ex3('look-left-right'), ...ex3('look-up-down')]);
+const faqFrames = faceFrames([['look-up-down', 1], ['blink', 2], ['blink', 3]]);
+const manifestSeq = (ex: string) => {
+  const e = exercises.find((x) => x.id === ex);
+  if (!e) throw new Error(`Missing exercise ${ex}`);
+  return { sequence: e.sequence, stepMs: e.stepMs };
+};
+const heroTiming = { blink: manifestSeq('blink'), look: manifestSeq('look-left-right') };
+// four hand-drawn question marks (site-only accents, never part of the face): curl, dot, stroke width
+const QS: [string, [number, number], number][] = [
+  ['M-2.6 -2.4 C-2.9 -5 -0.4 -6.2 1.3 -5.6 C3.2 -4.9 3.3 -2.6 2 -1.5 C0.9 -0.6 0.2 -0.1 0.3 1.6', [0.4, 4.2], 2.1],
+  ['M-1.6 -3.4 C-1.4 -5.6 1.8 -5.9 2.1 -3.8 C2.4 -2.1 0.1 -1.6 -0.1 0.4 L-0.05 1.8', [0, 4.6], 1.7],
+  ['M-3 -1.8 C-2.6 -4.6 2.6 -4.8 2.9 -2.3 C3.1 -0.6 0.4 -0.9 0.5 1.2', [0.6, 3.6], 2.3],
+  ['M-2 -2.9 C-2.2 -4.6 -0.2 -5.3 1.2 -4.9 C2.4 -4.5 2.6 -3.3 1.7 -2.4 C1 -1.7 0.6 -1.6 0.4 -0.6 C0.3 0 0.5 0.8 0.3 1.4', [0.35, 3.9], 1.9],
+];
+const QPLACES = [[65, 28, 12, 1.15], [-2, 28, -14, 1], [60, 4, 6, 0.85], [4, 4, -8, 0.78]];
+const marks = QPLACES.map(([x, y, rot, sc], i) => ({ t: `translate(${x} ${y}) rotate(${rot}) scale(${sc})`, d: QS[i][0], dot: `M${QS[i][1][0]} ${QS[i][1][1]} l0.12 0.1`, w: QS[i][2] }));
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
+const repoUrl = 'https://github.com/danielmevit/ocy';
+const releasesUrl = `${repoUrl}/releases/latest`;
+const canonicalUrl = pageAbsoluteUrl(origin, base, lang, 'home');
+
+const moments = [
+  { art: 'blink', frame: 1, title: t(lang, 'home.works.1.title'), line: t(lang, 'home.works.1.line'), alt: t(lang, 'home.works.1.alt') },
+  { art: 'stand-walk', frame: 3, title: t(lang, 'home.works.2.title'), line: t(lang, 'home.works.2.line'), alt: t(lang, 'home.works.2.alt') },
+  { art: 'blink', frame: 3, title: t(lang, 'home.works.3.title'), line: t(lang, 'home.works.3.line'), alt: t(lang, 'home.works.3.alt') },
+  { art: 'look-up-down', frame: 1, title: t(lang, 'home.works.4.title'), line: t(lang, 'home.works.4.line'), alt: t(lang, 'home.works.4.alt') },
+];
+
+const trayStates = [
+  { label: t(lang, 'home.tray.active.label'), light: trayActiveL, dark: trayActiveD, alt: t(lang, 'home.tray.active.alt') },
+  { label: t(lang, 'home.tray.paused.label'), light: trayPausedL, dark: trayPausedD, alt: t(lang, 'home.tray.paused.alt') },
+  { label: t(lang, 'home.tray.onBreak.label'), light: trayBreakL, dark: trayBreakD, alt: t(lang, 'home.tray.onBreak.alt') },
+  { label: t(lang, 'home.tray.attention.label'), light: trayAttnL, dark: trayAttnD, alt: t(lang, 'home.tray.attention.alt'), warn: true },
+];
+
+const pageTitle = t(lang, 'home.meta.title');
+const pageDescription = t(lang, 'home.meta.description');
+const ogImageAlt = t(lang, 'home.meta.ogImageAlt');
+
+const shot = (file: string) => {
+  const dims = readPngSize(`assets/screens/light/${file}.png`);
+  return {
+    light: `${base}/assets/screens/light/${file}.png`,
+    dark: `${base}/assets/screens/dark/${file}.png`,
+    w: dims ? Math.round(dims.width / 2) : undefined,
+    h: dims ? Math.round(dims.height / 2) : undefined,
+  };
+};
+const scenes = [
+  {
+    id: 'short',
+    tab: t(lang, 'home.app.short.tab'),
+    note: t(lang, 'home.app.short.note'),
+    img: shot('short-break'),
+    alt: t(lang, 'home.app.short.alt'),
+  },
+  {
+    id: 'long',
+    tab: t(lang, 'home.app.long.tab'),
+    note: t(lang, 'home.app.long.note'),
+    img: shot('long-break'),
+    alt: t(lang, 'home.app.long.alt'),
+  },
+  {
+    id: 'warning',
+    tab: t(lang, 'home.app.warning.tab'),
+    note: t(lang, 'home.app.warning.note'),
+    img: shot('warning'),
+    alt: t(lang, 'home.app.warning.alt'),
+  },
+  {
+    id: 'settings',
+    tab: t(lang, 'home.app.settings.tab'),
+    note: t(lang, 'home.app.settings.note'),
+    img: shot('settings'),
+    alt: t(lang, 'home.app.settings.alt'),
+  },
+];
+
+const defaultsRows = [
+  [t(lang, 'home.faq.4.row1.label'), t(lang, 'home.faq.4.row1.value')],
+  [t(lang, 'home.faq.4.row2.label'), t(lang, 'home.faq.4.row2.value')],
+  [t(lang, 'home.faq.4.row3.label'), t(lang, 'home.faq.4.row3.value')],
+  [t(lang, 'home.faq.4.row4.label'), t(lang, 'home.faq.4.row4.value')],
+  [t(lang, 'home.faq.4.row5.label'), t(lang, 'home.faq.4.row5.value')],
+];
+
+const install1Parts = splitTemplateParts(rawTemplate(lang, 'home.install.1.body'));
+const install2Parts = splitTemplateParts(rawTemplate(lang, 'home.install.2.body'));
+const faq2Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.2.a'));
+const faq3Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.3.a'));
+
+const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostart' | 'smartscreen' }> = [
+  { id: 1, q: t(lang, 'home.faq.1.q'), a: t(lang, 'home.faq.1.a') },
+  {
+    id: 2,
+    q: t(lang, 'home.faq.2.q'),
+    a: t(lang, 'home.faq.2.a', { action: t(lang, 'home.faq.2.actionPlain'), github: t(lang, 'nav.github') }),
+    kind: 'smartscreen',
+  },
+  {
+    id: 3,
+    q: t(lang, 'home.faq.3.q'),
+    a: t(lang, 'home.faq.3.a', { setting: t(lang, 'home.faq.3.setting'), appdata: '%APPDATA%\\Ocy' }),
+    kind: 'autostart',
+  },
+  { id: 4, q: t(lang, 'home.faq.4.q'), a: t(lang, 'home.faq.4.a'), kind: 'table' },
+  { id: 5, q: t(lang, 'home.faq.5.q'), a: t(lang, 'home.faq.5.a') },
+  { id: 6, q: t(lang, 'home.faq.6.q'), a: t(lang, 'home.faq.6.a') },
+  { id: 7, q: t(lang, 'home.faq.7.q'), a: t(lang, 'home.faq.7.a') },
+  { id: 8, q: t(lang, 'home.faq.8.q'), a: t(lang, 'home.faq.8.a') },
+  { id: 9, q: t(lang, 'home.faq.9.q'), a: t(lang, 'home.faq.9.a') },
+  { id: 10, q: t(lang, 'home.faq.10.q'), a: t(lang, 'home.faq.10.a') },
+  { id: 11, q: t(lang, 'home.faq.11.q'), a: t(lang, 'home.faq.11.a') },
+];
+
+const softwareLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: t(lang, 'brand.name'),
+  description: pageDescription,
+  inLanguage: lang,
+  applicationCategory: 'HealthApplication',
+  operatingSystem: 'Windows 10, Windows 11',
+  softwareVersion: version,
+  url: canonicalUrl,
+  downloadUrl: releasesUrl,
+  license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  isAccessibleForFree: true,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: 'Daniel Mevit', url: 'https://github.com/danielmevit' },
+  publisher: { '@type': 'Organization', name: 'damt.xyz', url: 'https://damt.xyz' },
+};
+
+const faqLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  inLanguage: lang,
+  mainEntity: faqs.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
+  })),
+};
+---
+
+<BaseLayout lang={lang} pageType="home" title={pageTitle} description={pageDescription} ogImageAlt={ogImageAlt}>
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(softwareLd)} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(faqLd)} />
+  </Fragment>
+
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="hero-copy">
+      <div class="hero-titles">
+        <h1 id="hero-heading">{t(lang, 'home.hero.heading')}</h1>
+        <svg class="hero-underline" viewBox="0 0 360 16" aria-hidden="true" preserveAspectRatio="none">
+          <path class="ink" d="M4 10 C 60 5, 120 12, 180 8 S 300 4, 356 9" />
+        </svg>
+        <p class="hero-sub">
+          {t(lang, 'home.hero.sub')}
+        </p>
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-accent" href={releasesUrl}>{t(lang, 'home.hero.downloadCta')}</a>
+        <a class="btn btn-outline" href={repoUrl}>{t(lang, 'home.hero.githubCta')}</a>
+      </div>
+      <p class="hero-meta">
+        {t(lang, 'home.hero.meta', { version })}
+      </p>
+      {lang !== DEFAULT_LANG && <p class="hero-lang-note">{t(lang, 'home.hero.appLanguageNote')}</p>}
+    </div>
+
+    <div class="hero-stage">
+      <svg class="hero-deco" viewBox="0 0 600 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <path class="ink ink-dash" d="M70 430 C 140 486, 270 498, 360 480" />
+        <path class="ink" d="M500 70 l 12 -14 M518 88 l 18 -6 M486 58 l 2 -18" />
+      </svg>
+      <div class="hero-figure" data-hero>
+        <div class="disc disc-hero">
+          <div class="hero-follow face" data-face data-blink-seq={JSON.stringify(heroTiming.blink)} data-look-seq={JSON.stringify(heroTiming.look)} role="img" aria-label={t(lang, 'home.hero.mascotAria')}>
+            {heroFrames.map((f) => (
+              <span class="face-f" data-key={f.key} data-on={f.key === 'blink-f1' ? 'true' : undefined} aria-hidden="true">
+                <span class="mascot-light" data-src={f.light.src} set:html={f.light.svg} />
+                <span class="mascot-dark" data-src={f.dark.src} set:html={f.dark.svg} />
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="works" class="section works" aria-labelledby="works-heading">
+    <div class="section-head">
+      <h2 id="works-heading">{t(lang, 'home.works.heading')}</h2>
+    </div>
+    <ol class="moments">
+      <svg class="moments-path" viewBox="0 0 1000 60" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ink ink-dash" vector-effect="non-scaling-stroke" d="M40 30 C 180 6, 300 54, 500 30 S 820 6, 960 30" />
+      </svg>
+      {moments.map((m, i) => (
+        <li class="moment">
+          <span class="disc disc-moment">
+            <ArtFrame id={m.art} frame={m.frame} label={m.alt} />
+          </span>
+          <span class="moment-num" aria-hidden="true">{i + 1}</span>
+          <h3>{m.title}</h3>
+          <p>{m.line}</p>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section id="exercises" class="band exercises" aria-labelledby="exercises-heading">
+    <div class="section-head">
+      <h2 id="exercises-heading">{t(lang, 'home.exercises.heading')}</h2>
+      <p class="section-sub">{t(lang, 'home.exercises.sub')}</p>
+    </div>
+    <div class="slideshow" data-slideshow>
+      <div class="slides" aria-roledescription={t(lang, 'home.exercises.carouselRole')} aria-label={t(lang, 'home.exercises.carouselAria')}>
+        {exercises.map((ex, i) => (
+          <div
+            class="slide"
+            data-slide={String(i)}
+            data-active={i === 0 ? 'true' : undefined}
+            role="group"
+            aria-roledescription={t(lang, 'home.exercises.slideRole')}
+            aria-label={t(lang, 'home.exercises.slideAria', { index: i + 1, total: exercises.length, title: ex.title })}
+          >
+            <span class="disc disc-slide">
+              <ExerciseMascot
+                id={ex.id}
+                frames={ex.frames}
+                sequence={ex.sequence}
+                stepMs={ex.stepMs}
+                frozen={ex.frozen}
+                label={t(lang, 'home.exercises.mascotAria', { title: ex.title })}
+                size="slide"
+              />
+            </span>
+            <div class="slide-text">
+              <span class="slide-count">{String(i + 1).padStart(2, '0')} / {exercises.length}</span>
+              <h3>{ex.title}</h3>
+              <p>{t(lang, `home.exercises.why.${ex.id}`)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div class="rail" role="group" aria-label={t(lang, 'home.exercises.railAria')}>
+        {exercises.map((ex, i) => (
+          <button
+            type="button"
+            class="thumb"
+            data-go={String(i)}
+            aria-label={ex.title}
+            aria-current={i === 0 ? 'true' : undefined}
+          >
+            <span class="disc disc-thumb"><ArtFrame id={ex.id} frame={ex.frozen} /></span>
+          </button>
+        ))}
+      </div>
+      <p class="visually-hidden" aria-live="polite" data-announce></p>
+    </div>
+  </section>
+
+  <section id="app" class="section app" aria-labelledby="app-heading">
+    <div class="app-side">
+      <div class="section-head">
+        <h2 id="app-heading">{t(lang, 'home.app.heading')}</h2>
+        <p class="section-sub">{t(lang, 'home.app.sub')}</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label={t(lang, 'home.app.tabsAria')}>
+        {scenes.map((s, i) => (
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            id={`tab-${s.id}`}
+            aria-controls={`scene-${s.id}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+            data-tab={s.id}
+          >
+            {s.id === 'warning' && <span class="clay-sq" aria-hidden="true" />}
+            <span>{s.tab}</span>
+          </button>
+        ))}
+      </div>
+      {scenes.map((s, i) => (
+        <p class="scene-note" data-note={s.id} hidden={i !== 0}>{s.note}</p>
+      ))}
+    </div>
+
+    <div class="desk">
+      {scenes.map((s, i) => (
+        <div
+          class={`scene scene-${s.id}`}
+          id={`scene-${s.id}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${s.id}`}
+          hidden={i !== 0}
+        >
+          <div class="monitors">
+            <div class="monitor monitor-main">
+              <div class="screen">
+                <span class="wall" aria-hidden="true" />
+                <span class={`shot shot-${s.id}`}>
+                  <img class="mascot-light" src={s.img.light} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
+                  <img class="mascot-dark" src={s.img.dark} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
+                </span>
+                <span class="taskbar" aria-hidden="true" />
+              </div>
+              <span class="stand" aria-hidden="true" />
+            </div>
+            {(s.id === 'short' || s.id === 'warning') && (
+              <div class="monitor monitor-side" aria-hidden="true">
+                <div class="screen framed">
+                  <span class="wall" />
+                </div>
+                <span class="stand" />
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section id="tray" class="band tray-band" aria-labelledby="tray-heading">
+    <div class="tray">
+      <div class="section-head">
+        <h2 id="tray-heading">{t(lang, 'home.tray.heading')}</h2>
+        <p class="section-sub">{t(lang, 'home.tray.sub')}</p>
+      </div>
+      <ul class="tray-strip">
+        {trayStates.map((s) => (
+          <li>
+            <span class="tray-icon">
+              <img class="mascot-light" src={s.light} alt={s.alt} width="32" height="32" />
+              <img class="mascot-dark" src={s.dark} alt={s.alt} width="32" height="32" />
+            </span>
+            <span class="tray-label">
+              {s.warn && <span class="clay-sq" aria-hidden="true" />}
+              {s.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section id="install" class="section" aria-labelledby="install-heading">
+    <div class="section-head">
+      <h2 id="install-heading">{t(lang, 'home.install.heading')}</h2>
+      <p class="section-sub">{t(lang, 'home.install.sub')}</p>
+    </div>
+    <ol class="steps">
+      <svg class="steps-path" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ink ink-dash" vector-effect="non-scaling-stroke" d="M10 20 C 180 4, 300 34, 500 20 S 820 6, 990 20" />
+      </svg>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">1</span>
+        <h3>{t(lang, 'home.install.1.title')}</h3>
+        <p>
+          {install1Parts.map((part) =>
+            part.type === 'text' ? (
+              part.value
+            ) : part.name === 'zip' ? (
+              <code>Ocy-{version}-win-x64.zip</code>
+            ) : part.name === 'releases' ? (
+              <a href={releasesUrl}>{t(lang, 'home.install.1.releases')}</a>
+            ) : null
+          )}
+        </p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">2</span>
+        <h3>{t(lang, 'home.install.2.title')}</h3>
+        <p>
+          {install2Parts.map((part) =>
+            part.type === 'text' ? (
+              part.value
+            ) : part.name === 'exe' ? (
+              <code>Ocy.exe</code>
+            ) : null
+          )}
+        </p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">3</span>
+        <h3>{t(lang, 'home.install.3.title')}</h3>
+        <p>{t(lang, 'home.install.3.body')}</p>
+      </li>
+    </ol>
+  </section>
+
+  <section id="faq" class="band faq" aria-labelledby="faq-heading">
+    <div class="faq-main">
+      <div class="section-head">
+        <h2 id="faq-heading">{t(lang, 'home.faq.heading')}</h2>
+      </div>
+      <div class="faq-list">
+        {faqs.map((item) => (
+          <details class="faq-item">
+            <summary>{item.q}</summary>
+            {item.kind === 'table' ? (
+              <div class="faq-answer">
+                <table class="defaults-table">
+                  <tbody>
+                    {defaultsRows.map(([k, v]) => (
+                      <tr>
+                        <th scope="row">{k}</th>
+                        <td>{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p>{t(lang, 'home.faq.4.tableNote')}</p>
+              </div>
+            ) : item.kind === 'autostart' ? (
+              <p>
+                {faq3Parts.map((part) =>
+                  part.type === 'text' ? (
+                    part.value
+                  ) : part.name === 'setting' ? (
+                    <strong>{t(lang, 'home.faq.3.setting')}</strong>
+                  ) : part.name === 'appdata' ? (
+                    <code>%APPDATA%\Ocy</code>
+                  ) : null
+                )}
+              </p>
+            ) : item.kind === 'smartscreen' ? (
+              <p>
+                {faq2Parts.map((part) =>
+                  part.type === 'text' ? (
+                    part.value
+                  ) : part.name === 'action' ? (
+                    <strong>{t(lang, 'home.faq.2.action')}</strong>
+                  ) : part.name === 'github' ? (
+                    <a href={repoUrl}>{t(lang, 'nav.github')}</a>
+                  ) : null
+                )}
+              </p>
+            ) : (
+              <p>{item.a}</p>
+            )}
+          </details>
+        ))}
+      </div>
+    </div>
+    <div class="faq-art">
+      <span class="disc disc-faq">
+        <span class="faq-figure" data-faq role="img" aria-label={t(lang, 'home.faq.artAria')}>
+          <span class="faq-face face" data-face>
+            {faqFrames.map((f) => (
+              <span class="face-f" data-key={f.key} data-on={f.key === 'look-up-down-f1' ? 'true' : undefined} aria-hidden="true">
+                <span class="mascot-light" data-src={f.light.src} set:html={f.light.svg} />
+                <span class="mascot-dark" data-src={f.dark.src} set:html={f.dark.svg} />
+              </span>
+            ))}
+          </span>
+          <svg class="faq-marks" viewBox="-6 -8 76 76" aria-hidden="true">
+            {marks.map((m, i) => (
+              <g transform={m.t}><g class="ocy-q" data-q={String(i)}>
+                <path d={m.d} fill="none" stroke="currentColor" stroke-width={m.w} stroke-linecap="round" stroke-linejoin="round" />
+                <path d={m.dot} fill="none" stroke="currentColor" stroke-width={m.w + 0.5} stroke-linecap="round" />
+              </g></g>
+            ))}
+          </svg>
+        </span>
+      </span>
+    </div>
+  </section>
+
+  <script is:inline>
+    (() => {
+      const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      /* ---------- stepped frame player ---------- */
+      const stages = Array.from(document.querySelectorAll('[data-mascot]'));
+      const stateMap = new WeakMap();
+
+      function showFrame(el, frameNum) {
+        for (const frame of el.querySelectorAll('.mascot-frame')) {
+          if (Number(frame.getAttribute('data-frame')) === frameNum) frame.setAttribute('data-active', 'true');
+          else frame.removeAttribute('data-active');
+        }
+      }
+      function stopStage(el) {
+        const st = stateMap.get(el);
+        if (st && st.timer !== null) {
+          clearInterval(st.timer);
+          st.timer = null;
+        }
+      }
+      function freezeStage(el) {
+        stopStage(el);
+        const st = stateMap.get(el);
+        if (!st) return;
+        st.index = 0;
+        showFrame(el, st.frozen);
+      }
+      function startStage(el) {
+        const st = stateMap.get(el);
+        if (!st || st.timer !== null) return;
+        if (motionQuery.matches || document.hidden || !st.visible) return;
+        if (st.sequence.length <= 1) {
+          showFrame(el, st.sequence[0] ?? st.frozen);
+          return;
+        }
+        st.timer = window.setInterval(() => {
+          st.index = (st.index + 1) % st.sequence.length;
+          showFrame(el, st.sequence[st.index]);
+        }, st.stepMs);
+      }
+      for (const el of stages) {
+        let sequence = [1];
+        try {
+          const parsed = JSON.parse(el.getAttribute('data-sequence') || '[1]');
+          if (Array.isArray(parsed) && parsed.length > 0) sequence = parsed;
+        } catch {
+          sequence = [1];
+        }
+        const stepMs = Math.max(80, Number(el.getAttribute('data-step-ms') || '300'));
+        const frozen = Number(el.getAttribute('data-frozen') || '1');
+        stateMap.set(el, { sequence, stepMs, frozen, index: 0, timer: null, visible: false });
+      }
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const el = entry.target;
+            const st = stateMap.get(el);
+            if (!st) continue;
+            st.visible = entry.isIntersecting;
+            if (motionQuery.matches) freezeStage(el);
+            else if (st.visible && !document.hidden) startStage(el);
+            else stopStage(el);
+          }
+        },
+        { threshold: 0.05 }
+      );
+      for (const el of stages) observer.observe(el);
+      function syncAll() {
+        for (const el of stages) {
+          const st = stateMap.get(el);
+          if (motionQuery.matches) freezeStage(el);
+          else if (st && st.visible && !document.hidden) startStage(el);
+          else stopStage(el);
+        }
+      }
+      motionQuery.addEventListener('change', syncAll);
+      document.addEventListener('visibilitychange', syncAll);
+
+      /* ---------- hero + FAQ faces: only the illustrator's frames, app timing, stepped (never tweened) ---------- */
+      const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+      const still = () => motionQuery.matches || document.hidden;
+      function faceOf(el) {
+        const fs = Array.from(el.querySelectorAll('.face-f'));
+        let cur = '';
+        return (key) => {
+          if (key === cur) return;
+          cur = key;
+          for (const f of fs) (f.getAttribute('data-key') === key ? f.setAttribute('data-on', 'true') : f.removeAttribute('data-on'));
+        };
+      }
+      function watchVisible(el) {
+        const s = { on: false };
+        new IntersectionObserver((en) => { s.on = en[0].isIntersecting; }, { threshold: 0.05 }).observe(el);
+        return s;
+      }
+
+      /* hero: idle = the app's blink loop (now and then the look-left-right loop); cursor = the drawn look poses */
+      const heroFace = document.querySelector('[data-hero] [data-face]');
+      if (heroFace) {
+        const show = faceOf(heroFace);
+        const vis = watchVisible(heroFace);
+        const parse = (a, d) => { try { return JSON.parse(heroFace.getAttribute(a)) || d; } catch { return d; } };
+        const blinkT = parse('data-blink-seq', { sequence: [1], stepMs: 240 });
+        const lookT = parse('data-look-seq', { sequence: [1], stepMs: 320 });
+        const REST = 'blink-f1';
+        let lastMove = -1e9;
+        let idleTimer = null;
+        let seqName = 'blink', idx = -1, cycles = 0;
+        function idleStep() {
+          idleTimer = null;
+          const t = seqName === 'blink' ? blinkT : lookT;
+          if (!still() && vis.on && performance.now() - lastMove > 3000) {
+            idx += 1;
+            if (idx >= t.sequence.length) {
+              idx = 0;
+              cycles += 1;
+              if (seqName === 'blink' && cycles >= 2 && Math.random() < 0.5) { seqName = 'look'; cycles = 0; }
+              else if (seqName === 'look') { seqName = 'blink'; cycles = 0; }
+            }
+            const tt = seqName === 'blink' ? blinkT : lookT;
+            show((seqName === 'blink' ? 'blink-f' : 'look-left-right-f') + tt.sequence[idx]);
+            idleTimer = setTimeout(idleStep, tt.stepMs);
+            return;
+          }
+          if (still()) { show(REST); idx = -1; seqName = 'blink'; }
+          idleTimer = setTimeout(idleStep, 200);
+        }
+        idleStep();
+        let last = 0, pending = null, trailing = null;
+        function aim(ev) {
+          last = performance.now();
+          const r = heroFace.getBoundingClientRect();
+          if (r.bottom < 0 || r.top > window.innerHeight) return;
+          lastMove = last;
+          idx = -1; seqName = 'blink'; cycles = 0;
+          const vx = ev.clientX - (r.left + r.width / 2);
+          const vy = ev.clientY - (r.top + r.height / 2);
+          if (Math.hypot(vx, vy) < r.width * 0.3) show(REST);
+          else if (Math.abs(vx) >= Math.abs(vy)) show(vx < 0 ? 'look-left-right-f1' : 'look-left-right-f3');
+          else show(vy < 0 ? 'look-up-down-f1' : 'look-up-down-f3');
+        }
+        window.addEventListener('pointermove', (ev) => {
+          if (ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') return;
+          if (still()) return;
+          const now = performance.now();
+          if (now - last < 200) {
+            pending = ev;
+            if (!trailing) trailing = setTimeout(() => { trailing = null; if (pending) { const e = pending; pending = null; aim(e); } }, 200 - (now - last));
+            return;
+          }
+          pending = null;
+          if (trailing) { clearTimeout(trailing); trailing = null; }
+          aim(ev);
+        }, { passive: true });
+        motionQuery.addEventListener('change', () => { if (motionQuery.matches) show(REST); });
+      }
+
+      /* FAQ: resting = the drawn "look up" frame; an occasional real blink (half, closed, half); marks wiggle */
+      const faqFig = document.querySelector('[data-faq]');
+      if (faqFig) {
+        const show = faceOf(faqFig);
+        const vis = watchVisible(faqFig);
+        const REST = 'look-up-down-f1';
+        const blinkSeq = ['blink-f2', 'blink-f3', 'blink-f3', 'blink-f2', REST];
+        const blinkMs = (() => { try { return JSON.parse(document.querySelector('[data-hero] [data-face]').getAttribute('data-blink-seq')).stepMs; } catch { return 240; } })();
+        function loop() {
+          setTimeout(() => {
+            if (vis.on && !still()) {
+              blinkSeq.forEach((k, i) => setTimeout(() => show(still() ? REST : k), i * blinkMs));
+            } else show(REST);
+            loop();
+          }, rand(3000, 6000));
+        }
+        loop();
+        const steps = [[-7, 0, 8, 0], [10, -4, 10, 3], [-5, 6, -9, 4, 0], [6, -10, 0]];
+        const rhythm = [430, 560, 650, 500];
+        steps.forEach((angles, i) => {
+          const g = faqFig.querySelector(`.ocy-q[data-q="${i}"]`);
+          let k = 0;
+          setInterval(() => {
+            if (still()) { g.removeAttribute('transform'); return; }
+            if (!vis.on) return;
+            k = (k + 1) % angles.length;
+            g.setAttribute('transform', `rotate(${angles[k]})`);
+          }, rhythm[i]);
+        });
+      }
+
+      /* ---------- exercise slideshow ---------- */
+      const show = document.querySelector('[data-slideshow]');
+      if (show) {
+        const slides = Array.from(show.querySelectorAll('[data-slide]'));
+        const thumbs = Array.from(show.querySelectorAll('[data-go]'));
+        const announce = show.querySelector('[data-announce]');
+        let current = 0;
+        let timer = null;
+        let hovered = false;
+        let focused = false;
+        let onScreen = false;
+        function go(i, speak) {
+          current = (i + slides.length) % slides.length;
+          slides.forEach((s, n) => (n === current ? s.setAttribute('data-active', 'true') : s.removeAttribute('data-active')));
+          thumbs.forEach((t, n) => (n === current ? t.setAttribute('aria-current', 'true') : t.removeAttribute('aria-current')));
+          if (speak && announce) announce.textContent = slides[current].getAttribute('aria-label') || '';
+        }
+        function tick() {
+          stop();
+          if (motionQuery.matches || hovered || focused || !onScreen || document.hidden) return;
+          timer = setTimeout(() => {
+            go(current + 1, false);
+            tick();
+          }, 6000);
+        }
+        function stop() {
+          if (timer !== null) clearTimeout(timer);
+          timer = null;
+        }
+        thumbs.forEach((t, n) =>
+          t.addEventListener('click', () => {
+            go(n, true);
+            tick();
+          })
+        );
+        show.addEventListener('pointerenter', () => { hovered = true; stop(); });
+        show.addEventListener('pointerleave', () => { hovered = false; tick(); });
+        show.addEventListener('focusin', () => { focused = true; stop(); });
+        show.addEventListener('focusout', (e) => {
+          if (!show.contains(e.relatedTarget)) { focused = false; tick(); }
+        });
+        new IntersectionObserver((en) => { onScreen = en[0].isIntersecting; tick(); }, { threshold: 0.3 }).observe(show);
+        motionQuery.addEventListener('change', tick);
+        document.addEventListener('visibilitychange', tick);
+      }
+
+      /* ---------- app scene tabs ---------- */
+      const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+      function selectTab(tab, focus) {
+        for (const t of tabs) {
+          const on = t === tab;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+          const id = t.getAttribute('data-tab');
+          document.getElementById('scene-' + id).hidden = !on;
+          const note = document.querySelector(`[data-note="${id}"]`);
+          if (note) note.hidden = !on;
+        }
+        if (focus) tab.focus();
+      }
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => selectTab(t, false));
+        t.addEventListener('keydown', (e) => {
+          let n = null;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (i + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') n = 0;
+          else if (e.key === 'End') n = tabs.length - 1;
+          if (n !== null) {
+            e.preventDefault();
+            selectTab(tabs[n], true);
+          }
+        });
+      });
+    })();
+  </script>
+</BaseLayout>

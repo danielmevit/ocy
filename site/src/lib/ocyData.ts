@@ -57,19 +57,24 @@ export function readAppVersion(): string {
   return match[1];
 }
 
-export function readExercises(): ExerciseItem[] {
+export function readExercises(lang = 'en'): ExerciseItem[] {
   const root = repoRoot();
   const manifestPath = path.join(root, 'assets/illustrations/ocy-v1f/manifest.json');
-  const stringsPath = path.join(root, 'content/strings/en.json');
+  const enPath = path.join(root, 'content/strings/en.json');
+  const langPath = path.join(root, 'content/strings', `${lang}.json`);
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as ExerciseManifest;
-  const strings = JSON.parse(fs.readFileSync(stringsPath, 'utf8')) as Record<string, string>;
+  const enStrings = JSON.parse(fs.readFileSync(enPath, 'utf8')) as Record<string, string>;
+  const langStrings =
+    lang !== 'en' && fs.existsSync(langPath)
+      ? (JSON.parse(fs.readFileSync(langPath, 'utf8')) as Record<string, string>)
+      : enStrings;
 
   return Object.entries(manifest.exercises).map(([id, entry]) => {
-    const title = strings[`exercise.${id}.title`];
-    const body = strings[`exercise.${id}.body`];
+    const title = langStrings[`exercise.${id}.title`] ?? enStrings[`exercise.${id}.title`];
+    const body = langStrings[`exercise.${id}.body`] ?? enStrings[`exercise.${id}.body`];
     if (!title || !body) {
-      throw new Error(`Missing English strings for exercise "${id}" in content/strings/en.json`);
+      throw new Error(`Missing strings for exercise "${id}" in content/strings/en.json`);
     }
     return {
       id,

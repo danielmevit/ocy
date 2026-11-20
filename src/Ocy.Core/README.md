@@ -1,3 +1,6 @@
+> **Note:** this is the C# engine of the 0.1.x reference implementation.
+> The shipping app (0.2.0 and later) is the Rust workspace in [`rust/`](../../rust/).
+
 # Ocy.Core
 
 `Ocy.Core` is the headless, cross-platform eye break engine for Ocy. It manages screen time tracking,

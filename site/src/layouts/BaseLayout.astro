@@ -4,35 +4,103 @@ import faviconSvg from '../../../assets/icons/brand/ocy-sprout-light.svg?url';
 import sproutLight from '../../../assets/icons/brand/ocy-sprout-light.svg?url';
 import sproutDark from '../../../assets/icons/brand/ocy-sprout-dark.svg?url';
 import faviconPng from '../../../assets/icons/brand/png/ocy-sprout-light-32.png?url';
+import {
+  DEFAULT_LANG,
+  type PageType,
+  getAvailableLanguages,
+  languageEndonym,
+  ogLocaleFor,
+  pageAbsoluteUrl,
+  pageHref,
+  rawTemplate,
+  splitTemplateParts,
+  t,
+} from '../lib/i18n';
 
 interface Props {
+  lang: string;
+  pageType: PageType;
   title: string;
   description: string;
-  canonicalPath?: string;
   noindex?: boolean;
   includeOgImage?: boolean;
   ogImageAlt?: string;
 }
 
 const {
+  lang,
+  pageType,
   title,
   description,
-  canonicalPath,
   noindex = false,
   includeOgImage = true,
-  ogImageAlt = 'Ocy, a calm break reminder for your eyes on Windows, showing its sprout mascot and a short eye-exercise card.',
+  ogImageAlt = t(lang, 'meta.defaultOgImageAlt'),
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
-const cleanPath = !canonicalPath ? '/' : canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`;
-const canonicalUrl = canonicalPath === undefined ? undefined : `${origin}${base}${cleanPath}`;
+const isIndexable = pageType !== '404';
+const canonicalUrl = isIndexable ? pageAbsoluteUrl(origin, base, lang, pageType) : undefined;
 const ogImageUrl = `${origin}${base}/assets/og.png`;
 const repoUrl = 'https://github.com/danielmevit/ocy';
+
+const availableLangs = getAvailableLanguages();
+const currentEndonym = languageEndonym(lang);
+const homeHref = pageHref(base, lang, 'home');
+const privacyHref = pageHref(base, lang, 'privacy');
+
+const currentOgLocale = ogLocaleFor(lang);
+const alternateOgLocales = Array.from(
+  new Set(
+    availableLangs
+      .filter((alt) => alt !== lang)
+      .map((alt) => ogLocaleFor(alt))
+      .filter((loc) => loc !== currentOgLocale)
+  )
+);
+
+const themeLabels = {
+  auto: {
+    aria: t(lang, 'theme.aria', { current: t(lang, 'theme.auto'), next: t(lang, 'theme.light') }),
+    title: t(lang, 'theme.title', { current: t(lang, 'theme.auto') }),
+  },
+  light: {
+    aria: t(lang, 'theme.aria', { current: t(lang, 'theme.light'), next: t(lang, 'theme.dark') }),
+    title: t(lang, 'theme.title', { current: t(lang, 'theme.light') }),
+  },
+  dark: {
+    aria: t(lang, 'theme.aria', { current: t(lang, 'theme.dark'), next: t(lang, 'theme.autoShort') }),
+    title: t(lang, 'theme.title', { current: t(lang, 'theme.dark') }),
+  },
+};
+
+// Each candidate carries its own language's wording, so the hint reads in the visitor's language.
+const hintCandidates = availableLangs
+  .filter((alt) => alt !== lang)
+  .map((alt) => {
+    const endonym = languageEndonym(alt);
+    const href = pageHref(base, alt, pageType);
+    let prefix = '';
+    let suffix = '';
+    let seenSlot = false;
+    for (const part of splitTemplateParts(rawTemplate(alt, 'langHint.available'))) {
+      if (part.type === 'slot' && part.name === 'language') {
+        seenSlot = true;
+      } else if (part.type === 'text') {
+        if (!seenSlot) prefix += part.value;
+        else suffix += part.value;
+      }
+    }
+    return { tag: alt, href, endonym, prefix, suffix, dismiss: t(alt, 'langHint.dismiss') };
+  });
+
+const langCode = (tag: string) => tag.split('-')[0].toUpperCase();
+
+const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'));
 ---
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -48,11 +116,17 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <link rel="icon" type="image/svg+xml" href={faviconSvg} />
     <link rel="icon" type="image/png" sizes="32x32" href={faviconPng} />
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    {isIndexable && availableLangs.map((alt) => (
+      <link rel="alternate" hreflang={alt} href={pageAbsoluteUrl(origin, base, alt, pageType)} />
+    ))}
+    {isIndexable && (
+      <link rel="alternate" hreflang="x-default" href={pageAbsoluteUrl(origin, base, DEFAULT_LANG, pageType)} />
+    )}
     <link
       rel="alternate"
       type="text/plain"
       href={`${base}/llms.txt`}
-      title="LLM Summary"
+      title={t(lang, 'meta.llmSummary')}
     />
 
     <meta name="description" content={description} />
@@ -64,8 +138,12 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content={currentOgLocale} />
+    {alternateOgLocales.map((loc) => (
+      <meta property="og:locale:alternate" content={loc} />
+    ))}
     {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
-    <meta property="og:site_name" content="Ocy" />
+    <meta property="og:site_name" content={t(lang, 'brand.name')} />
     {includeOgImage && (
       <>
         <meta property="og:image" content={ogImageUrl} />
@@ -81,22 +159,56 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <slot name="head" />
   </head>
   <body>
-    <a class="skip-link" href="#main">Skip to content</a>
+    <a class="skip-link" href="#main">{t(lang, 'nav.skipToContent')}</a>
 
     <header class="site-header">
-      <nav class="nav" aria-label="Primary">
-        <a class="brand" href={`${base}/`}>
+      <nav class="nav" aria-label={t(lang, 'nav.aria')}>
+        <a class="brand" href={homeHref}>
           <img class="mascot-light" src={sproutLight} alt="" width="28" height="28" /><img class="mascot-dark" src={sproutDark} alt="" width="28" height="28" />
-          <span>Ocy</span>
+          <span>{t(lang, 'brand.name')}</span>
         </a>
         <div class="nav-links">
-          <a class="nav-hide-sm" href={`${base}/#works`}>How it works</a>
-          <a class="nav-hide-sm" href={`${base}/#exercises`}>Exercises</a>
-          <a class="nav-hide-sm" href={`${base}/#app`}>The app</a>
-          <a class="nav-hide-sm" href={`${base}/#faq`}>FAQ</a>
-          <a href={repoUrl}>GitHub</a>
-          <a class="nav-cta" href={`${repoUrl}/releases/latest`}>Download</a>
-          <button type="button" class="theme-btn" data-theme-btn aria-label="Theme: Auto, follows your system. Switch to Light.">
+          <a class="nav-hide-sm" href={`${homeHref}#works`}>{t(lang, 'nav.howItWorks')}</a>
+          <a class="nav-hide-sm" href={`${homeHref}#exercises`}>{t(lang, 'nav.exercises')}</a>
+          <a class="nav-hide-sm" href={`${homeHref}#app`}>{t(lang, 'nav.theApp')}</a>
+          <a class="nav-hide-sm" href={`${homeHref}#faq`}>{t(lang, 'nav.faq')}</a>
+          <a href={repoUrl}>{t(lang, 'nav.github')}</a>
+          <a class="nav-cta" href={`${repoUrl}/releases/latest`}>{t(lang, 'nav.download')}</a>
+          <details class="lang-menu" data-lang-menu>
+            <summary class="lang-btn" aria-label={t(lang, 'nav.languageAria', { language: currentEndonym })}>
+              <span class="lang-name">{currentEndonym}</span>
+              <span class="lang-code" aria-hidden="true">{langCode(lang)}</span>
+              <svg class="lang-caret" viewBox="0 0 12 12" aria-hidden="true">
+                <path class="ink" d="M2.5 4.5 L6 8 L9.5 4.5" style="stroke-width: 1.5;" />
+              </svg>
+            </summary>
+            <ul class="lang-list" aria-label={t(lang, 'nav.languageMenuLabel')}>
+              {availableLangs.map((alt) => (
+                <li>
+                  <a
+                    href={pageHref(base, alt, pageType)}
+                    lang={alt}
+                    hreflang={alt}
+                    aria-current={alt === lang ? 'page' : undefined}
+                  >
+                    <span>{languageEndonym(alt)}</span>
+                    {alt === lang && (
+                      <svg class="lang-check" viewBox="0 0 12 12" aria-hidden="true">
+                        <path class="ink" d="M2.5 6.4 L5 8.8 L9.6 3.4" style="stroke-width: 1.6;" />
+                      </svg>
+                    )}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+          <button
+            type="button"
+            class="theme-btn"
+            data-theme-btn
+            data-theme-labels={JSON.stringify(themeLabels)}
+            aria-label={themeLabels.auto.aria}
+          >
             <svg class="theme-glyph" viewBox="0 0 24 24" aria-hidden="true">
               <g class="g-auto"><path class="ink" d="M12 3.4 C7 3.2 3.3 7.2 3.5 12.2 C3.7 16.9 7.4 20.6 12.1 20.5" /><path class="ink" d="M12 3.4 C16.8 3.6 20.6 7.3 20.4 12.3 C20.2 16.9 16.7 20.4 12.1 20.5" /><path d="M12 3.6 C16.6 3.8 20.3 7.4 20.2 12.2 C20 16.7 16.6 20.2 12.1 20.3 Z" fill="currentColor" /></g>
               <g class="g-light"><path class="ink" d="M12.2 8.1 C9.8 8 8 10 8.1 12.2 C8.3 14.4 10 16 12.1 15.9 C14.3 15.8 16 14.1 15.9 12 C15.8 9.9 14.3 8.2 12.2 8.1Z" /><path class="ink" d="M12 2.8 L12.2 5 M12.1 19.1 L12 21.3 M2.9 12.1 L5.1 12 M18.9 12.2 L21.1 12 M5.4 5.6 L6.9 7.1 M17.2 17 L18.6 18.5 M18.5 5.5 L17 7 M6.9 17.1 L5.5 18.4" /></g>
@@ -107,6 +219,27 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
       </nav>
     </header>
 
+    <div
+      class="lang-hint"
+      data-lang-hint
+      data-current-lang={lang}
+      data-candidates={JSON.stringify(hintCandidates)}
+      role="status"
+      hidden
+    >
+      <p class="lang-hint-text" data-lang-hint-text></p>
+      <button
+        type="button"
+        class="lang-hint-close"
+        data-lang-hint-close
+        aria-label={t(lang, 'langHint.dismiss')}
+      >
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path class="ink" d="M4 4 L12 12 M12 4 L4 12" style="stroke-width: 1.6;" />
+        </svg>
+      </button>
+    </div>
+
     <main id="main">
       <slot />
     </main>
@@ -114,43 +247,133 @@ const repoUrl = 'https://github.com/danielmevit/ocy';
     <script is:inline>
       (() => {
         const btn = document.querySelector('[data-theme-btn]');
-        if (!btn) return;
-        const root = document.documentElement;
-        const order = ['auto', 'light', 'dark'];
-        const names = { auto: 'Auto, follows your system', light: 'Light', dark: 'Dark' };
-        const nextName = { auto: 'Light', light: 'Dark', dark: 'Auto' };
-        const current = () => root.getAttribute('data-theme') || 'auto';
-        const label = () => {
-          const c = current();
-          btn.setAttribute('aria-label', `Theme: ${names[c]}. Switch to ${nextName[c]}.`);
-          btn.setAttribute('title', `Theme: ${names[c]}`);
-          btn.setAttribute('data-state', c);
-        };
-        btn.addEventListener('click', () => {
-          const n = order[(order.indexOf(current()) + 1) % order.length];
-          if (n === 'auto') root.removeAttribute('data-theme');
-          else root.setAttribute('data-theme', n);
+        if (btn) {
+          let labels = null;
           try {
-            if (n === 'auto') localStorage.removeItem('ocy-theme');
-            else localStorage.setItem('ocy-theme', n);
+            const raw = btn.getAttribute('data-theme-labels');
+            if (raw) labels = JSON.parse(raw);
           } catch (e) {}
+          const root = document.documentElement;
+          const order = ['auto', 'light', 'dark'];
+          const current = () => root.getAttribute('data-theme') || 'auto';
+          const label = () => {
+            const c = current();
+            if (labels && labels[c]) {
+              btn.setAttribute('aria-label', labels[c].aria);
+              btn.setAttribute('title', labels[c].title);
+            }
+            btn.setAttribute('data-state', c);
+          };
+          btn.addEventListener('click', () => {
+            const n = order[(order.indexOf(current()) + 1) % order.length];
+            if (n === 'auto') root.removeAttribute('data-theme');
+            else root.setAttribute('data-theme', n);
+            try {
+              if (n === 'auto') localStorage.removeItem('ocy-theme');
+              else localStorage.setItem('ocy-theme', n);
+            } catch (e) {}
+            label();
+          });
           label();
-        });
-        label();
+        }
+
+        const menu = document.querySelector('[data-lang-menu]');
+        if (menu) {
+          document.addEventListener('click', (e) => {
+            if (menu.open && !menu.contains(e.target)) menu.open = false;
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && menu.open) {
+              menu.open = false;
+              menu.querySelector('summary')?.focus();
+            }
+          });
+        }
+
+        const hint = document.querySelector('[data-lang-hint]');
+        if (hint) {
+          let dismissed = false;
+          try { dismissed = localStorage.getItem('ocy-lang-hint-dismissed') === '1'; } catch (e) {}
+          if (!dismissed) {
+            const cur = (hint.getAttribute('data-current-lang') || '').toLowerCase();
+            let cands = [];
+            try { cands = JSON.parse(hint.getAttribute('data-candidates') || '[]'); } catch (e) {}
+            const byLower = new Map(cands.map((c) => [c.tag.toLowerCase(), c]));
+            const langs = navigator.languages && navigator.languages.length ? navigator.languages : (navigator.language ? [navigator.language] : []);
+            // Region/script aliases for tags the site doesn't carry verbatim.
+            const alias = {
+              no: 'nb', nn: 'nb', 'no-no': 'nb', 'nn-no': 'nb', 'nb-no': 'nb',
+              pt: 'pt-br',
+              zh: 'zh-hans', 'zh-cn': 'zh-hans', 'zh-sg': 'zh-hans', 'zh-my': 'zh-hans',
+              'zh-tw': 'zh-hant', 'zh-hk': 'zh-hant', 'zh-mo': 'zh-hant',
+            };
+            // Try the tag, then drop subtags one by one: sr-Latn-RS -> sr-Latn -> sr.
+            const resolve = (raw) => {
+              let norm = String(raw || '').trim().replace(/_/g, '-').toLowerCase();
+              while (norm) {
+                const tag = alias[norm] || norm;
+                if (tag === cur) return 'current';
+                if (byLower.has(tag)) return byLower.get(tag);
+                const i = norm.lastIndexOf('-');
+                norm = i > 0 ? norm.slice(0, i) : '';
+              }
+              return null;
+            };
+            let match = null;
+            for (const l of langs) {
+              const r = resolve(l);
+              if (r === 'current') { match = null; break; }
+              if (r) { match = r; break; }
+            }
+            if (match) {
+              const textEl = hint.querySelector('[data-lang-hint-text]');
+              const closeBtn = hint.querySelector('[data-lang-hint-close]');
+              if (textEl) {
+                textEl.textContent = '';
+                textEl.lang = match.tag;
+                if (match.prefix) textEl.append(document.createTextNode(match.prefix));
+                const link = document.createElement('a');
+                link.href = match.href;
+                link.lang = match.tag;
+                link.hreflang = match.tag;
+                link.textContent = match.endonym;
+                textEl.append(link);
+                if (match.suffix) textEl.append(document.createTextNode(match.suffix));
+                hint.hidden = false;
+              }
+              if (closeBtn && match.dismiss) {
+                closeBtn.setAttribute('aria-label', match.dismiss);
+                closeBtn.title = match.dismiss;
+                closeBtn.lang = match.tag;
+              }
+              closeBtn?.addEventListener('click', () => {
+                hint.hidden = true;
+                try { localStorage.setItem('ocy-lang-hint-dismissed', '1'); } catch (e) {}
+              });
+            }
+          }
+        }
       })();
     </script>
 
     <footer class="site-footer">
       <div>
-        &copy; 2026 <a href="https://github.com/danielmevit">Daniel Mevit</a> &middot; Made by
-        <a href="https://damt.xyz">damt.xyz</a>
+        {footerCreditParts.map((part) =>
+          part.type === 'text' ? (
+            part.value
+          ) : part.name === 'author' ? (
+            <a href="https://github.com/danielmevit">Daniel Mevit</a>
+          ) : part.name === 'maker' ? (
+            <a href="https://damt.xyz">damt.xyz</a>
+          ) : null
+        )}
       </div>
       <div class="footer-links">
-        <a href={repoUrl}>GitHub</a>
-        <a href={`${repoUrl}/releases`}>Releases</a>
-        <a href={`${repoUrl}/blob/main/CHANGELOG.md`}>Changelog</a>
-        <a href={`${repoUrl}/blob/main/LICENSE`}>License</a>
-        <a href={`${base}/privacy/`}>Privacy</a>
+        <a href={repoUrl}>{t(lang, 'nav.github')}</a>
+        <a href={`${repoUrl}/releases`}>{t(lang, 'footer.releases')}</a>
+        <a href={`${repoUrl}/blob/main/CHANGELOG.md`}>{t(lang, 'footer.changelog')}</a>
+        <a href={`${repoUrl}/blob/main/LICENSE`}>{t(lang, 'footer.license')}</a>
+        <a href={privacyHref}>{t(lang, 'footer.privacy')}</a>
       </div>
     </footer>
   </body>
