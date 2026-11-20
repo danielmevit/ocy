@@ -3,7 +3,9 @@
 //!
 //! The delay is the minimum of:
 //! - the time until the next due moment (short break, long-break warning, long break,
-//!   pause expiry),
+//!   pause expiry) **or, when that moment is more than [`PREWARM_LEAD_TIME`] away, the
+//!   moment minus [`PREWARM_LEAD_TIME`]** — the pre-warm wake, so the next card is
+//!   created hidden before it becomes due (at most one extra wake per break),
 //! - [`ACTIVE_WAKE_INTERVAL`] while a break or warning window is visible, while a
 //!   natural-moment hold is active, or while the engine waits on an external state
 //!   change it cannot be notified about (away return, fullscreen exit),
@@ -17,6 +19,8 @@ use jiff::Timestamp;
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::time::Paused;
 
+use crate::break_logic::PREWARM_LEAD_TIME;
+
 /// Shortest wake delay; used when a due moment is now (the tick resolves it immediately).
 pub const MIN_WAKE_DELAY: Duration = Duration::from_millis(50);
 
@@ -26,6 +30,17 @@ pub const ACTIVE_WAKE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Longest wake delay while working (idle re-checks and away detection granularity).
 pub const MAX_WAKE_DELAY: Duration = Duration::from_secs(10);
+
+/// The delay at which to wake for a due moment so its card can be pre-warmed: at the
+/// due moment itself when it is within [`PREWARM_LEAD_TIME`], otherwise one wake
+/// earlier at `due - PREWARM_LEAD_TIME` (at most one extra wake per break).
+fn prewarm_wake_delay(until_due: Duration) -> Duration {
+    if until_due > PREWARM_LEAD_TIME {
+        until_due - PREWARM_LEAD_TIME
+    } else {
+        until_due
+    }
+}
 
 /// Computes the delay the host should sleep before the next engine tick.
 ///
@@ -55,13 +70,13 @@ pub fn next_wake_delay(snapshot: &EngineSnapshot, now: Timestamp) -> Duration {
             } else {
                 let mut delay = MAX_WAKE_DELAY;
                 if let Some(until_short) = snapshot.time_until_short_break {
-                    delay = delay.min(until_short);
+                    delay = delay.min(prewarm_wake_delay(until_short));
                 }
                 if let Some(until_long) = snapshot.time_until_long_break {
-                    delay = delay.min(until_long);
+                    delay = delay.min(prewarm_wake_delay(until_long));
                 }
                 if let Some(until_warning) = snapshot.time_until_long_break_warning {
-                    delay = delay.min(until_warning);
+                    delay = delay.min(prewarm_wake_delay(until_warning));
                 }
                 delay
             }

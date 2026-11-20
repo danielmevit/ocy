@@ -1,7 +1,8 @@
 //! Application host wiring engine ticks, session events, autosave, coordinator, and tray.
 
 use std::fmt;
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use damt_app::ErrorLog;
 use damt_platform::SessionEvent;
@@ -12,8 +13,28 @@ use ocy_core::settings::OcySettings;
 use crate::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
 use crate::tray::{PauseSource, TrayController, TraySink};
 
-/// Autosave interval in seconds (1 tick = 1 second).
-const AUTOSAVE_INTERVAL_SECONDS: u32 = 60;
+/// Autosave interval: save after this much monotonic time since the last save.
+///
+/// This is real time, not a tick count: the adaptive scheduler ticks about every 10 s
+/// while working (5 s while away), so counting ticks would stretch the interval to
+/// 10-20 minutes.
+const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Monotonic time source for the autosave interval (a seam so tests can drive it).
+pub trait MonotonicTimeSource: fmt::Debug {
+    /// Returns the current monotonic instant.
+    fn now(&self) -> Instant;
+}
+
+/// Production [`MonotonicTimeSource`] backed by [`Instant::now`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SystemMonotonicTime;
+
+impl MonotonicTimeSource for SystemMonotonicTime {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+}
 
 /// Central host coordinating [`BreakEngine`], [`BreakUiCoordinator`], and [`TrayController`].
 pub struct AppHost<W: BreakWindows, S: SettingsWindow, T: TraySink> {
@@ -22,7 +43,8 @@ pub struct AppHost<W: BreakWindows, S: SettingsWindow, T: TraySink> {
     tray: TrayController<T>,
     settings_store: Option<AppDataStore>,
     error_log: ErrorLog,
-    seconds_since_save: u32,
+    time_source: Arc<dyn MonotonicTimeSource>,
+    last_save: Instant,
     shut_down: bool,
 }
 
@@ -37,7 +59,7 @@ where
             .field("engine", &self.engine)
             .field("coordinator", &self.coordinator)
             .field("tray", &self.tray)
-            .field("seconds_since_save", &self.seconds_since_save)
+            .field("last_save", &self.last_save)
             .field("shut_down", &self.shut_down)
             .finish_non_exhaustive()
     }
@@ -65,18 +87,30 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         settings_store: Option<AppDataStore>,
     ) -> Self {
         coordinator.sync_state(&engine.snapshot(), engine.settings());
+        let time_source: Arc<dyn MonotonicTimeSource> = Arc::new(SystemMonotonicTime);
+        let last_save = time_source.now();
         Self {
             engine,
             coordinator,
             tray,
             settings_store,
             error_log,
-            seconds_since_save: 0,
+            time_source,
+            last_save,
             shut_down: false,
         }
     }
 
-    /// Runs the 1 s engine tick, updates break UI and tray, and autosaves every 60 s.
+    /// Replaces the default monotonic time source (tests drive the autosave interval).
+    #[must_use]
+    pub fn with_time_source(mut self, time_source: Arc<dyn MonotonicTimeSource>) -> Self {
+        self.last_save = time_source.now();
+        self.time_source = time_source;
+        self
+    }
+
+    /// Runs an engine tick (at the adaptive scheduler's cadence), updates break UI and
+    /// tray, and autosaves periodically.
     pub fn on_tick(&mut self) {
         if self.shut_down {
             return;
@@ -92,9 +126,11 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         self.coordinator.on_tick(&snapshot);
         self.tray.update(&snapshot);
 
-        self.seconds_since_save = self.seconds_since_save.saturating_add(1);
-        if self.seconds_since_save >= AUTOSAVE_INTERVAL_SECONDS {
-            self.seconds_since_save = 0;
+        // Autosave on elapsed monotonic time (not tick count): the adaptive scheduler's
+        // tick cadence varies (about 10 s working, 5 s away), so ticks are not seconds.
+        let now = self.time_source.now();
+        if now.duration_since(self.last_save) >= AUTOSAVE_INTERVAL {
+            self.last_save = now;
             if let Err(err) = self.engine.save() {
                 self.error_log
                     .log_error("AppHost: periodic save failed", &err);

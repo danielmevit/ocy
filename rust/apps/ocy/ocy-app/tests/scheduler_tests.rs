@@ -7,7 +7,7 @@ use std::time::Duration;
 use damt_platform::{Clock, FocusState, FocusStateProvider, IdleProvider, PlatformServices};
 use jiff::Timestamp;
 use ocy_app::scheduler::{self, ACTIVE_WAKE_INTERVAL, MAX_WAKE_DELAY, MIN_WAKE_DELAY};
-use ocy_core::engine::{BreakEngine, EnginePhase, EngineSnapshot, NaturalHoldKind};
+use ocy_core::engine::{BreakEngine, EnginePhase, EngineSnapshot, EngineState, NaturalHoldKind};
 use ocy_core::exercises::{DefaultExercisePicker, SeededRng};
 use ocy_core::settings::OcySettings;
 use ocy_core::time::{DateTimeOffset, FakeClock, Paused};
@@ -136,7 +136,9 @@ fn working_sleeps_until_the_next_due_moment_capped_at_ten_seconds() {
         Duration::from_secs(3)
     );
 
-    // The warning can be the nearest due moment (anything beyond the cap is capped).
+    // The warning can be the nearest due moment. It is more than the pre-warm lead
+    // time away, so the host wakes early at due - PREWARM_LEAD_TIME to pre-warm the
+    // warning card (anything beyond the cap is capped).
     let snap = snapshot(
         EnginePhase::Working,
         Some(Duration::from_secs(120)),
@@ -145,7 +147,7 @@ fn working_sleeps_until_the_next_due_moment_capped_at_ten_seconds() {
     );
     assert_eq!(
         scheduler::next_wake_delay(&snap, ts(0)),
-        Duration::from_secs(4)
+        Duration::from_secs(1)
     );
 
     // Disabled breaks contribute nothing.
@@ -155,6 +157,117 @@ fn working_sleeps_until_the_next_due_moment_capped_at_ten_seconds() {
     // A due moment now clamps to the minimum (the tick resolves it immediately).
     let snap = snapshot(EnginePhase::Working, Some(Duration::ZERO), None, None);
     assert_eq!(scheduler::next_wake_delay(&snap, ts(0)), MIN_WAKE_DELAY);
+}
+
+#[test]
+fn working_wakes_for_prewarm_three_seconds_before_a_due_moment() {
+    // Due in 25 s: the 10 s cap applies while the pre-warm wake (due - 3) is farther
+    // out than the cap...
+    let snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(25)),
+        None,
+        None,
+    );
+    assert_eq!(scheduler::next_wake_delay(&snap, ts(0)), MAX_WAKE_DELAY);
+
+    // ...still capped at 15 s away (15 - 3 = 12 > 10)...
+    let snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(15)),
+        None,
+        None,
+    );
+    assert_eq!(scheduler::next_wake_delay(&snap, ts(0)), MAX_WAKE_DELAY);
+
+    // ...then the pre-warm wake wins at 5 s away (5 - 3 = 2)...
+    let snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(5)),
+        None,
+        None,
+    );
+    assert_eq!(
+        scheduler::next_wake_delay(&snap, ts(0)),
+        Duration::from_secs(2)
+    );
+
+    // ...and the tick at due - 3 pre-warms; the next wake is the due moment itself.
+    let snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(3)),
+        None,
+        None,
+    );
+    assert_eq!(
+        scheduler::next_wake_delay(&snap, ts(0)),
+        Duration::from_secs(3)
+    );
+
+    // Due in 2 s (already within the lead time): wake at due, no extra wake.
+    let snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(2)),
+        None,
+        None,
+    );
+    assert_eq!(
+        scheduler::next_wake_delay(&snap, ts(0)),
+        Duration::from_secs(2)
+    );
+
+    // The long break and the warning get the same pre-warm wake.
+    for (until_long, until_warning, expected) in [
+        (Some(Duration::from_secs(5)), None, Duration::from_secs(2)),
+        (None, Some(Duration::from_secs(5)), Duration::from_secs(2)),
+        (Some(Duration::from_secs(2)), None, Duration::from_secs(2)),
+        (None, Some(Duration::from_secs(2)), Duration::from_secs(2)),
+    ] {
+        let snap = snapshot(EnginePhase::Working, None, until_long, until_warning);
+        assert_eq!(
+            scheduler::next_wake_delay(&snap, ts(0)),
+            expected,
+            "until_long={until_long:?}, until_warning={until_warning:?}"
+        );
+    }
+}
+
+#[test]
+fn a_due_moment_25s_away_takes_one_extra_wake_to_prewarm() {
+    // Full adaptive sequence toward a short break due in 25 s: cap, cap, pre-warm
+    // wake at due - 3, due — exactly one extra wake versus the pre-R5d schedule.
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let platform = TestPlatform::new();
+    platform.set_idle(Duration::ZERO);
+    let mut settings = OcySettings::default();
+    settings.long_breaks.enabled = false;
+    settings.natural_moments = false;
+    let mut engine = BreakEngine::new(
+        settings,
+        platform.clone(),
+        clock.clone(),
+        None,
+        Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
+        // Short break due in 25 s (default interval is 10 min).
+        Some(EngineState {
+            since_short_break: Duration::from_secs(575),
+            ..Default::default()
+        }),
+        None,
+    );
+
+    let mut wakeups = 0u64;
+    let mut elapsed = Duration::ZERO;
+    while engine.snapshot().phase == EnginePhase::Working {
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        clock.advance(delay);
+        elapsed += delay;
+        let _ = engine.tick();
+        wakeups += 1;
+        assert!(wakeups < 10, "the break never started");
+    }
+    assert_eq!(elapsed, Duration::from_secs(25));
+    assert_eq!(wakeups, 4, "expected cap + cap + pre-warm + due wakes");
 }
 
 #[test]
@@ -247,4 +360,179 @@ fn a_plain_working_minute_takes_at_most_six_wakeups() {
         wakeups <= 6,
         "a plain working minute took {wakeups} wake-ups"
     );
+}
+
+// --- Host-level pre-warm test -------------------------------------------------
+//
+// Runs the real AppHost (engine + coordinator + recording break windows) with adaptive
+// scheduler ticks toward a short break due in 25 s, and asserts the coordinator's
+// break-windows seam decides the pre-warm strictly before the break is shown.
+
+use std::fs;
+use std::path::PathBuf;
+use std::rc::Rc;
+
+use damt_platform::{TaskbarThemeProvider, Unsupported};
+use ocy_app::break_logic::{PREWARM_LEAD_TIME, PrewarmKind, PrewarmPlanner};
+use ocy_app::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
+use ocy_app::host::AppHost;
+use ocy_app::strings::Strings;
+use ocy_app::tray::{
+    AppTheme, TrayController, TrayIconState, TrayPresentation, TrayPresenter, TraySink,
+};
+use ocy_core::engine::BreakInfo;
+
+/// Records pre-warm decisions and break shows in the break-windows seam.
+#[derive(Debug, Default)]
+struct PrewarmRecordingWindows {
+    settings: OcySettings,
+    /// (event, time_until_short_break at that tick).
+    events: Vec<(&'static str, Option<Duration>)>,
+}
+
+impl BreakWindows for PrewarmRecordingWindows {
+    fn sync_state(&mut self, _snapshot: &EngineSnapshot, settings: &OcySettings) {
+        self.settings = settings.clone();
+    }
+
+    fn on_tick(&mut self, snapshot: &EngineSnapshot) {
+        if PrewarmPlanner::decide(snapshot, &self.settings, None) == Some(PrewarmKind::ShortBreak)
+            && !self.events.iter().any(|(name, _)| *name == "prewarm")
+        {
+            self.events
+                .push(("prewarm", snapshot.time_until_short_break));
+        }
+    }
+
+    fn show_short_break(&mut self, _info: &BreakInfo) {
+        self.events.push(("show", Some(Duration::ZERO)));
+    }
+
+    fn show_warning(&mut self, _countdown: Duration) {}
+
+    fn show_long_break(&mut self, _info: &BreakInfo) {}
+
+    fn update_countdown(&mut self, _snapshot: &EngineSnapshot) {}
+
+    fn close_all(&mut self) {}
+}
+
+#[derive(Debug, Default)]
+struct NullSettingsWindow;
+
+impl SettingsWindow for NullSettingsWindow {
+    fn show(&mut self) {}
+}
+
+#[derive(Debug, Default)]
+struct NullTraySink;
+
+impl TraySink for NullTraySink {
+    fn set_tooltip(&mut self, _tooltip: &str) {}
+    fn set_icon(&mut self, _state: TrayIconState, _use_light_set: bool) {}
+    fn set_menu(&mut self, _presentation: &TrayPresentation) {}
+}
+
+#[derive(Debug)]
+struct StaticTaskbarTheme;
+
+impl TaskbarThemeProvider for StaticTaskbarTheme {
+    fn is_supported(&self) -> bool {
+        true
+    }
+    fn is_light_taskbar(&self) -> Option<bool> {
+        Some(true)
+    }
+}
+
+fn temp_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "ocy-scheduler-test-{name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos())
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+#[test]
+fn adaptive_ticks_prewarm_the_short_break_card_before_showing_it() {
+    let dir = temp_dir("prewarm-host");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let clock_dyn: Arc<dyn Clock> = clock.clone();
+    let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
+
+    let mut settings = OcySettings::default();
+    settings.long_breaks.enabled = false;
+    settings.natural_moments = false;
+    let engine = BreakEngine::new(
+        settings,
+        platform,
+        Arc::clone(&clock_dyn),
+        None,
+        None,
+        // Short break due in 25 s (default interval is 10 min).
+        Some(EngineState {
+            since_short_break: Duration::from_secs(575),
+            ..Default::default()
+        }),
+        None,
+    );
+    let snapshot = engine.snapshot();
+
+    let strings = Arc::new(Strings::from_embedded().unwrap());
+    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme);
+    let tray = TrayController::new(
+        presenter,
+        NullTraySink,
+        theme,
+        clock_dyn,
+        Some(AppTheme::Light),
+        &snapshot,
+    );
+    let coordinator =
+        BreakUiCoordinator::new(PrewarmRecordingWindows::default(), NullSettingsWindow);
+    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+    let mut host = AppHost::new(engine, coordinator, tray, error_log);
+
+    // Drive the host with the adaptive scheduler delays until the break shows.
+    let mut wakeups = 0u64;
+    let mut elapsed = Duration::ZERO;
+    loop {
+        let delay = scheduler::next_wake_delay(&host.engine().snapshot(), clock.now().timestamp());
+        clock.advance(delay);
+        elapsed += delay;
+        host.on_tick();
+        wakeups += 1;
+        assert!(wakeups < 10, "the break never started");
+        let events = &host.coordinator().break_windows().events;
+        if events.iter().any(|(name, _)| *name == "show") {
+            break;
+        }
+    }
+
+    let events = &host.coordinator().break_windows().events;
+    assert_eq!(
+        events[..],
+        [
+            ("prewarm", Some(Duration::from_secs(3))),
+            ("show", Some(Duration::ZERO))
+        ],
+        "the pre-warm must be decided before the show"
+    );
+    // The pre-warm was decided within the lead window, strictly before the due moment.
+    let (_, until_short_at_prewarm) = events[0];
+    assert!(
+        until_short_at_prewarm.is_some_and(|t| { t > Duration::ZERO && t <= PREWARM_LEAD_TIME })
+    );
+    // Cap + cap + pre-warm + due: the four adaptive wakes toward a 25 s due moment,
+    // with the pre-warm decided on the wake at due - PREWARM_LEAD_TIME.
+    assert_eq!(elapsed, Duration::from_secs(25));
+    assert_eq!(wakeups, 4);
+
+    host.shutdown();
+    let _ = fs::remove_dir_all(&dir);
 }

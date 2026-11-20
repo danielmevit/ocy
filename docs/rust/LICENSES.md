@@ -110,12 +110,12 @@ All 9 Slint crates (`1.19.0`) in `ocy-app`'s normal closure declare `GPL-3.0-onl
 | `crossbeam-epoch` | `0.9.21` | `MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | `0.8.23` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/crossbeam-rs/crossbeam |
 | `cursor-icon` | `1.2.0` | `MIT OR Apache-2.0 OR Zlib` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT`, `LICENSE-ZLIB` | https://github.com/rust-windowing/cursor-icon |
-| `damt-app` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-art` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-overlay` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-platform` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-platform-win` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-theme` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-app` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-art` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-overlay` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-platform` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-platform-win` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-theme` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
 | `data-url` | `0.3.2` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/servo/rust-url |
 | `derive_more` | `2.1.1` | `MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE` | https://github.com/JelteF/derive_more |
 | `derive_more-impl` | `2.1.1` | `MIT` | `MIT` | Proc-macro/host | `LICENSE` | https://github.com/JelteF/derive_more |
@@ -200,9 +200,9 @@ All 9 Slint crates (`1.19.0`) in `ocy-app`'s normal closure declare `GPL-3.0-onl
 | `num-traits` | `0.2.19` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/rust-num/num-traits |
 | `num_enum` | `0.7.6` | `BSD-3-Clause OR MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-BSD`, `LICENSE-MIT` | https://github.com/illicitonion/num_enum |
 | `num_enum_derive` | `0.7.6` | `BSD-3-Clause OR MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-BSD`, `LICENSE-MIT` | https://github.com/illicitonion/num_enum |
-| `ocy-app` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `ocy-core` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `ocy-ui` | `0.2.0-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-app` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-core` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-ui` | `0.2.0` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
 | `once_cell` | `1.21.4` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/matklad/once_cell |
 | `parlance` | `0.1.1` | `Apache-2.0 OR MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/linebender/parley |
 | `parley` | `0.12.0` | `Apache-2.0 OR MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/linebender/parley |

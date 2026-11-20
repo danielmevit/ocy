@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.2.0 — 2026-11-20 (alpha, the Rust rebuild)
+
+Ocy is rebuilt from the ground up in Rust. It does everything 0.1.2 did, with a much lighter footprint, and a few
+things it couldn't. Your settings and stats carry over automatically (same files in `%APPDATA%\Ocy`).
+
+### Changed
+- **One small file:**
+  - The download is a single `Ocy.exe` of about 12 MB (plus licence files) instead of a ~70 MB zip with 230 files.
+  - Unzip and run; there's nothing to install.
+- **Much lighter on your PC:**
+  - about 3.7 MB of memory while it waits (0.1.x: about 130 MB)
+  - about 6 checks a minute while you work (0.1.x: every second)
+- **Breaks appear instantly:** the next card is prepared a few seconds ahead and painted in about 10–20 ms.
+- **Breaks never take focus or add a taskbar button:** typing in another app is never interrupted by a window
+  grabbing the keyboard.
+
+### Added
+- **Natural-moment timing:** when a break is due, Ocy waits up to a minute for a short pause in your typing or mouse
+  use, so it doesn't interrupt mid-sentence.
+- **"Take a short break now"** in the tray menu, next to "Take a long break now".
+- **Left-click the tray icon to open Settings.** Right-click still opens the menu.
+- **The pause menu shows what you chose:** a checkmark on the active option, and a line such as "Paused until
+  15:40 · 1 h 15 min left".
+- **Screen-reader support** (Windows UI Automation / Narrator) for Settings and the break cards.
+- **"Try a short break" and "Try a long break"** in Settings now look like links.
+- **The window icon follows your taskbar theme:** the sprout with the bright outline on dark taskbars.
+
+### Fixed
+- Buttons and switches react to the first click.
+
+### For developers
+- **The app** is a Rust workspace (`rust/`) with a reusable kit (`damt-*` crates) and the Ocy crates (`ocy-core`,
+  `ocy-ui`, `ocy-app`).
+- **Engine parity with 0.1.x:** every C# engine test was ported, plus a differential harness against the C# engine.
+- **Release tooling:** a deterministic zip, `THIRD-PARTY-NOTICES.txt` for all bundled crates
+  (`docs/rust/LICENSES.md`), and a Windows release CI job with a 15 MB size budget.
+- **Hidden probes for testing:** `--demo-break`, `--demo-in`, `--demo-settings`, `--report-memory` and `--soak`,
+  isolated from a running Ocy.
+- The C# 0.1.x source stays in the repository for reference.
+
 ## 0.1.2 — 2026-11-18 (alpha, first public release)
 
 ### Added

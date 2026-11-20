@@ -9,7 +9,7 @@ use damt_platform::{
     Clock, PlatformServices, ScreenRect, SessionEvent, TaskbarThemeProvider, Unsupported,
 };
 use ocy_app::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
-use ocy_app::host::AppHost;
+use ocy_app::host::{AppHost, MonotonicTimeSource};
 use ocy_app::layout::non_active_monitors;
 use ocy_app::strings::Strings;
 use ocy_app::tokens::{
@@ -103,65 +103,113 @@ fn temp_dir(name: &str) -> PathBuf {
 }
 
 #[test]
-fn host_autosaves_every_60_ticks_and_on_shutdown() {
-    let dir = temp_dir("autosave");
-    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 10, 0, 0).unwrap());
-    let clock_dyn: Arc<dyn Clock> = clock.clone();
-    let store = AppDataStore::new(&dir, Arc::clone(&clock_dyn));
-    let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
-    let engine = BreakEngine::new(
-        OcySettings::default(),
-        platform,
-        Arc::clone(&clock_dyn),
-        Some(store),
-        None,
-        None,
-        None,
-    );
-    let snapshot = engine.snapshot();
-    let strings = Arc::new(Strings::from_embedded().unwrap());
-    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
-    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme(Some(true)));
-    let tray = TrayController::new(
-        presenter,
-        DummyTraySink::default(),
-        theme,
-        clock_dyn,
-        Some(AppTheme::Light),
-        &snapshot,
-    );
-    let coordinator =
-        BreakUiCoordinator::new(DummyBreakWindows::default(), DummySettingsWindow::default());
-    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+fn host_autosaves_after_sixty_monotonic_seconds_at_any_tick_cadence() {
+    // The adaptive scheduler ticks about every 10 s while working and 5 s while away,
+    // so the autosave interval is measured in monotonic seconds, not ticks: at every
+    // cadence the first save lands at 60 s (+/- one tick).
+    for tick in [
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+        Duration::from_secs(1),
+    ] {
+        let dir = temp_dir("autosave");
+        let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 10, 0, 0).unwrap());
+        let clock_dyn: Arc<dyn Clock> = clock.clone();
+        let store = AppDataStore::new(&dir, Arc::clone(&clock_dyn));
+        let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
+        let engine = BreakEngine::new(
+            OcySettings::default(),
+            platform,
+            Arc::clone(&clock_dyn),
+            Some(store),
+            None,
+            None,
+            None,
+        );
+        let snapshot = engine.snapshot();
+        let strings = Arc::new(Strings::from_embedded().unwrap());
+        let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+        let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme(Some(true)));
+        let tray = TrayController::new(
+            presenter,
+            DummyTraySink::default(),
+            theme,
+            clock_dyn,
+            Some(AppTheme::Light),
+            &snapshot,
+        );
+        let coordinator =
+            BreakUiCoordinator::new(DummyBreakWindows::default(), DummySettingsWindow::default());
+        let error_log = damt_app::ErrorLog::new(&dir, "ocy");
 
-    let mut host = AppHost::new(engine, coordinator, tray, error_log);
+        let monotonic = Arc::new(FakeMonotonicTime::default());
+        let mut host = AppHost::new(engine, coordinator, tray, error_log)
+            .with_time_source(Arc::clone(&monotonic) as Arc<dyn MonotonicTimeSource>);
 
-    // 59 ticks should not have written state.json yet
-    for _ in 0..59 {
-        clock.advance(Duration::from_secs(1));
+        // Tick at the cadence until the periodic save fires.
+        let mut ticks = 0u32;
+        while !dir.join("state.json").exists() {
+            ticks += 1;
+            assert!(
+                ticks < 120,
+                "no autosave within 120 ticks at a {tick:?} cadence"
+            );
+            monotonic.advance(tick);
+            clock.advance(tick);
+            host.on_tick();
+        }
+
+        // 60 s of monotonic time: 6 ticks at 10 s, 12 at 5 s, 60 at 1 s.
+        assert_eq!(
+            ticks,
+            u32::try_from(60 / tick.as_secs()).unwrap_or(u32::MAX),
+            "first save at {ticks} ticks of a {tick:?} cadence"
+        );
+        let saved = AppDataStore::with_system_clock(&dir).load_state();
+        assert_eq!(saved.since_short_break, Duration::from_secs(60));
+
+        // Shutdown still saves immediately (unchanged trigger).
+        monotonic.advance(Duration::from_secs(5));
+        clock.advance(Duration::from_secs(5));
         host.on_tick();
+        host.shutdown();
+        let saved_on_quit = AppDataStore::with_system_clock(&dir).load_state();
+        assert_eq!(saved_on_quit.since_short_break, Duration::from_secs(65));
+
+        let _ = fs::remove_dir_all(&dir);
     }
-    assert!(!dir.join("state.json").exists());
+}
 
-    // 60th tick triggers autosave
-    clock.advance(Duration::from_secs(1));
-    host.on_tick();
-    assert!(dir.join("state.json").exists());
+/// Scriptable monotonic time source driving [`AppHost`]'s autosave interval in tests.
+#[derive(Debug)]
+struct FakeMonotonicTime {
+    base: std::time::Instant,
+    offset_nanos: std::sync::atomic::AtomicU64,
+}
 
-    let saved_at_60 = AppDataStore::with_system_clock(&dir).load_state();
-    assert_eq!(saved_at_60.since_short_break, Duration::from_secs(60));
-
-    // Advance 5 more seconds, then shutdown -> saves immediately
-    for _ in 0..5 {
-        clock.advance(Duration::from_secs(1));
-        host.on_tick();
+impl Default for FakeMonotonicTime {
+    fn default() -> Self {
+        Self {
+            base: std::time::Instant::now(),
+            offset_nanos: std::sync::atomic::AtomicU64::new(0),
+        }
     }
-    host.shutdown();
+}
 
-    let saved_on_quit = AppDataStore::with_system_clock(&dir).load_state();
-    assert_eq!(saved_on_quit.since_short_break, Duration::from_secs(65));
+impl FakeMonotonicTime {
+    fn advance(&self, duration: Duration) {
+        self.offset_nanos.fetch_add(
+            u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX),
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
+}
 
-    let _ = fs::remove_dir_all(&dir);
+impl MonotonicTimeSource for FakeMonotonicTime {
+    fn now(&self) -> std::time::Instant {
+        self.base
+            + Duration::from_nanos(self.offset_nanos.load(std::sync::atomic::Ordering::Relaxed))
+    }
 }
 
 #[test]
