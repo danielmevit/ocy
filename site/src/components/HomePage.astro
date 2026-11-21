@@ -119,6 +119,15 @@ const scenes = [
   },
 ];
 
+// Tab icons: one geometric family with the Settings timeline legend (short = hollow circle,
+// long = filled rounded square); 20 px, 1.75 stroke, round caps and joins.
+const tabIcons: Record<string, string> = {
+  short: '<circle cx="10" cy="10" r="5.5" />',
+  long: '<rect x="4.5" y="4.5" width="11" height="11" rx="3.5" fill="currentColor" />',
+  warning: '<circle cx="10" cy="10.5" r="6" /><path d="M10 7.75v2.75l2 1.25" />',
+  settings: '<path d="M3.5 7h13M3.5 13h13" /><circle cx="7.5" cy="7" r="2.25" fill="currentColor" /><circle cx="12.5" cy="13" r="2.25" fill="currentColor" />',
+};
+
 const defaultsRows = [
   [t(lang, 'home.faq.4.row1.label'), t(lang, 'home.faq.4.row1.value')],
   [t(lang, 'home.faq.4.row2.label'), t(lang, 'home.faq.4.row2.value')],
@@ -324,47 +333,44 @@ const faqLd = {
             tabindex={i === 0 ? 0 : -1}
             data-tab={s.id}
           >
-            {s.id === 'warning' && <span class="clay-sq" aria-hidden="true" />}
+            <svg class="tab-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false" set:html={tabIcons[s.id]} />
             <span>{s.tab}</span>
           </button>
         ))}
       </div>
-      {scenes.map((s, i) => (
-        <p class="scene-note" data-note={s.id} hidden={i !== 0}>{s.note}</p>
-      ))}
     </div>
 
-    <div class="desk">
-      {scenes.map((s, i) => (
-        <div
-          class={`scene scene-${s.id}`}
-          id={`scene-${s.id}`}
-          role="tabpanel"
-          aria-labelledby={`tab-${s.id}`}
-          hidden={i !== 0}
-        >
-          <div class="monitors">
-            <div class="monitor monitor-main">
-              <div class="screen">
-                <span class="wall" aria-hidden="true" />
-                <span class={`shot shot-${s.id}`}>
-                  <img class="mascot-light" src={s.img.light} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
-                  <img class="mascot-dark" src={s.img.dark} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
-                </span>
-                <span class="taskbar" aria-hidden="true" />
-              </div>
-              <span class="stand" aria-hidden="true" />
+    <div class="app-stage">
+      <div class="stage" data-scene="short">
+        <picture class="photo">
+          <source type="image/avif" srcset={`${base}/assets/laptop/laptop-800.avif 800w, ${base}/assets/laptop/laptop-1600.avif 1600w`} sizes="(max-width: 860px) 100vw, 66vw" />
+          <source type="image/webp" srcset={`${base}/assets/laptop/laptop-800.webp 800w, ${base}/assets/laptop/laptop-1600.webp 1600w`} sizes="(max-width: 860px) 100vw, 66vw" />
+          <img src={`${base}/assets/laptop/laptop-1600.webp`} alt="" width="1600" height="1067" loading="lazy" decoding="async" />
+        </picture>
+        <div class="lap-rect lap-screen" aria-hidden="true"><span class="wall" /><span class="taskbar" /></div>
+        {scenes.map((s, i) => (
+          <div
+            class={`scene scene-${s.id}${i === 0 ? ' is-on' : ''}`}
+            id={`scene-${s.id}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${s.id}`}
+            tabindex="0"
+            hidden={i !== 0}
+          >
+            <div class="lap-rect">
+              <span class={`shot shot-${s.id}`}>
+                <img class="mascot-light" src={s.img.light} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
+                <img class="mascot-dark" src={s.img.dark} alt={s.alt} width={s.img.w} height={s.img.h} loading="lazy" decoding="async" />
+              </span>
             </div>
-            {(s.id === 'short' || s.id === 'warning') && (
-              <div class="monitor monitor-side" aria-hidden="true">
-                <div class="screen framed">
-                  <span class="wall" />
-                </div>
-                <span class="stand" />
-              </div>
-            )}
           </div>
-        </div>
+        ))}
+        <span class="lap-rect glass" aria-hidden="true" />
+        {/* Future phone mockup slot (off by default; no phone app yet). */}
+        <div class="phone-slot" data-slot="phone" aria-hidden="true" hidden />
+      </div>
+      {scenes.map((s, i) => (
+        <p class="scene-note" data-note={s.id} hidden={i !== 0}>{s.note}</p>
       ))}
     </div>
   </section>
@@ -752,13 +758,25 @@ const faqLd = {
 
       /* ---------- app scene tabs ---------- */
       const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+      const fade = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const timers = new Map();
       function selectTab(tab, focus) {
         for (const t of tabs) {
           const on = t === tab;
           t.setAttribute('aria-selected', on ? 'true' : 'false');
           t.tabIndex = on ? 0 : -1;
           const id = t.getAttribute('data-tab');
-          document.getElementById('scene-' + id).hidden = !on;
+          const panel = document.getElementById('scene-' + id);
+          clearTimeout(timers.get(panel));
+          if (on) {
+            panel.closest('.stage').dataset.scene = id;
+            panel.hidden = false;
+            requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('is-on')));
+          } else if (!panel.hidden) {
+            panel.classList.remove('is-on');
+            // keep it painted while it fades out, then hide it from assistive tech
+            timers.set(panel, setTimeout(() => { panel.hidden = true; }, fade.matches ? 0 : 320));
+          }
           const note = document.querySelector(`[data-note="${id}"]`);
           if (note) note.hidden = !on;
         }

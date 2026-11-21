@@ -74,26 +74,6 @@ const themeLabels = {
   },
 };
 
-// Each candidate carries its own language's wording, so the hint reads in the visitor's language.
-const hintCandidates = availableLangs
-  .filter((alt) => alt !== lang)
-  .map((alt) => {
-    const endonym = languageEndonym(alt);
-    const href = pageHref(base, alt, pageType);
-    let prefix = '';
-    let suffix = '';
-    let seenSlot = false;
-    for (const part of splitTemplateParts(rawTemplate(alt, 'langHint.available'))) {
-      if (part.type === 'slot' && part.name === 'language') {
-        seenSlot = true;
-      } else if (part.type === 'text') {
-        if (!seenSlot) prefix += part.value;
-        else suffix += part.value;
-      }
-    }
-    return { tag: alt, href, endonym, prefix, suffix, dismiss: t(alt, 'langHint.dismiss') };
-  });
-
 const langCode = (tag: string) => tag.split('-')[0].toUpperCase();
 
 const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'));
@@ -219,27 +199,6 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
       </nav>
     </header>
 
-    <div
-      class="lang-hint"
-      data-lang-hint
-      data-current-lang={lang}
-      data-candidates={JSON.stringify(hintCandidates)}
-      role="status"
-      hidden
-    >
-      <p class="lang-hint-text" data-lang-hint-text></p>
-      <button
-        type="button"
-        class="lang-hint-close"
-        data-lang-hint-close
-        aria-label={t(lang, 'langHint.dismiss')}
-      >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path class="ink" d="M4 4 L12 12 M12 4 L4 12" style="stroke-width: 1.6;" />
-        </svg>
-      </button>
-    </div>
-
     <main id="main">
       <slot />
     </main>
@@ -290,69 +249,6 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
           });
         }
 
-        const hint = document.querySelector('[data-lang-hint]');
-        if (hint) {
-          let dismissed = false;
-          try { dismissed = localStorage.getItem('ocy-lang-hint-dismissed') === '1'; } catch (e) {}
-          if (!dismissed) {
-            const cur = (hint.getAttribute('data-current-lang') || '').toLowerCase();
-            let cands = [];
-            try { cands = JSON.parse(hint.getAttribute('data-candidates') || '[]'); } catch (e) {}
-            const byLower = new Map(cands.map((c) => [c.tag.toLowerCase(), c]));
-            const langs = navigator.languages && navigator.languages.length ? navigator.languages : (navigator.language ? [navigator.language] : []);
-            // Region/script aliases for tags the site doesn't carry verbatim.
-            const alias = {
-              no: 'nb', nn: 'nb', 'no-no': 'nb', 'nn-no': 'nb', 'nb-no': 'nb',
-              pt: 'pt-br',
-              zh: 'zh-hans', 'zh-cn': 'zh-hans', 'zh-sg': 'zh-hans', 'zh-my': 'zh-hans',
-              'zh-tw': 'zh-hant', 'zh-hk': 'zh-hant', 'zh-mo': 'zh-hant',
-            };
-            // Try the tag, then drop subtags one by one: sr-Latn-RS -> sr-Latn -> sr.
-            const resolve = (raw) => {
-              let norm = String(raw || '').trim().replace(/_/g, '-').toLowerCase();
-              while (norm) {
-                const tag = alias[norm] || norm;
-                if (tag === cur) return 'current';
-                if (byLower.has(tag)) return byLower.get(tag);
-                const i = norm.lastIndexOf('-');
-                norm = i > 0 ? norm.slice(0, i) : '';
-              }
-              return null;
-            };
-            let match = null;
-            for (const l of langs) {
-              const r = resolve(l);
-              if (r === 'current') { match = null; break; }
-              if (r) { match = r; break; }
-            }
-            if (match) {
-              const textEl = hint.querySelector('[data-lang-hint-text]');
-              const closeBtn = hint.querySelector('[data-lang-hint-close]');
-              if (textEl) {
-                textEl.textContent = '';
-                textEl.lang = match.tag;
-                if (match.prefix) textEl.append(document.createTextNode(match.prefix));
-                const link = document.createElement('a');
-                link.href = match.href;
-                link.lang = match.tag;
-                link.hreflang = match.tag;
-                link.textContent = match.endonym;
-                textEl.append(link);
-                if (match.suffix) textEl.append(document.createTextNode(match.suffix));
-                hint.hidden = false;
-              }
-              if (closeBtn && match.dismiss) {
-                closeBtn.setAttribute('aria-label', match.dismiss);
-                closeBtn.title = match.dismiss;
-                closeBtn.lang = match.tag;
-              }
-              closeBtn?.addEventListener('click', () => {
-                hint.hidden = true;
-                try { localStorage.setItem('ocy-lang-hint-dismissed', '1'); } catch (e) {}
-              });
-            }
-          }
-        }
       })();
     </script>
 

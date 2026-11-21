@@ -12,8 +12,6 @@
   "nav.download": "Download",
   "nav.languageAria": "Language: {language}",
   "nav.languageMenuLabel": "Choose language",
-  "langHint.available": "This page is also available in {language}",
-  "langHint.dismiss": "Dismiss",
   "theme.aria": "Theme: {current}. Switch to {next}.",
   "theme.title": "Theme: {current}",
   "theme.auto": "Auto, follows your system",

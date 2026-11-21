@@ -56,3 +56,30 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  # Tell IndexNow (Bing, Yandex, Seznam, Naver; Bing also feeds DuckDuckGo, Yahoo, Ecosia and ChatGPT/Copilot
+  # search) about every page in the sitemap. No account needed: the key below is public by design and is served
+  # as site/public/<key>.txt. Failures only warn; they never fail the deploy.
+  indexnow:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Ping IndexNow with the sitemap URLs
+        env:
+          KEY: "f4de0bbca0b8b8776eb5486d7a6140b6"
+          BASE: "https://danielmevit.github.io/ocy"
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 18); do
+            if curl -fsS "$BASE/$KEY.txt" 2>/dev/null | grep -qx "$KEY"; then echo "key file live"; break; fi
+            sleep 10
+          done
+          urls=$(curl -fsS "$BASE/sitemap.xml" | grep -oE '<loc>[^<]+</loc>' | sed -E 's#</?loc>##g' | jq -R . | jq -s .)
+          echo "URLs in sitemap: $(echo "$urls" | jq length)"
+          jq -n --arg key "$KEY" --arg loc "$BASE/$KEY.txt" --argjson urls "$urls" \
+            '{host: "danielmevit.github.io", key: $key, keyLocation: $loc, urlList: $urls}' > body.json
+          code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST "https://api.indexnow.org/indexnow" \
+            -H 'Content-Type: application/json; charset=utf-8' --data @body.json || echo 000)
+          echo "IndexNow HTTP $code"; cat resp.txt 2>/dev/null || true
+          case "$code" in 200|202) ;; *) echo "::warning::IndexNow returned HTTP $code" ;; esac

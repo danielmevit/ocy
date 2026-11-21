@@ -174,11 +174,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
     <GeometryDrawing Geometry="M32.63 21.06 C32.7 20.43 33.03 18.48 33.07 17.29 C33.1 16.11 32.88 14.51 32.84 13.95">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.58 13.7 Q29.66 8.85 23.98 10.72 Q27 15.28 32.58 13.7Z">
@@ -223,11 +223,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.8 14.87Q30.73 10.04 25.2 11.68Q28.38 16.87 33.8 14.87Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.8 14.87Q39.38 15.5 41.4 10.23Q35.54 9.38 33.8 14.87Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.8 14.87Q30.73 10.04 25.2 11.68Q28.38 16.87 33.8 14.87Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.8 14.87Q39.38 15.5 41.4 10.23Q35.54 9.38 33.8 14.87Z" />
     <GeometryDrawing Geometry="M32.51 21.13 C32.59 20.53 32.98 18.8 33.02 17.53 C33.05 16.27 32.78 14.21 32.73 13.55">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.68 13.7 Q29.61 8.87 24.08 10.51 Q27.26 15.7 32.68 13.7Z">
@@ -272,11 +272,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.09 14.64Q30.8 9.45 25.49 11.49Q28.38 16.49 34.09 14.64Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.09 14.64Q39.9 15.85 41.69 10.36Q35.96 9.42 34.09 14.64Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.09 14.64Q30.8 9.45 25.49 11.49Q28.38 16.49 34.09 14.64Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.09 14.64Q39.9 15.85 41.69 10.36Q35.96 9.42 34.09 14.64Z" />
     <GeometryDrawing Geometry="M32.53 21.24 C32.59 20.58 32.82 18.54 32.89 17.32 C32.97 16.09 32.98 14.47 32.99 13.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.88 13.7 Q29.59 8.51 24.28 10.55 Q27.17 15.55 32.88 13.7Z">
@@ -506,11 +506,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M32.84 14.9Q29.83 10.11 24.74 11.98Q27.75 16.89 32.84 14.9Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M32.84 14.9Q38.56 15.81 40.74 10.7Q35.23 9.58 32.84 14.9Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M32.84 14.9Q29.83 10.11 24.74 11.98Q27.75 16.89 32.84 14.9Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M32.84 14.9Q38.56 15.81 40.74 10.7Q35.23 9.58 32.84 14.9Z" />
     <GeometryDrawing Geometry="M32.34 21.31 C32.34 20.69 32.44 18.88 32.34 17.58 C32.24 16.28 31.85 14.19 31.75 13.51">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M31.73 13.7 Q28.72 8.91 23.63 10.78 Q26.64 15.69 31.73 13.7Z">
@@ -548,12 +548,12 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M6.17 33.64 l-3.2 -0.74">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M5.83 40.61 l-2.45 0.8">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -565,11 +565,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
     <GeometryDrawing Geometry="M32.63 21.06 C32.7 20.43 33.03 18.48 33.07 17.29 C33.1 16.11 32.88 14.51 32.84 13.95">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.58 13.7 Q29.66 8.85 23.98 10.72 Q27 15.28 32.58 13.7Z">
@@ -614,11 +614,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.04 14.62Q30.37 9.74 24.94 11.69Q28.22 16.8 34.04 14.62Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.04 14.62Q39.69 15.77 41.34 10.43Q36.06 9.48 34.04 14.62Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.04 14.62Q30.37 9.74 24.94 11.69Q28.22 16.8 34.04 14.62Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.04 14.62Q39.69 15.77 41.34 10.43Q36.06 9.48 34.04 14.62Z" />
     <GeometryDrawing Geometry="M32.35 21.1 C32.44 20.47 32.77 18.59 32.85 17.33 C32.93 16.08 32.85 14.18 32.85 13.55">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.82 13.7 Q29.15 8.82 23.72 10.77 Q27 15.88 32.82 13.7Z">
@@ -656,12 +656,12 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M58.2 33.44 l3.47 -0.76">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M57.82 40.5 l2.62 1.17">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -1458,11 +1458,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
     <GeometryDrawing Geometry="M32.63 21.06 C32.7 20.43 33.03 18.48 33.07 17.29 C33.1 16.11 32.88 14.51 32.84 13.95">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.58 13.7 Q29.66 8.85 23.98 10.72 Q27 15.28 32.58 13.7Z">
@@ -1507,11 +1507,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34 14.52Q31.04 9.69 25.4 11.59Q28.74 16.67 34 14.52Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34 14.52Q39.75 15.3 41.6 10.26Q36.29 9.37 34 14.52Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34 14.52Q31.04 9.69 25.4 11.59Q28.74 16.67 34 14.52Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34 14.52Q39.75 15.3 41.6 10.26Q36.29 9.37 34 14.52Z" />
     <GeometryDrawing Geometry="M32.58 21.04 C32.62 20.4 32.74 18.47 32.81 17.23 C32.87 15.99 32.93 14.2 32.95 13.6">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.75 13.7 Q29.79 8.87 24.15 10.77 Q27.49 15.85 32.75 13.7Z">
@@ -1576,11 +1576,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.77 14.6Q30.83 9.67 25.17 11.78Q28.49 16.47 33.77 14.6Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.77 14.6Q39.23 15.54 41.37 10.06Q35.9 9.17 33.77 14.6Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.77 14.6Q30.83 9.67 25.17 11.78Q28.49 16.47 33.77 14.6Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.77 14.6Q39.23 15.54 41.37 10.06Q35.9 9.17 33.77 14.6Z" />
     <GeometryDrawing Geometry="M32.51 21.27 C32.61 20.63 33.1 18.75 33.12 17.46 C33.14 16.16 32.71 14.18 32.63 13.52">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.67 13.7 Q29.73 8.77 24.07 10.88 Q27.39 15.57 32.67 13.7Z">
@@ -1626,32 +1626,32 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M7.27 33.02 l-2.89 -1.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M6.78 38.53 l-3.47 -0.18">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M7.36 43.75 l-3.18 2.15">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M56.77 32.91 l2.86 -1.93">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M57.27 38.41 l3.2 0.01">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M56.42 43.67 l2.91 1.83">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -1663,11 +1663,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.82 14.6Q30.62 9.65 25.22 11.39Q28.34 16.26 33.82 14.6Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.82 14.6Q39.37 15.34 41.42 10.18Q35.58 9.28 33.82 14.6Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.82 14.6Q30.62 9.65 25.22 11.39Q28.34 16.26 33.82 14.6Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.82 14.6Q39.37 15.34 41.42 10.18Q35.58 9.28 33.82 14.6Z" />
     <GeometryDrawing Geometry="M32.68 21 C32.72 20.39 32.93 18.5 32.92 17.31 C32.91 16.11 32.67 14.4 32.62 13.82">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.78 13.7 Q29.58 8.75 24.18 10.49 Q27.3 15.36 32.78 13.7Z">
@@ -1705,22 +1705,22 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M14.47 22.46 l-2.36 -2.29">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M9.54 27.73 l-2.75 -1.26">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M49.49 22.48 l2.29 -2.31">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M54.76 27.77 l2.43 -1.2">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -2026,11 +2026,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.33 14.72Q30.46 9.83 24.73 11.61Q27.94 16.48 33.33 14.72Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.33 14.72Q38.82 15.76 40.93 10.45Q35.57 9.61 33.33 14.72Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.33 14.72Q30.46 9.83 24.73 11.61Q27.94 16.48 33.33 14.72Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.33 14.72Q38.82 15.76 40.93 10.45Q35.57 9.61 33.33 14.72Z" />
     <GeometryDrawing Geometry="M32.68 21.16 C32.7 20.52 32.87 18.54 32.8 17.31 C32.73 16.08 32.34 14.38 32.25 13.8">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.32 13.7 Q29.45 8.81 23.72 10.59 Q26.93 15.46 32.32 13.7Z">
@@ -2075,11 +2075,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.4Q30.65 9.49 25.04 11.37Q28.36 16.35 33.64 14.4Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.4Q39.24 14.97 41.24 9.86Q35.73 8.96 33.64 14.4Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.4Q30.65 9.49 25.04 11.37Q28.36 16.35 33.64 14.4Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.4Q39.24 14.97 41.24 9.86Q35.73 8.96 33.64 14.4Z" />
     <GeometryDrawing Geometry="M32.81 21.36 C32.84 20.73 32.99 18.87 33 17.57 C33.01 16.27 32.9 14.23 32.87 13.56">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.69 13.7 Q29.7 8.79 24.09 10.67 Q27.41 15.65 32.69 13.7Z">
@@ -2124,11 +2124,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.34 14.38Q30.33 9.56 24.74 11.43Q27.66 16.39 33.34 14.38Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.34 14.38Q38.82 15.52 40.94 10.19Q35.46 9 33.34 14.38Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.34 14.38Q30.33 9.56 24.74 11.43Q27.66 16.39 33.34 14.38Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.34 14.38Q38.82 15.52 40.94 10.19Q35.46 9 33.34 14.38Z" />
     <GeometryDrawing Geometry="M32.38 21.14 C32.43 20.53 32.7 18.75 32.69 17.49 C32.69 16.24 32.4 14.25 32.34 13.6">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.36 13.7 Q29.35 8.88 23.76 10.75 Q26.68 15.71 32.36 13.7Z">
@@ -2173,11 +2173,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.49 14.78Q30.44 9.92 24.89 11.98Q28.11 16.91 33.49 14.78Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.49 14.78Q39.09 15.5 41.09 10.4Q35.49 9.53 33.49 14.78Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.49 14.78Q30.44 9.92 24.89 11.98Q28.11 16.91 33.49 14.78Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.49 14.78Q39.09 15.5 41.09 10.4Q35.49 9.53 33.49 14.78Z" />
     <GeometryDrawing Geometry="M32.23 21.2 C32.31 20.56 32.72 18.58 32.73 17.36 C32.74 16.13 32.35 14.45 32.28 13.87">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.22 13.7 Q29.17 8.84 23.62 10.9 Q26.84 15.83 32.22 13.7Z">
@@ -2222,11 +2222,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.11 14.34Q30.19 9.5 24.51 11.43Q27.83 16.5 33.11 14.34Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.11 14.34Q38.46 15.15 40.71 9.96Q35.34 9.04 33.11 14.34Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.11 14.34Q30.19 9.5 24.51 11.43Q27.83 16.5 33.11 14.34Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.11 14.34Q38.46 15.15 40.71 9.96Q35.34 9.04 33.11 14.34Z" />
     <GeometryDrawing Geometry="M32.17 21 C32.3 20.41 32.94 18.68 32.95 17.46 C32.95 16.24 32.33 14.32 32.2 13.69">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.19 13.7 Q29.27 8.86 23.59 10.79 Q26.91 15.86 32.19 13.7Z">
@@ -2271,11 +2271,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.22 14.87Q31.23 9.79 25.62 11.89Q28.56 16.64 34.22 14.87Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.22 14.87Q40.01 15.44 41.82 10.26Q36.13 9.28 34.22 14.87Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.22 14.87Q31.23 9.79 25.62 11.89Q28.56 16.64 34.22 14.87Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.22 14.87Q40.01 15.44 41.82 10.26Q36.13 9.28 34.22 14.87Z" />
     <GeometryDrawing Geometry="M32.52 21.4 C32.63 20.71 33.14 18.56 33.2 17.29 C33.25 16.02 32.91 14.35 32.85 13.77">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.93 13.7 Q29.94 8.62 24.33 10.72 Q27.27 15.47 32.93 13.7Z">
@@ -2507,11 +2507,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.09 14.58Q30.07 9.89 24.49 11.72Q27.52 16.77 33.09 14.58Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.09 14.58Q38.71 15.59 40.69 10.13Q34.82 9.4 33.09 14.58Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.09 14.58Q30.07 9.89 24.49 11.72Q27.52 16.77 33.09 14.58Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.09 14.58Q38.71 15.59 40.69 10.13Q34.82 9.4 33.09 14.58Z" />
     <GeometryDrawing Geometry="M32.49 21.13 C32.56 20.49 32.93 18.5 32.89 17.29 C32.84 16.07 32.34 14.41 32.23 13.83">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.25 13.7 Q29.23 9.01 23.65 10.84 Q26.68 15.89 32.25 13.7Z">
@@ -2549,22 +2549,22 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M16.15 20.42 l-1.05 -3.17">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M11.41 24.3 l-2.08 -2.25">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M47.92 20.43 l1.01 -3.12">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M52.41 24.37 l1.85 -2.3">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -2576,11 +2576,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q30.72 9.62 25.04 11.49Q28.06 16.05 33.64 14.47Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.64 14.47Q39.09 14.95 41.24 9.82Q35.58 8.91 33.64 14.47Z" />
     <GeometryDrawing Geometry="M32.63 21.06 C32.7 20.43 33.03 18.48 33.07 17.29 C33.1 16.11 32.88 14.51 32.84 13.95">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.58 13.7 Q29.66 8.85 23.98 10.72 Q27 15.28 32.58 13.7Z">
@@ -2625,11 +2625,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.5 14.48Q30.5 9.26 24.9 11.24Q27.88 16.35 33.5 14.48Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.5 14.48Q39.18 15.72 41.1 10.29Q35.45 9.03 33.5 14.48Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.5 14.48Q30.5 9.26 24.9 11.24Q27.88 16.35 33.5 14.48Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.5 14.48Q39.18 15.72 41.1 10.29Q35.45 9.03 33.5 14.48Z" />
     <GeometryDrawing Geometry="M32.53 21.09 C32.62 20.45 33.09 18.49 33.06 17.24 C33.03 15.99 32.47 14.2 32.35 13.59">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.3 13.7 Q29.3 8.48 23.7 10.46 Q26.68 15.57 32.3 13.7Z">
@@ -2667,22 +2667,22 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.49 57.54 l-1.41 2.97">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M10.93 53.63 l-2.42 2.56">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.57 57.21 l1.29 3.08">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M52.81 53.53 l2.22 2.31">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -2820,11 +2820,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.36 14.7Q31.2 9.8 25.61 11.48Q28.76 16.49 34.36 14.7Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.36 14.7Q40 15.46 41.87 10.02Q36.36 9.08 34.36 14.7Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.36 14.7Q31.2 9.8 25.61 11.48Q28.76 16.49 34.36 14.7Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.36 14.7Q40 15.46 41.87 10.02Q36.36 9.08 34.36 14.7Z" />
     <GeometryDrawing Geometry="M32.6 21.04 C32.68 20.46 33.04 18.78 33.1 17.56 C33.16 16.35 32.99 14.39 32.97 13.76">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.98 13.7 Q29.82 8.8 24.23 10.48 Q27.38 15.49 32.98 13.7Z">
@@ -2881,11 +2881,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.02 14.57Q30.6 9.85 25.27 11.73Q28.55 16.63 34.02 14.57Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M34.02 14.57Q39.54 15.34 41.53 10.03Q35.92 8.98 34.02 14.57Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.02 14.57Q30.6 9.85 25.27 11.73Q28.55 16.63 34.02 14.57Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M34.02 14.57Q39.54 15.34 41.53 10.03Q35.92 8.98 34.02 14.57Z" />
     <GeometryDrawing Geometry="M32.6 21.04 C32.65 20.45 32.87 18.71 32.9 17.52 C32.92 16.33 32.77 14.5 32.75 13.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.79 13.7 Q29.37 8.98 24.04 10.86 Q27.32 15.76 32.79 13.7Z">
@@ -2923,16 +2923,16 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M50.4 60.98 Q56.4 60.55 62.9 61.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.8" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.8" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M52.4 61.6Q55.8 56.89 59.6 61.6Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M52.4 61.6Q55.8 56.89 59.6 61.6Z" />
     <GeometryDrawing Geometry="M59.86 60.8 l0.03 -4">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.8" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.8" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="59.94,55.51" RadiusX="2.3" RadiusY="2.3" />
       </GeometryDrawing.Geometry>
@@ -3270,11 +3270,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M12.9 45.46Q11.31 42.73 8 43.63Q9.82 46.42 12.9 45.46Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M12.9 45.46Q16.03 45.85 16.98 43.16Q14.11 42.68 12.9 45.46Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M12.9 45.46Q11.31 42.73 8 43.63Q9.82 46.42 12.9 45.46Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M12.9 45.46Q16.03 45.85 16.98 43.16Q14.11 42.68 12.9 45.46Z" />
     <GeometryDrawing Geometry="M11.31 49.02 C11.43 48.62 11.97 47.37 12.05 46.64 C12.12 45.91 11.8 44.97 11.75 44.63">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.5" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.5" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M11.7 44.78 Q10.11 42.05 6.8 42.95 Q8.62 45.74 11.7 44.78Z">
@@ -3380,11 +3380,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M13.01 45.44Q11.25 42.77 8.11 43.93Q9.97 46.4 13.01 45.44Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M13.01 45.44Q15.92 45.76 17.09 42.74Q14.2 42.4 13.01 45.44Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M13.01 45.44Q11.25 42.77 8.11 43.93Q9.97 46.4 13.01 45.44Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M13.01 45.44Q15.92 45.76 17.09 42.74Q14.2 42.4 13.01 45.44Z" />
     <GeometryDrawing Geometry="M11.55 48.95 C11.63 48.58 11.99 47.43 12.04 46.77 C12.1 46.11 11.92 45.26 11.89 44.96">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.5" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.5" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.08 44.78 Q10.32 42.11 7.18 43.27 Q9.04 45.74 12.08 44.78Z">
@@ -3465,11 +3465,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M12.88 45.39Q10.92 42.45 7.99 43.73Q9.68 46.68 12.88 45.39Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M12.88 45.39Q16.14 45.49 16.97 42.68Q13.83 42.27 12.88 45.39Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M12.88 45.39Q10.92 42.45 7.99 43.73Q9.68 46.68 12.88 45.39Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M12.88 45.39Q16.14 45.49 16.97 42.68Q13.83 42.27 12.88 45.39Z" />
     <GeometryDrawing Geometry="M11.48 48.93 C11.57 48.61 11.9 47.67 12.02 47 C12.15 46.33 12.19 45.28 12.23 44.93">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.5" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.5" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.05 44.78 Q10.09 41.84 7.16 43.12 Q8.85 46.07 12.05 44.78Z">
@@ -3877,11 +3877,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.79 5.68Q31.5 1.66 27.17 3.22Q29.59 6.86 33.79 5.68Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.79 5.68Q37.95 6.68 39.63 2.52Q35.21 1.47 33.79 5.68Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.79 5.68Q31.5 1.66 27.17 3.22Q29.59 6.86 33.79 5.68Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.79 5.68Q37.95 6.68 39.63 2.52Q35.21 1.47 33.79 5.68Z" />
     <GeometryDrawing Geometry="M32.3 11.04 C32.37 10.53 32.68 9.01 32.74 8.03 C32.79 7.05 32.64 5.65 32.62 5.17">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.53 5.08 Q30.24 1.06 25.91 2.62 Q28.33 6.26 32.53 5.08Z">
@@ -3943,17 +3943,17 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M16.8 42.86 C17.3 42.8 18.78 42.72 19.77 42.5 C20.76 42.28 21.74 41.63 22.74 41.55 C23.75 41.47 25.29 41.95 25.8 42.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M30.8 43.56 C31.13 43.4 32.12 42.79 32.78 42.6 C33.44 42.41 34.09 42.29 34.76 42.43 C35.43 42.56 36.46 43.26 36.8 43.43">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M30.2 60.63 C30.75 60.46 32.4 59.62 33.5 59.57 C34.6 59.53 35.68 60.1 36.8 60.33 C37.92 60.57 39.63 60.87 40.2 60.98">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -3965,11 +3965,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.57 6.18Q30.92 2.69 26.95 4.01Q29.22 7.71 33.57 6.18Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.57 6.18Q37.99 6.92 39.42 2.92Q34.99 2.26 33.57 6.18Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.57 6.18Q30.92 2.69 26.95 4.01Q29.22 7.71 33.57 6.18Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.57 6.18Q37.99 6.92 39.42 2.92Q34.99 2.26 33.57 6.18Z" />
     <GeometryDrawing Geometry="M32.34 10.78 C32.4 10.32 32.63 8.98 32.68 8.06 C32.72 7.13 32.63 5.7 32.62 5.23">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.53 5.08 Q29.88 1.59 25.91 2.91 Q28.18 6.61 32.53 5.08Z">
@@ -4031,17 +4031,17 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M20 42.98 C20.5 42.79 21.98 42.09 22.97 41.86 C23.96 41.62 24.94 41.44 25.94 41.58 C26.95 41.72 28.49 42.52 29 42.71">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M34 42.99 C34.33 42.87 35.32 42.29 35.98 42.28 C36.64 42.27 37.29 42.69 37.96 42.92 C38.63 43.15 39.66 43.54 40 43.67">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M27 59.9 C27.55 59.91 29.2 59.76 30.3 59.96 C31.4 60.16 32.48 60.96 33.6 61.1 C34.72 61.24 36.43 60.84 37 60.79">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -4053,11 +4053,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.36 6.25Q30.9 2.64 26.74 3.89Q29.35 7.53 33.36 6.25Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.36 6.25Q37.57 6.94 39.21 2.74Q34.91 2.07 33.36 6.25Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.36 6.25Q30.9 2.64 26.74 3.89Q29.35 7.53 33.36 6.25Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.36 6.25Q37.57 6.94 39.21 2.74Q34.91 2.07 33.36 6.25Z" />
     <GeometryDrawing Geometry="M32.21 10.86 C32.3 10.4 32.67 9.06 32.71 8.1 C32.75 7.14 32.49 5.59 32.45 5.09">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.36 5.08 Q29.9 1.47 25.74 2.72 Q28.35 6.36 32.36 5.08Z">
@@ -4119,17 +4119,17 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M23.2 42.19 C23.7 42.06 25.18 41.36 26.17 41.37 C27.16 41.38 28.13 42.02 29.14 42.25 C30.15 42.49 31.69 42.71 32.2 42.8">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M37.2 42.58 C37.53 42.61 38.52 42.55 39.18 42.73 C39.84 42.91 40.49 43.56 41.16 43.66 C41.83 43.75 42.86 43.37 43.2 43.31">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M23.8 59.85 C24.35 59.97 26 60.4 27.1 60.58 C28.2 60.75 29.28 60.99 30.4 60.9 C31.52 60.81 33.23 60.19 33.8 60.05">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -4141,11 +4141,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.19 8.73Q30.25 4.69 25.69 6.15Q28.31 10.24 33.19 8.73Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.19 8.73Q38.09 9.49 39.82 5.02Q34.79 3.93 33.19 8.73Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.19 8.73Q30.25 4.69 25.69 6.15Q28.31 10.24 33.19 8.73Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.19 8.73Q38.09 9.49 39.82 5.02Q34.79 3.93 33.19 8.73Z" />
     <GeometryDrawing Geometry="M32.28 14.32 C32.35 13.81 32.69 12.31 32.68 11.24 C32.67 10.17 32.31 8.47 32.23 7.91">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.24 7.95 Q29.3 3.91 24.74 5.37 Q27.36 9.46 32.24 7.95Z">
@@ -4205,22 +4205,22 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M10.11 20.98 l-2.1 -1.85">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M7.92 28.65 l-2.79 -0.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M54.11 20.96 l2.11 -2.05">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M55.81 28.4 l2.67 -0.14">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2.2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2.2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
   </DrawingGroup>
@@ -5240,11 +5240,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.27 4.51Q30.73 0.64 26.65 2.19Q28.9 5.83 33.27 4.51Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.27 4.51Q37.77 5.01 39.11 1.13Q34.85 0.2 33.27 4.51Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.27 4.51Q30.73 0.64 26.65 2.19Q28.9 5.83 33.27 4.51Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.27 4.51Q37.77 5.01 39.11 1.13Q34.85 0.2 33.27 4.51Z" />
     <GeometryDrawing Geometry="M32.32 9.49 C32.4 8.95 32.82 7.22 32.8 6.23 C32.77 5.24 32.27 4.01 32.17 3.56">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.3 3.58 Q29.76 -0.29 25.68 1.26 Q27.93 4.9 32.3 3.58Z">
@@ -5280,95 +5280,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="32.07,47.19" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -5384,11 +5384,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.47 4.2Q31.28 0.29 26.86 1.99Q29.37 5.69 33.47 4.2Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.47 4.2Q37.59 4.83 39.32 0.66Q34.84 0.24 33.47 4.2Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.47 4.2Q31.28 0.29 26.86 1.99Q29.37 5.69 33.47 4.2Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.47 4.2Q37.59 4.83 39.32 0.66Q34.84 0.24 33.47 4.2Z" />
     <GeometryDrawing Geometry="M32.47 9.29 C32.52 8.81 32.77 7.39 32.78 6.42 C32.78 5.44 32.56 3.93 32.52 3.43">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.35 3.58 Q30.16 -0.33 25.74 1.37 Q28.25 5.07 32.35 3.58Z">
@@ -5424,95 +5424,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="45.82,42.41" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -5528,11 +5528,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.62 4.34Q31.3 0.81 27.01 2.24Q29.58 5.7 33.62 4.34Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.62 4.34Q38.12 4.68 39.47 0.67Q34.92 0.3 33.62 4.34Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.62 4.34Q31.3 0.81 27.01 2.24Q29.58 5.7 33.62 4.34Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.62 4.34Q38.12 4.68 39.47 0.67Q34.92 0.3 33.62 4.34Z" />
     <GeometryDrawing Geometry="M32.4 9.46 C32.47 8.93 32.88 7.27 32.84 6.3 C32.79 5.33 32.24 4.07 32.12 3.63">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.32 3.58 Q30 0.05 25.71 1.48 Q28.28 4.94 32.32 3.58Z">
@@ -5568,95 +5568,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="51.46,47.27" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -5672,11 +5672,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.68 4.61Q31.4 1.01 27.06 2.3Q29.24 6.19 33.68 4.61Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.68 4.61Q38.2 5.42 39.53 1.22Q35.17 0.56 33.68 4.61Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.68 4.61Q31.4 1.01 27.06 2.3Q29.24 6.19 33.68 4.61Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.68 4.61Q38.2 5.42 39.53 1.22Q35.17 0.56 33.68 4.61Z" />
     <GeometryDrawing Geometry="M32.49 9.38 C32.51 8.9 32.52 7.48 32.56 6.5 C32.61 5.51 32.71 3.98 32.74 3.48">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.57 3.58 Q30.29 -0.02 25.95 1.27 Q28.13 5.16 32.57 3.58Z">
@@ -5712,95 +5712,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="45.76,51.94" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -5816,11 +5816,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.91 4.57Q31.41 0.89 27.29 2.29Q29.8 6.17 33.91 4.57Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.91 4.57Q38.17 5.16 39.75 0.97Q35.16 0.25 33.91 4.57Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.91 4.57Q31.41 0.89 27.29 2.29Q29.8 6.17 33.91 4.57Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.91 4.57Q38.17 5.16 39.75 0.97Q35.16 0.25 33.91 4.57Z" />
     <GeometryDrawing Geometry="M32.47 9.36 C32.52 8.85 32.72 7.24 32.73 6.31 C32.74 5.38 32.56 4.19 32.52 3.77">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.6 3.58 Q30.1 -0.1 25.98 1.3 Q28.49 5.18 32.6 3.58Z">
@@ -5856,95 +5856,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="18.3,42.36" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -5960,11 +5960,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.47 4.53Q30.99 0.62 26.86 2.25Q29.14 5.92 33.47 4.53Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.47 4.53Q37.73 5.28 39.32 1.14Q35.14 0.52 33.47 4.53Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.47 4.53Q30.99 0.62 26.86 2.25Q29.14 5.92 33.47 4.53Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.47 4.53Q37.73 5.28 39.32 1.14Q35.14 0.52 33.47 4.53Z" />
     <GeometryDrawing Geometry="M32.33 9.39 C32.4 8.9 32.75 7.37 32.77 6.43 C32.8 5.49 32.52 4.18 32.47 3.73">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.35 3.58 Q29.87 -0.33 25.74 1.3 Q28.02 4.97 32.35 3.58Z">
@@ -6000,95 +6000,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="12.48,47.15" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
@@ -6104,11 +6104,11 @@
         <Pen Brush="#1B1E1F" Thickness="2.4" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.77 4.64Q31.65 0.77 27.16 2.12Q29.61 6.04 33.77 4.64Z" />
-    <GeometryDrawing Brush="#5FBF97" Geometry="M33.77 4.64Q37.84 5.62 39.62 1.43Q35.57 0.85 33.77 4.64Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.77 4.64Q31.65 0.77 27.16 2.12Q29.61 6.04 33.77 4.64Z" />
+    <GeometryDrawing Brush="#63A189" Geometry="M33.77 4.64Q37.84 5.62 39.62 1.43Q35.57 0.85 33.77 4.64Z" />
     <GeometryDrawing Geometry="M32.4 9.15 C32.45 8.7 32.7 7.4 32.7 6.46 C32.7 5.52 32.45 4 32.4 3.51">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="2" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="2" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32.52 3.58 Q30.4 -0.29 25.91 1.06 Q28.36 4.98 32.52 3.58Z">
@@ -6144,95 +6144,95 @@
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q33.53 46.45 35.05 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 44.11 Q40.09 43.58 41.45 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 42.47 Q45.67 42.4 46.72 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 43.04 Q49.6 43.47 50.2 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 45.56 Q51.41 46.28 51.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M51.2 48.84 Q50.88 49.53 50.44 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M48.89 51.36 Q48.07 51.68 47.15 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M44.53 51.93 Q43.32 51.74 42.04 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M38.67 50.29 Q37.21 49.67 35.72 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M32 47.2 Q30.47 46.45 28.95 45.72">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 44.11 Q23.91 43.58 22.55 43.13">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 42.47 Q18.33 42.4 17.28 42.45">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 43.04 Q14.4 43.47 13.8 43.99">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 45.56 Q12.59 46.28 12.5 47.03">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M12.8 48.84 Q13.12 49.53 13.56 50.16">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M15.11 51.36 Q15.93 51.68 16.85 51.9">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M19.47 51.93 Q20.68 51.74 21.96 51.44">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
     <GeometryDrawing Geometry="M25.33 50.29 Q26.79 49.67 28.28 49">
       <GeometryDrawing.Pen>
-        <Pen Brush="#5FBF97" Thickness="1.6" LineCap="Round" LineJoin="Round" />
+        <Pen Brush="#63A189" Thickness="1.6" LineCap="Round" LineJoin="Round" />
       </GeometryDrawing.Pen>
     </GeometryDrawing>
-    <GeometryDrawing Brush="#5FBF97">
+    <GeometryDrawing Brush="#63A189">
       <GeometryDrawing.Geometry>
         <EllipseGeometry Center="18.29,51.95" RadiusX="2.4" RadiusY="2.4" />
       </GeometryDrawing.Geometry>
