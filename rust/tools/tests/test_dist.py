@@ -136,7 +136,19 @@ class DistTests(unittest.TestCase):
             / "Cargo.toml"
         )
         version = dist.read_app_version(real_toml)
-        self.assertTrue(version.startswith("0.2.0"))
+        # Compare with the workspace version instead of a hard-coded number, so the test survives releases.
+        workspace_toml = pathlib.Path(__file__).resolve().parents[2] / "Cargo.toml"
+        expected = None
+        in_package = False
+        for line in workspace_toml.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("["):
+                in_package = stripped == "[workspace.package]"
+            elif in_package and stripped.startswith("version"):
+                expected = stripped.split("=", 1)[1].strip().strip('"')
+                break
+        self.assertIsNotNone(expected)
+        self.assertEqual(version, expected)
 
 
 if __name__ == "__main__":
