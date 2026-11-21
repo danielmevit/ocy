@@ -1,0 +1,1 @@
+- Website: added Asian language translations (`ja`, `zh-Hans`, `zh-Hant`, `ko`, `hi`, `th`, `vi`, `id`) in `site/src/i18n/`.

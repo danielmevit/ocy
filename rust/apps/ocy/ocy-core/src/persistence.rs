@@ -133,11 +133,16 @@ impl AppDataStore {
 
     /// Loads `settings.json`, returning clamped defaults if missing, unreadable, or corrupt.
     ///
+    /// For files with `schemaVersion < 2`, legacy pre-0.2.1 Balanced defaults (short 15 s every
+    /// 10 min, long 5 min every 60 min) are migrated once to the new Balanced default (25 min
+    /// short interval), and `schema_version` is upgraded to `2` in memory so subsequent saves
+    /// do not re-run the migration.
     /// Corrupt JSON files are moved to `settings.json.bak-<utc-timestamp>`.
     #[must_use]
     pub fn load_settings(&self) -> OcySettings {
         let mut settings: OcySettings = self.load_json_or_default(&self.settings_path());
         settings.clamp();
+        migrate_legacy_balanced(&mut settings);
         settings
     }
 
@@ -224,6 +229,23 @@ impl AppDataStore {
         }
 
         let _ = fs::rename(file_path, &backup_path);
+    }
+}
+
+/// Migrates saved settings from schema version `< 2` (pre-0.2.1) once: if the cadence matches
+/// the old Balanced default (15 s / 10 min short, 5 min / 60 min long), retunes the short
+/// interval to 25 min; then bumps `schema_version` to [`OcySettings::CURRENT_SCHEMA_VERSION`]
+/// (`2`) so future loads never re-run the migration.
+fn migrate_legacy_balanced(settings: &mut OcySettings) {
+    if settings.schema_version < OcySettings::CURRENT_SCHEMA_VERSION {
+        if settings.short_breaks.duration_seconds == 15
+            && settings.short_breaks.interval_minutes == 10
+            && settings.long_breaks.duration_minutes == 5
+            && settings.long_breaks.interval_minutes == 60
+        {
+            settings.short_breaks.interval_minutes = 25;
+        }
+        settings.schema_version = OcySettings::CURRENT_SCHEMA_VERSION;
     }
 }
 

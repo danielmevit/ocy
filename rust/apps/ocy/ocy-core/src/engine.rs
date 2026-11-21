@@ -928,6 +928,12 @@ impl BreakEngine {
     /// `natural_moments` setting is on, the idle provider is supported, and the user is
     /// still active (idle < [`NATURAL_LULL`]). The start happens at the first tick with a
     /// lull, or once [`NATURAL_MAX_HOLD`] has passed since the start became due.
+    ///
+    /// One continuous hold covers the whole wait, whatever kinds it passes through: when
+    /// the kind changes mid-hold (e.g. a held short break is overtaken by the long-break
+    /// warning becoming due), the original `due_at` is kept and only the kind switches, so
+    /// the total hold never exceeds [`NATURAL_MAX_HOLD`]. A start, pause, away or sleep
+    /// clears the hold, and the next due moment then holds afresh.
     /// Explicit starts never pass through here and are never held.
     fn hold_scheduled_start(&mut self, kind: NaturalHoldKind, now_ts: Timestamp) -> bool {
         if !self.settings.natural_moments || !self.platform.idle().is_supported() {
@@ -938,11 +944,21 @@ impl BreakEngine {
         }
 
         match self.natural_hold {
-            Some(hold) if hold.kind == kind => {
+            Some(hold) => {
                 let elapsed = now_ts.duration_since(hold.due_at);
-                SignedDuration::try_from(NATURAL_MAX_HOLD).is_ok_and(|max| elapsed < max)
+                let held =
+                    SignedDuration::try_from(NATURAL_MAX_HOLD).is_ok_and(|max| elapsed < max);
+                if held && hold.kind != kind {
+                    // Kind change inside the same continuous hold: keep the original
+                    // deadline so the cap spans the whole hold, not each kind.
+                    self.natural_hold = Some(NaturalHold {
+                        kind,
+                        due_at: hold.due_at,
+                    });
+                }
+                held
             }
-            _ => {
+            None => {
                 self.natural_hold = Some(NaturalHold {
                     kind,
                     due_at: now_ts,

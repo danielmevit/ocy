@@ -175,7 +175,20 @@ p { margin: 0; text-wrap: pretty; }
 .eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 4px; }
 
 /* ---------- Navigation ---------- */
-.site-header { padding: 14px var(--edge); background: var(--bg); }
+.site-header {
+  position: sticky; top: 0; z-index: 40;   /* above the app stage (z ≤ 3) and the slideshow; the language popover (z 50) lives inside it */
+  padding: 14px var(--edge);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  -webkit-backdrop-filter: saturate(1.2) blur(10px); backdrop-filter: saturate(1.2) blur(10px);
+  box-shadow: 0 1px 0 transparent;
+  transition: box-shadow 0.2s ease;
+}
+/* the hairline + soft shadow appear only once the page has scrolled (set by a tiny observer in BaseLayout) */
+.site-header.is-stuck { box-shadow: 0 1px 0 var(--divider), 0 6px 18px rgba(0, 0, 0, 0.06); }
+.header-sentinel { position: absolute; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none; }
+/* in-page anchors land below the sticky header */
+html { scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
 .nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 1.1rem; font-family: var(--font-display); }
 .brand:hover { color: var(--text); }

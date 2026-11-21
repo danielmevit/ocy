@@ -1,0 +1,1 @@
+- Transcreated website copy for `ja`, `zh-Hans`, `zh-Hant`, `ko`, `hi`, `th`, `vi`, and `id` into natural native phrasing while preserving all facts, product names, SEO targets, and placeholders.

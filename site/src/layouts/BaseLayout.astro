@@ -141,6 +141,7 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
   <body>
     <a class="skip-link" href="#main">{t(lang, 'nav.skipToContent')}</a>
 
+    <span class="header-sentinel" aria-hidden="true"></span>
     <header class="site-header">
       <nav class="nav" aria-label={t(lang, 'nav.aria')}>
         <a class="brand" href={homeHref}>
@@ -272,5 +273,14 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
         <a href={privacyHref}>{t(lang, 'footer.privacy')}</a>
       </div>
     </footer>
-  </body>
+      <script is:inline>
+      // Sticky header: show its hairline once the top-of-page sentinel scrolls out of view.
+      (() => {
+        const header = document.querySelector('.site-header');
+        const sentinel = document.querySelector('.header-sentinel');
+        if (!header || !sentinel || !('IntersectionObserver' in window)) return;
+        new IntersectionObserver(([e]) => header.classList.toggle('is-stuck', !e.isIntersecting)).observe(sentinel);
+      })();
+    </script>
+</body>
 </html>

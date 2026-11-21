@@ -5,29 +5,33 @@ use std::cell::{Cell, RefCell};
 use std::process::ExitCode;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
 use damt_app::{Acquire, AppDataPaths, ErrorLog, SingleInstance, install_panic_hook};
 use damt_platform::{Clock, PlatformServices, SystemClock};
-use jiff::{SignedDuration, ZonedDateTime};
 use ocy_app::break_logic::{DemoBreak, build_demo_launch_plan, parse_cli_args};
 use ocy_app::coordinator::{BreakUiCoordinator, OverlayBreakWindows};
 use ocy_app::host::AppHost;
 use ocy_app::instance::{is_probe_mode, parse_instance_scope, resolve_instance_id};
+use ocy_app::notifications::{RecordingNotifier, STARTUP_NOTIFICATION_DELAY};
 use ocy_app::scheduler;
-use ocy_app::settings_logic::{DemoPlatformServices, SettingsCallbacks};
+use ocy_app::settings_logic::{
+    DemoPlatformServices, SettingsCallbacks, default_app_settings, load_app_settings,
+};
 use ocy_app::slint_breaks::{
     BreakActionCallbacks, BreakLatencySample, LatencyOptions, SlintBreakWindows,
 };
 use ocy_app::slint_settings::SlintSettingsWindow;
 use ocy_app::slint_tray::{OcyTray, SlintTraySink};
-use ocy_app::strings::Strings;
+use ocy_app::soak::{
+    OffsetClock, SoakHooks, SoakTimings, build_soak_settings, format_soak_cycle_line,
+    format_soak_summary_line, parse_soak_cycles, process_memory_bytes, start_soak_probe,
+};
+use ocy_app::strings::{Strings, parse_demo_language};
 use ocy_app::tray::{AppTheme, PauseSource, TrayController, TrayPresenter};
 use ocy_app::win32_window::{OwnerWindow, apply_window_attributes_for_role};
 use ocy_core::engine::BreakEngine;
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::OcySettings;
 use slint::{Timer, TimerMode};
 
 const APP_DATA_DIR_NAME: &str = "Ocy";
@@ -91,45 +95,25 @@ fn wakeups_per_min(window_secs: u64) -> u64 {
     count.saturating_mul(60) / window_secs.max(1)
 }
 
-#[derive(Debug)]
-struct OffsetClock {
-    offset_secs: AtomicI64,
-}
-
-impl OffsetClock {
-    const fn new(offset_secs: i64) -> Self {
-        Self {
-            offset_secs: AtomicI64::new(offset_secs),
-        }
-    }
-
-    fn set_offset_secs(&self, secs: i64) {
-        self.offset_secs.store(secs, Ordering::Relaxed);
-    }
-}
-
-impl Clock for OffsetClock {
-    fn now(&self) -> ZonedDateTime {
-        let now = SystemClock.now();
-        let secs = self.offset_secs.load(Ordering::Relaxed);
-        if secs == 0 {
-            return now;
-        }
-        now.checked_add(SignedDuration::from_secs(secs))
-            .unwrap_or(now)
-    }
-}
-
 fn build_platform_services(
     error_log: &ErrorLog,
-    safe_demo_autostart: bool,
+    is_isolated: bool,
 ) -> (Arc<dyn PlatformServices>, Option<PlatformHolder>) {
     #[cfg(windows)]
     {
         use damt_platform::SessionEventSource;
-        use damt_platform_win::WinPlatform;
+        use damt_platform_win::{WinNotifier, WinPlatform};
+        use ocy_app::notifications::{APP_DISPLAY_NAME, APP_NOTIFY_ICON_PNG, APP_USER_MODEL_ID};
 
         let mut win_platform = WinPlatform::new(APP_DATA_DIR_NAME);
+        if !is_isolated {
+            win_platform = win_platform.with_notifier(WinNotifier::new(
+                APP_USER_MODEL_ID,
+                APP_DISPLAY_NAME,
+                APP_DATA_DIR_NAME,
+                APP_NOTIFY_ICON_PNG,
+            ));
+        }
         let dispatch_log = error_log.clone();
         win_platform.session().start(Box::new(move |event| {
             if let Err(err) = slint::invoke_from_event_loop(move || {
@@ -140,7 +124,7 @@ fn build_platform_services(
             }
         }));
 
-        let platform: Arc<dyn PlatformServices> = if safe_demo_autostart {
+        let platform: Arc<dyn PlatformServices> = if is_isolated {
             Arc::new(DemoPlatformServices::new(win_platform))
         } else {
             Arc::new(win_platform)
@@ -151,7 +135,7 @@ fn build_platform_services(
     #[cfg(not(windows))]
     {
         let _ = error_log;
-        let platform: Arc<dyn PlatformServices> = if safe_demo_autostart {
+        let platform: Arc<dyn PlatformServices> = if is_isolated {
             Arc::new(DemoPlatformServices::new(damt_platform::Unsupported))
         } else {
             Arc::new(damt_platform::Unsupported)
@@ -179,58 +163,6 @@ fn attach_parent_console_if_needed() {
             let _ = AttachConsole(ATTACH_PARENT_PROCESS);
         }
     }
-}
-
-#[cfg(windows)]
-fn process_memory_bytes() -> (u64, u64) {
-    use windows::Win32::System::ProcessStatus::{
-        GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
-    };
-    use windows::Win32::System::Threading::GetCurrentProcess;
-
-    let mut pmc = PROCESS_MEMORY_COUNTERS_EX {
-        cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
-        ..Default::default()
-    };
-    // SAFETY: `GetCurrentProcess` returns a valid pseudo-handle and `pmc` is an aligned
-    // out-parameter with `cb` initialized to `size_of::<PROCESS_MEMORY_COUNTERS_EX>()`.
-    let res = unsafe {
-        GetProcessMemoryInfo(
-            GetCurrentProcess(),
-            (&raw mut pmc).cast::<PROCESS_MEMORY_COUNTERS>(),
-            pmc.cb,
-        )
-    };
-    if res.is_ok() {
-        (pmc.PrivateUsage as u64, pmc.WorkingSetSize as u64)
-    } else {
-        (0, 0)
-    }
-}
-
-#[cfg(not(windows))]
-fn process_memory_bytes() -> (u64, u64) {
-    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
-        return (0, 0);
-    };
-    let mut rss_kb = 0u64;
-    let mut anon_kb = 0u64;
-    for line in status.lines() {
-        if let Some(rest) = line.strip_prefix("VmRSS:") {
-            rss_kb = rest
-                .split_whitespace()
-                .next()
-                .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(0);
-        } else if let Some(rest) = line.strip_prefix("RssAnon:") {
-            anon_kb = rest
-                .split_whitespace()
-                .next()
-                .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(0);
-        }
-    }
-    (anon_kb * 1024, rss_kb * 1024)
 }
 
 fn format_memory_line(label: &str) -> String {
@@ -272,10 +204,17 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if let Err(err) = parse_soak_cycles(&raw_args) {
+        #[cfg(windows)]
+        attach_parent_console_if_needed();
+        eprintln!("{err}");
+        return ExitCode::FAILURE;
+    }
+    let demo_language = parse_demo_language(&raw_args);
     let cli = parse_cli_args(raw_args);
 
     #[cfg(windows)]
-    if cli.report_memory || cli.demo_break.is_some() {
+    if cli.report_memory || cli.demo_break.is_some() || cli.soak_cycles.is_some() {
         attach_parent_console_if_needed();
     }
 
@@ -324,26 +263,42 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let strings = Arc::new(Strings::from_embedded().unwrap_or_else(|err| {
-        error_log.log_error("strings_load", &err);
-        Strings::default()
-    }));
-
     let mut settings = if is_isolated {
-        OcySettings::default()
+        default_app_settings()
     } else {
-        AppDataStore::new(&data_dir, Arc::new(SystemClock)).load_settings()
+        load_app_settings(&AppDataStore::new(&data_dir, Arc::new(SystemClock)))
     };
-    let demo_plan = cli
-        .demo_break
-        .map(|demo| build_demo_launch_plan(demo, cli.demo_in_secs, &mut settings));
+    if is_isolated && let Some(lang) = demo_language {
+        settings.language = lang;
+    }
+
+    let strings = Arc::new(Strings::from_language(&settings.language));
+    if let Some(rtl) = strings.rtl_fallback_from() {
+        error_log.log(
+            Some("i18n"),
+            &format!("RTL language {rtl:?} is not supported yet; falling back to English"),
+        );
+    }
+    let soak_offset_clock = if cli.soak_cycles.is_some() {
+        build_soak_settings(&mut settings);
+        Some(Arc::new(OffsetClock::new(0)))
+    } else {
+        None
+    };
+    let demo_plan = if cli.soak_cycles.is_some() {
+        None
+    } else {
+        cli.demo_break
+            .map(|demo| build_demo_launch_plan(demo, cli.demo_in_secs, &mut settings))
+    };
     let demo_offset_clock = demo_plan
         .as_ref()
         .filter(|plan| plan.initial_clock_offset_secs != 0)
         .map(|plan| Arc::new(OffsetClock::new(plan.initial_clock_offset_secs)));
-    let clock: Arc<dyn Clock> = match &demo_offset_clock {
-        Some(c) => Arc::clone(c) as Arc<dyn Clock>,
-        None => Arc::new(SystemClock),
+    let clock: Arc<dyn Clock> = match (&soak_offset_clock, &demo_offset_clock) {
+        (Some(c), _) => Arc::clone(c) as Arc<dyn Clock>,
+        (None, Some(c)) => Arc::clone(c) as Arc<dyn Clock>,
+        (None, None) => Arc::new(SystemClock),
     };
     let initial_state = demo_plan
         .as_ref()
@@ -421,7 +376,9 @@ fn main() -> ExitCode {
 
     let latency_options = LatencyOptions {
         log_to_file: cli.report_memory || std::env::var_os("OCY_DEBUG_LATENCY").is_some(),
-        print_on_first_paint: cli.demo_break.is_some() && !cli.report_memory,
+        print_on_first_paint: cli.demo_break.is_some()
+            && !cli.report_memory
+            && cli.soak_cycles.is_none(),
     };
     let slint_break_windows = SlintBreakWindows::new(
         Arc::clone(&platform),
@@ -463,14 +420,25 @@ fn main() -> ExitCode {
         settings_callbacks,
         initial_settings,
     );
+    let notifier: Rc<dyn damt_platform::Notifier> = if is_isolated {
+        Rc::new(RecordingNotifier::new())
+    } else {
+        Rc::new(NotifierAdapter {
+            platform: Arc::clone(&platform),
+        })
+    };
+
     let coordinator = BreakUiCoordinator::new(break_windows, settings_window);
-    let host = Rc::new(RefCell::new(AppHost::with_store(
-        engine,
-        coordinator,
-        tray_controller,
-        error_log.clone(),
-        settings_store,
-    )));
+    let host = Rc::new(RefCell::new(
+        AppHost::with_store(
+            engine,
+            coordinator,
+            tray_controller,
+            error_log.clone(),
+            settings_store,
+        )
+        .with_notifier(notifier),
+    ));
 
     UI_HOST.with(|slot| {
         *slot.borrow_mut() = Some(Rc::downgrade(&host));
@@ -517,6 +485,12 @@ fn main() -> ExitCode {
         }
     }
 
+    if !is_isolated {
+        Timer::single_shot(STARTUP_NOTIFICATION_DELAY, || {
+            with_ui_host(LiveHost::on_startup_notification_timer);
+        });
+    }
+
     let listen_log = error_log.clone();
     single_instance_guard.listen(move || {
         if let Err(err) = slint::invoke_from_event_loop(|| {
@@ -554,7 +528,30 @@ fn main() -> ExitCode {
     SCHEDULER.with(|slot| *slot.borrow_mut() = Some((Timer::default(), Arc::clone(&clock))));
     arm_next_tick();
 
-    if cli.report_memory {
+    if let Some(soak_cycles) = cli.soak_cycles {
+        let soak_clock = soak_offset_clock
+            .as_ref()
+            .map(Arc::clone)
+            .unwrap_or_else(|| Arc::new(OffsetClock::new(0)));
+        start_soak_probe(
+            Rc::downgrade(&host),
+            SoakTimings::LIVE,
+            soak_cycles,
+            SoakHooks {
+                advance_clock_secs: Rc::new(move |secs| soak_clock.advance_secs(secs)),
+                on_schedule_changed: Rc::new(arm_next_tick),
+                sample_memory: Rc::new(process_memory_bytes),
+                on_cycle: Rc::new(|sample| {
+                    println!("{}", format_soak_cycle_line(&sample));
+                }),
+                on_done: Rc::new(|summary| {
+                    println!("{}", format_soak_summary_line(&summary));
+                    with_ui_host(LiveHost::shutdown);
+                    let _ = slint::quit_event_loop();
+                }),
+            },
+        );
+    } else if cli.report_memory {
         if cli.demo_break.is_some() {
             let lat_ref = Rc::clone(&latency_handle);
             let wait_secs = cli.demo_in_secs.unwrap_or(0).saturating_add(10);
@@ -645,5 +642,19 @@ impl damt_platform::TaskbarThemeProvider for TaskbarThemeAdapter {
 
     fn is_light_taskbar(&self) -> Option<bool> {
         self.platform.taskbar_theme().is_light_taskbar()
+    }
+}
+
+struct NotifierAdapter {
+    platform: Arc<dyn PlatformServices>,
+}
+
+impl damt_platform::Notifier for NotifierAdapter {
+    fn is_supported(&self) -> bool {
+        self.platform.notifier().is_supported()
+    }
+
+    fn notify(&self, title: &str, body: &str) -> Result<(), damt_platform::PlatformError> {
+        self.platform.notifier().notify(title, body)
     }
 }

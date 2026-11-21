@@ -1,0 +1,1 @@
+- Website: Macedonian, Serbian (Cyrillic and Latin), Croatian, Bosnian, Bulgarian and Slovenian rewritten as native copy instead of literal translation, using the informal "you" throughout.

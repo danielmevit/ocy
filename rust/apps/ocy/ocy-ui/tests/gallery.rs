@@ -7,7 +7,7 @@ use support::{Rgba, Shot};
 const LIGHT_CLAY: [u8; 3] = [0xB0, 0x4E, 0x2C];
 const DARK_CLAY: [u8; 3] = [0xE0, 0x8A, 0x64];
 const LIGHT_ACCENT: [u8; 3] = [0x2F, 0x7D, 0x62];
-const DARK_ACCENT: [u8; 3] = [0x5F, 0xBF, 0x97];
+const DARK_ACCENT: [u8; 3] = [0x34, 0x82, 0x67];
 const DARK_SURFACE: [u8; 3] = [0x21, 0x24, 0x26];
 /// Card margin in physical pixels (16 logical px at 2x).
 const MARGIN: u32 = 32;
@@ -110,7 +110,7 @@ fn gallery_renders_pass_pixel_checks() {
         Ok(shots) => shots,
         Err(e) => panic!("render failed: {e}"),
     };
-    assert_eq!(shots.len(), 12);
+    assert_eq!(shots.len(), 2 * (5 + support::V2_STATES.len()));
 
     // PNG round-trip, then every image is non-blank.
     let dir = std::env::temp_dir().join(format!("ocy-ui-test-{}", std::process::id()));
@@ -161,7 +161,7 @@ fn gallery_renders_pass_pixel_checks() {
         "warning",
         "warning-strict",
         "long-break",
-        "settings",
+        "settings-v2",
     ] {
         let (l, d) = (find(&shots, "light", name), find(&shots, "dark", name));
         assert_ne!(l.pixels, d.pixels, "{name}: light and dark are identical");
@@ -224,15 +224,15 @@ fn gallery_renders_pass_pixel_checks() {
         }
     }
 
-    // Settings: Accent present (toggles), clay absent.
+    // Settings V2: Accent present (toggles/preset/timeline), clay absent.
     for (theme, accent, clay) in [
         ("light", LIGHT_ACCENT, LIGHT_CLAY),
         ("dark", DARK_ACCENT, DARK_CLAY),
     ] {
-        let img = find(&shots, theme, "settings");
+        let img = find(&shots, theme, "settings-v2");
         let a = count_near(img, accent, 3);
-        assert!(a > 500, "{theme} settings has only {a} accent pixels");
+        assert!(a > 500, "{theme} settings-v2 has only {a} accent pixels");
         let c = count_near(img, clay, 6);
-        assert!(c < 5, "{theme} settings has {c} clay pixels");
+        assert!(c < 5, "{theme} settings-v2 has {c} clay pixels");
     }
 }

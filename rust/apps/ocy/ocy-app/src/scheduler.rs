@@ -6,12 +6,19 @@
 //!   pause expiry) **or, when that moment is more than [`PREWARM_LEAD_TIME`] away, the
 //!   moment minus [`PREWARM_LEAD_TIME`]** — the pre-warm wake, so the next card is
 //!   created hidden before it becomes due (at most one extra wake per break),
-//! - [`ACTIVE_WAKE_INTERVAL`] while a break or warning window is visible, while a
-//!   natural-moment hold is active, or while the engine waits on an external state
-//!   change it cannot be notified about (away return, fullscreen exit),
+//! - [`ACTIVE_WAKE_INTERVAL`] while a break or warning window is visible or a
+//!   natural-moment hold is active (their countdowns and lull checks need 1 s),
+//! - [`IDLE_PHASE_WAKE_INTERVAL`] while `Away` or `Deferred` (the long idle phases:
+//!   nothing but an external state change can happen, and its return is accepted up to
+//!   5 s late — a negligible cost for a break schedule measured in minutes, traded for
+//!   a 5x reduction in idle wake-ups),
 //! - [`MAX_WAKE_DELAY`] otherwise, which keeps every tick gap far below the engine's
 //!   15 s sleep-gap threshold (rule 1: gap = sleep) without changing that rule,
 //! - and never less than [`MIN_WAKE_DELAY`], to avoid busy loops.
+//!
+//! Session events (unlock, resume) are delivered immediately by the OS and re-arm the
+//! timer, so a locked-screen return is still noticed at once; only idle returns
+//! (typing resumes without a lock) and fullscreen exits are polled at the 5 s cadence.
 
 use std::time::Duration;
 
@@ -27,6 +34,13 @@ pub const MIN_WAKE_DELAY: Duration = Duration::from_millis(50);
 /// Wake interval while a window is visible, a natural-moment hold is active, or the
 /// engine polls an external state change (away return, deferred fullscreen exit).
 pub const ACTIVE_WAKE_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Wake interval while `Away` or `Deferred`: the long idle phases, where the only
+/// thing that can happen is an external state change (input resumes, fullscreen
+/// exits) that the OS does not notify us about. It is noticed up to 5 s late —
+/// negligible for a schedule measured in minutes, and far below the engine's 15 s
+/// sleep-gap threshold (rule 1: gap = sleep).
+pub const IDLE_PHASE_WAKE_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Longest wake delay while working (idle re-checks and away detection granularity).
 pub const MAX_WAKE_DELAY: Duration = Duration::from_secs(10);
@@ -81,16 +95,20 @@ pub fn next_wake_delay(snapshot: &EngineSnapshot, now: Timestamp) -> Duration {
                 delay
             }
         }
-        // Break/warning windows are visible (their countdowns update every second), and
-        // Away/Deferred transitions come from outside (input resumes, fullscreen exits)
-        // with no OS event to wake us, so they are polled at the same 1 s granularity
-        // as the previous fixed tick. This keeps adaptive and 1 s timing equivalent
-        // within 1 s; the working phase still meets the <= 6 wake-ups/minute budget.
-        EnginePhase::ShortBreak
-        | EnginePhase::LongBreak
-        | EnginePhase::LongBreakWarning
-        | EnginePhase::Deferred
-        | EnginePhase::Away => ACTIVE_WAKE_INTERVAL,
+        // Break/warning windows are visible (their countdowns update every second) and
+        // natural-moment holds re-check the lull every second. Away and Deferred are
+        // the long idle phases: nothing but an external state change (input resumes,
+        // fullscreen exits) can happen, with no OS event to wake us, so they are
+        // polled at the coarser IDLE_PHASE_WAKE_INTERVAL cadence — the return is
+        // noticed up to 5 s late (session unlock/resume events bypass this entirely:
+        // they are delivered immediately and re-arm the timer). This keeps adaptive
+        // and 1 s timing equivalent within 5 s for away returns and deferral ends and
+        // within 1 s for everything else; the working phase still meets the
+        // <= 6 wake-ups/minute budget, and the idle phases <= 12.
+        EnginePhase::ShortBreak | EnginePhase::LongBreak | EnginePhase::LongBreakWarning => {
+            ACTIVE_WAKE_INTERVAL
+        }
+        EnginePhase::Deferred | EnginePhase::Away => IDLE_PHASE_WAKE_INTERVAL,
     };
     delay.max(MIN_WAKE_DELAY)
 }

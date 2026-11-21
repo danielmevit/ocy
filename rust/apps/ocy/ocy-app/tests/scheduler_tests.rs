@@ -4,10 +4,16 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use damt_platform::{Clock, FocusState, FocusStateProvider, IdleProvider, PlatformServices};
+use damt_platform::{
+    Clock, FocusState, FocusStateProvider, IdleProvider, PlatformServices, SessionEvent,
+};
 use jiff::Timestamp;
-use ocy_app::scheduler::{self, ACTIVE_WAKE_INTERVAL, MAX_WAKE_DELAY, MIN_WAKE_DELAY};
-use ocy_core::engine::{BreakEngine, EnginePhase, EngineSnapshot, EngineState, NaturalHoldKind};
+use ocy_app::scheduler::{
+    self, ACTIVE_WAKE_INTERVAL, IDLE_PHASE_WAKE_INTERVAL, MAX_WAKE_DELAY, MIN_WAKE_DELAY,
+};
+use ocy_core::engine::{
+    BreakEngine, BreakKind, EngineEvent, EnginePhase, EngineSnapshot, EngineState, NaturalHoldKind,
+};
 use ocy_core::exercises::{DefaultExercisePicker, SeededRng};
 use ocy_core::settings::OcySettings;
 use ocy_core::time::{DateTimeOffset, FakeClock, Paused};
@@ -240,6 +246,7 @@ fn a_due_moment_25s_away_takes_one_extra_wake_to_prewarm() {
     let platform = TestPlatform::new();
     platform.set_idle(Duration::ZERO);
     let mut settings = OcySettings::default();
+    settings.short_breaks.interval_minutes = 10;
     settings.long_breaks.enabled = false;
     settings.natural_moments = false;
     let mut engine = BreakEngine::new(
@@ -248,7 +255,7 @@ fn a_due_moment_25s_away_takes_one_extra_wake_to_prewarm() {
         clock.clone(),
         None,
         Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
-        // Short break due in 25 s (default interval is 10 min).
+        // Short break due in 25 s (10 min interval - 575 s elapsed).
         Some(EngineState {
             since_short_break: Duration::from_secs(575),
             ..Default::default()
@@ -276,13 +283,22 @@ fn visible_windows_and_holds_tick_every_second() {
         EnginePhase::ShortBreak,
         EnginePhase::LongBreak,
         EnginePhase::LongBreakWarning,
-        EnginePhase::Deferred,
-        EnginePhase::Away,
     ] {
         let snap = snapshot(phase, None, None, None);
         assert_eq!(
             scheduler::next_wake_delay(&snap, ts(0)),
             ACTIVE_WAKE_INTERVAL,
+            "phase {phase:?}"
+        );
+    }
+
+    // The long idle phases (Away, Deferred) poll the external state change they wait
+    // on (input resumes, fullscreen exits) at the coarser idle-phase interval.
+    for phase in [EnginePhase::Deferred, EnginePhase::Away] {
+        let snap = snapshot(phase, None, None, None);
+        assert_eq!(
+            scheduler::next_wake_delay(&snap, ts(0)),
+            IDLE_PHASE_WAKE_INTERVAL,
             "phase {phase:?}"
         );
     }
@@ -359,6 +375,234 @@ fn a_plain_working_minute_takes_at_most_six_wakeups() {
     assert!(
         wakeups <= 6,
         "a plain working minute took {wakeups} wake-ups"
+    );
+}
+
+/// Settings shared by the phase-simulation tests below: a 30 s away threshold, short
+/// breaks every 2 min (20 s), long breaks every 15 min (1 min) with a 30 s warning.
+fn phase_test_settings(natural_moments: bool) -> OcySettings {
+    let mut settings = OcySettings {
+        natural_moments,
+        ..OcySettings::default()
+    };
+    settings.short_breaks.interval_minutes = 2;
+    settings.short_breaks.duration_seconds = 20;
+    settings.long_breaks.interval_minutes = 15;
+    settings.long_breaks.duration_minutes = 1;
+    settings.long_breaks.warning_seconds = 30;
+    settings.away_threshold_seconds = 30;
+    settings
+}
+
+/// Ticks the engine with the adaptive scheduler delays until `phase` is reached.
+fn tick_until(
+    engine: &mut BreakEngine,
+    clock: &Arc<FakeClock>,
+    phase: EnginePhase,
+    max_wakes: u64,
+) {
+    let mut wakes = 0u64;
+    while engine.snapshot().phase != phase {
+        wakes += 1;
+        assert!(wakes < max_wakes, "engine never reached {phase:?}");
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        clock.advance(delay);
+        let _ = engine.tick();
+    }
+}
+
+#[test]
+fn an_away_minute_takes_at_most_twelve_wakeups() {
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let platform = TestPlatform::new();
+    // Idle stays above the 30 s away threshold: the user is away.
+    platform.set_idle(Duration::from_secs(40));
+    let mut engine = BreakEngine::new(
+        phase_test_settings(false),
+        platform.clone(),
+        clock.clone(),
+        None,
+        Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
+        None,
+        None,
+    );
+
+    tick_until(&mut engine, &clock, EnginePhase::Away, 100);
+
+    // One minute of Away: only the external input return is polled, at the
+    // idle-phase interval (5 s), so at most 12 wake-ups.
+    let mut wakeups = 0u64;
+    let mut minute = Duration::ZERO;
+    while minute < Duration::from_secs(60) {
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        assert_eq!(delay, IDLE_PHASE_WAKE_INTERVAL);
+        clock.advance(delay);
+        minute += delay;
+        let _ = engine.tick();
+        wakeups += 1;
+    }
+    assert!(wakeups <= 12, "an away minute took {wakeups} wake-ups");
+    assert_eq!(engine.snapshot().phase, EnginePhase::Away);
+}
+
+#[test]
+fn a_deferred_minute_takes_at_most_twelve_wakeups() {
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let platform = TestPlatform::new();
+    platform.set_idle(Duration::ZERO);
+    *platform
+        .focus
+        .state
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = FocusState::FullscreenApp;
+    let mut engine = BreakEngine::new(
+        phase_test_settings(false),
+        platform.clone(),
+        clock.clone(),
+        None,
+        Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
+        None,
+        None,
+    );
+
+    // The long-break warning falls due while a fullscreen app holds it: Deferred.
+    tick_until(&mut engine, &clock, EnginePhase::Deferred, 2000);
+
+    // One minute of Deferred: only the fullscreen exit is polled, at the
+    // idle-phase interval (5 s), so at most 12 wake-ups.
+    let mut wakeups = 0u64;
+    let mut minute = Duration::ZERO;
+    while minute < Duration::from_secs(60) {
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        assert_eq!(delay, IDLE_PHASE_WAKE_INTERVAL);
+        clock.advance(delay);
+        minute += delay;
+        let _ = engine.tick();
+        wakeups += 1;
+    }
+    assert!(wakeups <= 12, "a deferred minute took {wakeups} wake-ups");
+    assert_eq!(engine.snapshot().phase, EnginePhase::Deferred);
+}
+
+#[test]
+fn away_suspend_resume_still_applies_the_sleep_gap_rule() {
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let platform = TestPlatform::new();
+    platform.set_idle(Duration::from_secs(40));
+    let mut engine = BreakEngine::new(
+        phase_test_settings(false),
+        platform.clone(),
+        clock.clone(),
+        None,
+        Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
+        None,
+        None,
+    );
+
+    tick_until(&mut engine, &clock, EnginePhase::Away, 100);
+
+    // Thirty seconds of Away at the 5 s cadence: every tick gap stays far below the
+    // engine's 15 s sleep-gap threshold, so away time accumulates as one span.
+    let mut away_secs = Duration::ZERO;
+    while away_secs < Duration::from_secs(30) {
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        assert!(delay < Duration::from_secs(15), "away tick gap {delay:?}");
+        clock.advance(delay);
+        away_secs += delay;
+        assert!(engine.tick().is_empty());
+    }
+    assert_eq!(engine.snapshot().phase, EnginePhase::Away);
+
+    // Suspend for 5 minutes: the pending 5 s wake fires 300 s late, at resume.
+    clock.advance(Duration::from_secs(300));
+    // Rule 1 (gap = sleep) + rule 8: a gap while already Away extends the same away
+    // span — no events, no counter progress, still Away.
+    assert!(engine.tick().is_empty());
+    assert_eq!(engine.snapshot().phase, EnginePhase::Away);
+
+    // The Resumed power event re-arms the host immediately; without a session lock
+    // it changes nothing here (the away span keeps extending).
+    assert!(engine.on_session_event(SessionEvent::Resumed).is_empty());
+    assert_eq!(engine.snapshot().phase, EnginePhase::Away);
+
+    // The user returns: the next idle-phase wake notices within 5 s and credits the
+    // whole span — including the suspend — as one absence.
+    platform.set_idle(Duration::ZERO);
+    let mut return_events = Vec::new();
+    let mut wakes = 0u64;
+    while return_events.is_empty() {
+        wakes += 1;
+        assert!(wakes < 10, "the away return was never detected");
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        assert!(delay <= IDLE_PHASE_WAKE_INTERVAL);
+        clock.advance(delay);
+        return_events = engine
+            .tick()
+            .into_iter()
+            .filter(|event| !matches!(event, EngineEvent::PhaseChanged(_)))
+            .collect();
+    }
+
+    assert_eq!(engine.snapshot().phase, EnginePhase::Working);
+    assert_eq!(
+        return_events,
+        vec![EngineEvent::AbsenceCredited(BreakKind::Long)]
+    );
+    // The long credit reset the counters: the next short break is a full interval
+    // away, proving the suspend gap was treated as away time, not active time.
+    assert_eq!(
+        engine.snapshot().time_until_short_break,
+        Some(Duration::from_secs(120))
+    );
+}
+
+#[test]
+fn session_unlock_re_arms_the_scheduler_immediately() {
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
+    let platform = TestPlatform::new();
+    platform.set_idle(Duration::from_secs(40));
+    let mut engine = BreakEngine::new(
+        phase_test_settings(false),
+        platform.clone(),
+        clock.clone(),
+        None,
+        Some(Box::new(DefaultExercisePicker::new(SeededRng::new(1)))),
+        None,
+        None,
+    );
+
+    // A locked screen is Away and is polled at the idle-phase interval.
+    engine.on_session_event(SessionEvent::Locked);
+    assert_eq!(engine.snapshot().phase, EnginePhase::Away);
+    assert_eq!(
+        scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp()),
+        IDLE_PHASE_WAKE_INTERVAL
+    );
+
+    // The lock lasts long enough to credit the long break.
+    for _ in 0..14 {
+        let delay = scheduler::next_wake_delay(&engine.snapshot(), clock.now().timestamp());
+        clock.advance(delay);
+        assert!(engine.tick().is_empty());
+    }
+
+    // The unlock is delivered as a session event at the exact instant (the host
+    // re-arms the timer right after dispatching it), so the return must not wait
+    // for the 5 s idle-phase poll.
+    let unlock_at = clock.now().timestamp();
+    let events = engine
+        .on_session_event(SessionEvent::Unlocked)
+        .into_iter()
+        .filter(|event| !matches!(event, EngineEvent::PhaseChanged(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(events, vec![EngineEvent::AbsenceCredited(BreakKind::Long)]);
+    assert_eq!(engine.snapshot().phase, EnginePhase::Working);
+
+    // The re-arm computes the working delay at once: the next due moment (capped),
+    // not the away poll.
+    assert_eq!(
+        scheduler::next_wake_delay(&engine.snapshot(), unlock_at),
+        MAX_WAKE_DELAY
     );
 }
 
@@ -465,6 +709,7 @@ fn adaptive_ticks_prewarm_the_short_break_card_before_showing_it() {
     let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
 
     let mut settings = OcySettings::default();
+    settings.short_breaks.interval_minutes = 10;
     settings.long_breaks.enabled = false;
     settings.natural_moments = false;
     let engine = BreakEngine::new(
@@ -473,7 +718,7 @@ fn adaptive_ticks_prewarm_the_short_break_card_before_showing_it() {
         Arc::clone(&clock_dyn),
         None,
         None,
-        // Short break due in 25 s (default interval is 10 min).
+        // Short break due in 25 s (10 min interval - 575 s elapsed).
         Some(EngineState {
             since_short_break: Duration::from_secs(575),
             ..Default::default()

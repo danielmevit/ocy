@@ -43,14 +43,19 @@ pub fn open_key(path: &str, access: REG_SAM_FLAGS) -> Option<RegKey> {
     status.is_ok().then_some(RegKey(key))
 }
 
-/// Creates or opens the Run key for writing; `None` on failure.
-pub fn create_run_key() -> Option<RegKey> {
-    let path = HSTRING::from(RUN_KEY);
+/// Creates or opens a subkey under `HKEY_CURRENT_USER` for writing; `None` on failure.
+pub fn create_key(path: &str) -> Option<RegKey> {
+    let path = HSTRING::from(path);
     let mut key = HKEY::default();
 
     // SAFETY: the subkey is a valid null-terminated UTF-16 string and `key` is a valid out-parameter.
     let status = unsafe { RegCreateKeyW(HKEY_CURRENT_USER, &path, &mut key) };
     status.is_ok().then_some(RegKey(key))
+}
+
+/// Creates or opens the Run key for writing; `None` on failure.
+pub fn create_run_key() -> Option<RegKey> {
+    create_key(RUN_KEY)
 }
 
 /// Reads a `REG_SZ` value, trimming the trailing NUL. `None` when missing or a different type.

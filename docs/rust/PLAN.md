@@ -114,6 +114,7 @@ rust/                       Cargo workspace (becomes the repo root at switchover
 | D11 | **No C# 0.1.3** (owner, 2026-11-19): the small sprout icon ships with 0.2.0, which already embeds it | one fewer release | a C# release just for the icon |
 | D12 | **Left-click on the tray icon opens Settings** (owner, 2026-11-19); right-click keeps the menu | the most direct way in; Settings becomes the home/dashboard after the redesign | C#: left click did nothing |
 | D13 | **Tray pause state is visible** (owner, 2026-11-19): a checkmark on the active pause option, plus a status line "Paused until 15:40 · 1 h 15 min left" (or "until you resume") | you can see what you chose and when it ends | only the hover tooltip |
+| D5r | **i18n = one JSON file per language** (`content/strings/<bcp47>.json`, English fallback, CLDR plural suffix keys, localized units, `language: "auto"` = Windows UI language) — lead, 2026-11-20, replaces D5's Slint `@tr`/gettext | Ocy passes every text from Rust as a property; one source for the app, the C# app and the site; adding a language = adding a file | gettext/`@tr` (would split the strings into two systems) |
 
 ## 4. How the app runs (efficiency design)
 - **Startup:**

@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use i_slint_backend_testing::{AccessibleRole, ElementHandle, ElementQuery};
-use ocy_ui::{LongBreakCard, SettingsWindow, ShortBreakCard, WarningCard};
+use ocy_ui::{LongBreakCard, SettingsWindowV2, ShortBreakCard, WarningCard};
 use slint::ComponentHandle;
 
 fn init() {
@@ -16,7 +16,10 @@ fn init() {
     });
 }
 
-const INTERACTIVE: [AccessibleRole; 4] = [
+const INTERACTIVE: [AccessibleRole; 7] = [
+    AccessibleRole::Slider,
+    AccessibleRole::Tab,
+    AccessibleRole::Combobox,
     AccessibleRole::Button,
     AccessibleRole::Switch,
     AccessibleRole::Checkbox,
@@ -93,100 +96,6 @@ fn assert_all_labelled(root: &impl i_slint_backend_testing::ElementRoot, expecte
             e.type_name()
         );
     }
-}
-
-fn settings() -> SettingsWindow {
-    let ui = SettingsWindow::new().unwrap_or_else(|e| panic!("{e}"));
-    ui.set_window_title("Ocy Settings".into());
-    ui.set_general_title("General".into());
-    ui.set_short_breaks_title("Short breaks".into());
-    ui.set_long_breaks_title("Long breaks".into());
-    ui.set_behaviour_title("Behaviour".into());
-    ui.set_about_title("About".into());
-    ui.set_start_with_system_label("Start with Windows".into());
-    ui.set_short_enabled_label("Enable short breaks".into());
-    ui.set_short_interval_label("Every".into());
-    ui.set_short_duration_label("Short break length".into());
-    ui.set_short_fullscreen_label("Full screen".into());
-    ui.set_try_short_label("Try a short break".into());
-    ui.set_long_enabled_label("Enable long breaks".into());
-    ui.set_long_interval_label("Long break every".into());
-    ui.set_long_duration_label("Long break length".into());
-    ui.set_long_warning_label("Warn before".into());
-    ui.set_long_postpone_label("Postpone by".into());
-    ui.set_long_max_postpones_label("Max postpones".into());
-    ui.set_try_long_label("Try a long break".into());
-    ui.set_strict_label("Strict mode".into());
-    ui.set_inactivity_label("Pause when away".into());
-    ui.set_away_label("Away after".into());
-    ui.set_pause_fullscreen_label("Pause for full-screen apps".into());
-    ui.set_window_nearby_label("Show near the active window".into());
-    ui.set_unit_minutes("min".into());
-    ui.set_unit_seconds("sec".into());
-    tall(&ui);
-    ui
-}
-
-#[test]
-fn settings_controls_have_roles_and_labels() {
-    init();
-    let ui = settings();
-    // 8 toggles (start with system, short, short full screen, long, strict, inactivity, pause,
-    // nearby), 8 number fields (short 2, long 5, away), 2 links.
-    assert_all_labelled(&ui, 8 + 8 + 2);
-    by_label(&ui, "Try a short break", AccessibleRole::Button);
-    by_label(&ui, "Away after", AccessibleRole::Spinbox);
-    by_label(&ui, "Strict mode", AccessibleRole::Switch);
-    for title in [
-        "General",
-        "Short breaks",
-        "Long breaks",
-        "Behaviour",
-        "About",
-    ] {
-        by_label(&ui, title, AccessibleRole::Groupbox);
-    }
-}
-
-#[test]
-fn toggle_checked_state_follows_value_and_default_action_toggles() {
-    init();
-    let ui = settings();
-    let changed = Rc::new(Cell::new(0));
-    let c = Rc::clone(&changed);
-    ui.on_changed(move || c.set(c.get() + 1));
-
-    let strict = by_label(&ui, "Strict mode", AccessibleRole::Switch);
-    assert_eq!(strict.accessible_checkable(), Some(true));
-    assert_eq!(strict.accessible_checked(), Some(false));
-    ui.set_strict_mode(true);
-    assert_eq!(strict.accessible_checked(), Some(true));
-
-    strict.invoke_accessible_default_action();
-    assert!(!ui.get_strict_mode());
-    assert_eq!(strict.accessible_checked(), Some(false));
-    assert_eq!(changed.get(), 1);
-}
-
-#[test]
-fn number_field_value_includes_unit_and_steps() {
-    init();
-    let ui = settings();
-    let away = by_label(&ui, "Away after", AccessibleRole::Spinbox);
-    assert_eq!(away.accessible_value().as_deref(), Some("120 sec"));
-    assert_eq!(away.accessible_value_minimum(), Some(30.0));
-    assert_eq!(away.accessible_value_maximum(), Some(1800.0));
-
-    away.invoke_accessible_increment_action();
-    assert_eq!(ui.get_away_threshold(), 121);
-    assert_eq!(away.accessible_value().as_deref(), Some("121 sec"));
-    away.invoke_accessible_decrement_action();
-    away.invoke_accessible_decrement_action();
-    assert_eq!(ui.get_away_threshold(), 119);
-
-    // A field without a unit announces the bare number.
-    let max = by_label(&ui, "Max postpones", AccessibleRole::Spinbox);
-    assert_eq!(max.accessible_value().as_deref(), Some("3"));
 }
 
 #[test]
@@ -269,15 +178,8 @@ fn press_escape<C: ComponentHandle>(c: &C) {
 }
 
 #[test]
-fn escape_closes_settings_and_ends_non_strict_long_break() {
+fn escape_ends_non_strict_long_break() {
     init();
-    let ui = settings();
-    let esc = Rc::new(Cell::new(0));
-    let e = Rc::clone(&esc);
-    ui.on_escape_pressed(move || e.set(e.get() + 1));
-    press_escape(&ui);
-    assert_eq!(esc.get(), 1);
-
     let card = LongBreakCard::new().unwrap_or_else(|e| panic!("{e}"));
     tall(&card);
     let ended = Rc::new(Cell::new(0));
@@ -289,4 +191,234 @@ fn escape_closes_settings_and_ends_non_strict_long_break() {
     card.set_can_end(false);
     press_escape(&card);
     assert_eq!(ended.get(), 1);
+}
+
+// ---- Settings V2 ----
+
+#[path = "support/mod.rs"]
+mod support;
+
+/// Client height a 1080p work area (1040 px above a 40 px taskbar) leaves the window, minus the frame:
+/// the host's `settings_window_height` never grows past this.
+const WORK_AREA_CLIENT: f32 = 1000.0;
+
+fn v2(lang: &str, tab: Option<i32>) -> SettingsWindowV2 {
+    let ui = support::settings_v2(lang, false).unwrap_or_else(|e| panic!("{e}"));
+    if let Some(tab) = tab {
+        ui.set_customize_open(true);
+        ui.set_customize_tab(tab);
+    }
+    // The real default size; the host grows it to the content (both sections may be open).
+    ui.window().set_size(slint::LogicalSize::new(560.0, 640.0));
+    // Walking the tree instantiates the `if` sections so their height counts.
+    let _ = interactive(&ui);
+    let need = ui.get_content_height().ceil();
+    if need > 640.0 {
+        ui.window()
+            .set_size(slint::LogicalSize::new(560.0, need.min(WORK_AREA_CLIENT)));
+    }
+    ui
+}
+
+/// Every interactive control is labelled, the expected number is exposed, and each one lies wholly
+/// inside the window the host sizes to the content (640 px default, grown up to the work area), so
+/// nothing needs scrolling and UI Automation sees all of it, with Customize and General both open.
+#[test]
+fn settings_v2_every_state_fits_the_grown_window_with_labelled_controls_in_en_and_de() {
+    init();
+    // presets 3 + section headers 2 + General (language, start with system, window nearby) 3,
+    // then per Customize tab.
+    let states = [
+        (None, 3 + 2 + 3),
+        (Some(0), 3 + 2 + 3 + 3 + 2 + 4 + 1 + 2), // tabs, 2 toggles, 4 sliders, full screen, 2 links
+        (Some(1), 3 + 2 + 3 + 3 + 1 + 3),         // tabs, strict, 3 sliders
+        (Some(2), 3 + 2 + 3 + 3 + 2 + 1),         // tabs, inactivity + pause, away slider
+    ];
+    for lang in ["en", "de"] {
+        for (tab, expected) in states {
+            let ui = v2(lang, tab);
+            assert!(ui.get_general_open(), "General is open by default");
+            assert_eq!(ui.get_customize_open(), tab.is_some());
+            let need = ui.get_content_height();
+            assert!(
+                need <= WORK_AREA_CLIENT,
+                "{lang} {tab:?}: content needs {need} px, more than the work area"
+            );
+            let height = need.ceil().max(640.0);
+            let all = interactive(&ui);
+            assert_eq!(
+                all.len(),
+                expected,
+                "{lang} {tab:?}: interactive control count"
+            );
+            for e in all {
+                let label = e.accessible_label().unwrap_or_default();
+                assert!(
+                    !label.trim().is_empty(),
+                    "{lang} {tab:?}: {:?} unlabelled",
+                    e.accessible_role()
+                );
+                let p = e.absolute_position();
+                let s = e.size();
+                assert!(
+                    p.x >= 0.0 && p.y >= 0.0 && p.x + s.width <= 560.0 && p.y + s.height <= height,
+                    "{lang} {tab:?}: {label:?} at {p:?} {s:?} is outside 560x{height}"
+                );
+            }
+        }
+    }
+}
+
+/// With General folded, Customize alone still fits the 640 px default (no growing needed).
+#[test]
+fn settings_v2_customize_alone_fits_640() {
+    init();
+    for lang in ["en", "de"] {
+        for tab in 0..3 {
+            let ui = v2(lang, Some(tab));
+            ui.set_general_open(false);
+            let _ = interactive(&ui);
+            let need = ui.get_content_height();
+            assert!(need <= 640.0, "{lang} tab {tab}: needs {need} px");
+        }
+    }
+}
+
+#[test]
+fn settings_v2_compact_height_folds_timeline_then_today() {
+    init();
+    let ui = v2("en", None);
+    assert!(ui.get_timeline_shown() && ui.get_today_shown());
+    ui.window().set_size(slint::LogicalSize::new(480.0, 520.0));
+    assert!(!ui.get_timeline_shown() && ui.get_today_shown());
+    ui.window().set_size(slint::LogicalSize::new(480.0, 400.0));
+    assert!(!ui.get_timeline_shown() && !ui.get_today_shown());
+}
+
+#[test]
+fn settings_v2_slider_tabs_presets_accordion_and_dropdown_semantics() {
+    init();
+    let ui = v2("en", Some(0));
+    let changed = Rc::new(Cell::new(0));
+    let c = Rc::clone(&changed);
+    ui.on_changed(move || c.set(c.get() + 1));
+
+    // Slider: value is the whole phrase with its unit; increment/decrement step and save.
+    let interval = by_label(&ui, "Short break interval", AccessibleRole::Slider);
+    assert_eq!(interval.accessible_value().as_deref(), Some("every 20 min"));
+    assert_eq!(interval.accessible_value_minimum(), Some(2.0));
+    assert_eq!(interval.accessible_value_maximum(), Some(60.0));
+    interval.invoke_accessible_increment_action();
+    assert_eq!(ui.get_short_interval(), 21);
+    assert_eq!(interval.accessible_value().as_deref(), Some("every 21 min"));
+    assert_eq!(changed.get(), 1);
+    let long_interval = by_label(&ui, "Long break interval", AccessibleRole::Slider);
+    assert_eq!(long_interval.accessible_value_step(), Some(5.0));
+    long_interval.invoke_accessible_decrement_action();
+    assert_eq!(ui.get_long_interval(), 55);
+
+    // Tabs: a tab list with selectable tabs; the default action switches the page.
+    let strictness = by_label(&ui, "Strictness", AccessibleRole::Tab);
+    assert_eq!(strictness.accessible_item_selected(), Some(false));
+    assert_eq!(
+        by_label(&ui, "Breaks", AccessibleRole::Tab).accessible_item_selected(),
+        Some(true)
+    );
+    strictness.invoke_accessible_default_action();
+    assert_eq!(ui.get_customize_tab(), 1);
+    by_label(&ui, "Customize", AccessibleRole::TabList);
+    let max = by_label(&ui, "Maximum postpones", AccessibleRole::Slider);
+    assert_eq!(max.accessible_value().as_deref(), Some("3 times"));
+    max.set_accessible_value("1");
+    assert_eq!(ui.get_long_max_postpones(), 1);
+    assert_eq!(max.accessible_value().as_deref(), Some("1 time"));
+
+    // Presets: checkable buttons; the default action reports the pick.
+    let picked = Rc::new(Cell::new(-1));
+    let p = Rc::clone(&picked);
+    ui.on_preset_selected(move |i| p.set(i));
+    let gentle = by_label(&ui, "Gentle", AccessibleRole::Button);
+    assert_eq!(gentle.accessible_checked(), Some(false));
+    assert_eq!(
+        by_label(&ui, "Balanced", AccessibleRole::Button).accessible_checked(),
+        Some(true)
+    );
+    gentle.invoke_accessible_default_action();
+    assert_eq!(picked.get(), 0);
+    assert_eq!(gentle.accessible_checked(), Some(true));
+
+    // Section headers: expandable buttons that open and close independently.
+    let customize = by_label(&ui, "Customize", AccessibleRole::Button);
+    assert_eq!(customize.accessible_expandable(), Some(true));
+    assert_eq!(customize.accessible_expanded(), Some(true));
+    let general = by_label(&ui, "General", AccessibleRole::Button);
+    assert_eq!(general.accessible_expanded(), Some(true));
+    general.invoke_accessible_default_action();
+    assert!(!ui.get_general_open());
+    assert!(
+        ui.get_customize_open(),
+        "folding General leaves Customize open"
+    );
+    general.invoke_accessible_default_action();
+    assert!(ui.get_general_open() && ui.get_customize_open());
+    customize.invoke_accessible_default_action();
+    assert!(!ui.get_customize_open());
+    assert!(
+        ui.get_general_open(),
+        "folding Customize leaves General open"
+    );
+
+    // Language: a labelled combo box whose value is the selected entry.
+    let language = by_label(&ui, "Language", AccessibleRole::Combobox);
+    assert_eq!(
+        language.accessible_value().as_deref(),
+        Some("Automatic (Windows language)")
+    );
+    ui.set_language_index(2);
+    assert_eq!(language.accessible_value().as_deref(), Some("Deutsch"));
+}
+
+#[test]
+fn settings_v2_hidden_rows_stay_hidden_until_enabled_and_escape_closes() {
+    init();
+    let ui = v2("en", None);
+    assert!(
+        ElementQuery::from_root(&ui)
+            .match_descendants()
+            .match_accessible_label("Sounds")
+            .find_all()
+            .is_empty()
+    );
+    let before = interactive(&ui).len();
+    ui.set_show_sounds(true);
+    ui.set_show_notifications(true);
+    assert_eq!(interactive(&ui).len(), before + 2);
+
+    let esc = Rc::new(Cell::new(0));
+    let e = Rc::clone(&esc);
+    ui.on_escape_pressed(move || e.set(e.get() + 1));
+    press_escape(&ui);
+    assert_eq!(esc.get(), 1);
+}
+
+#[test]
+fn settings_v2_toggle_checked_state_and_today_groupbox_semantics() {
+    init();
+    let ui = v2("en", Some(1));
+    by_label(&ui, "Today", AccessibleRole::Groupbox);
+
+    let changed = Rc::new(Cell::new(0));
+    let c = Rc::clone(&changed);
+    ui.on_changed(move || c.set(c.get() + 1));
+
+    let strict = by_label(&ui, "Strict mode", AccessibleRole::Switch);
+    assert_eq!(strict.accessible_checkable(), Some(true));
+    assert_eq!(strict.accessible_checked(), Some(false));
+    ui.set_strict_mode(true);
+    assert_eq!(strict.accessible_checked(), Some(true));
+
+    strict.invoke_accessible_default_action();
+    assert!(!ui.get_strict_mode());
+    assert_eq!(strict.accessible_checked(), Some(false));
+    assert_eq!(changed.get(), 1);
 }

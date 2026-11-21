@@ -1,0 +1,1 @@
+- Rust (`ocy-app`): added the hidden isolated `--soak <n>` (`1..=200`) break-window leak probe cycling short breaks, long-break warnings, and long breaks with real live window, art-cache, and overlay counters plus per-cycle memory and post-cycle-3 least-squares growth summary.

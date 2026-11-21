@@ -356,7 +356,7 @@ fn host_tray_left_click_shows_and_reactivates_settings_and_pause_from_tray_track
     assert!(!pres_1h.pause_status.is_enabled);
     assert_eq!(
         pres_1h.pause_status.text,
-        "Paused until 15:00 \u{00b7} 1 h 00 min left"
+        "Paused until 15:00 \u{00b7} 1 h left"
     );
     assert!(pres_1h.pause_1_hour.is_checked);
     assert!(!pres_1h.pause_3_hours.is_checked);

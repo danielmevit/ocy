@@ -186,20 +186,27 @@ pub const fn long_break_can_end(strict_mode: bool) -> bool {
 /// Formats the warning card heading (e.g., `"Long break in 0:42"`).
 #[must_use]
 pub fn warning_heading(strings: &Strings, countdown: Duration) -> String {
-    let formatted = Strings::format_countdown(countdown);
+    let formatted = strings.format_countdown_localized(countdown);
     strings.format("warning.title", &[("time", &formatted)])
 }
 
 /// Formats the warning card postpone button label (e.g., `"Postpone 3 min"`).
 #[must_use]
 pub fn warning_postpone_label(strings: &Strings, postpone_minutes: i32) -> String {
-    strings.format("warning.postpone", &[("minutes", &postpone_minutes)])
+    let count = u64::try_from(postpone_minutes.max(0)).unwrap_or(0);
+    strings.format_plural("warning.postpone", count, &[("minutes", &postpone_minutes)])
 }
 
 /// Formats the long-break countdown numeral string (e.g., `"4:12"`).
 #[must_use]
 pub fn long_break_countdown_text(remaining: Duration) -> String {
     Strings::format_countdown(remaining)
+}
+
+/// Formats the long-break countdown numeral string using localized `"time.countdown"`.
+#[must_use]
+pub fn long_break_countdown_text_localized(strings: &Strings, remaining: Duration) -> String {
+    strings.format_countdown_localized(remaining)
 }
 
 /// Progress (`1.0` -> `0.0` remaining ratio) for [`ocy_ui::ShortBreakCard`], matching C#.
@@ -254,6 +261,7 @@ pub struct CliArgs {
     pub demo_break: Option<DemoBreak>,
     pub demo_in_secs: Option<u64>,
     pub demo_settings: bool,
+    pub soak_cycles: Option<u32>,
 }
 
 /// Parses command-line arguments (excluding or including argv[0]).
@@ -278,6 +286,12 @@ pub fn parse_cli_args(args: impl IntoIterator<Item = String>) -> CliArgs {
             }
         } else if let Some(rest) = arg.strip_prefix("--demo-in=") {
             out.demo_in_secs = rest.parse::<u64>().ok();
+        } else if arg == "--soak" {
+            if let Some(next) = iter.next() {
+                out.soak_cycles = crate::soak::validate_soak_cycles(&next).ok();
+            }
+        } else if let Some(rest) = arg.strip_prefix("--soak=") {
+            out.soak_cycles = crate::soak::validate_soak_cycles(rest).ok();
         }
     }
     out

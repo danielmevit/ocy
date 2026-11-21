@@ -1,11 +1,13 @@
 //! Cross-platform unit tests for the pure helper ports (see `PARITY.md`).
 
+use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use damt_platform::{FocusState, ScreenRect, SessionEvent};
 use damt_platform_win::{
     AutostartCommand, ExStyle, FocusStateMapper, IdleMath, MotionMath, RectMath, RegistryValue,
-    SessionEventMapper, TaskbarThemeMath,
+    SessionEventMapper, TaskbarThemeMath, ToastXml, aumid_registry_subkey, notify_icon_path,
 };
 
 #[test]
@@ -280,4 +282,73 @@ fn from_power_mode_unmapped_mode_returns_none() {
     for mode in [0, 2, 4] {
         assert_eq!(SessionEventMapper::from_power_mode(mode), None);
     }
+}
+
+#[test]
+fn toast_xml_escapes_all_five_special_characters() {
+    let raw = r#"<tag attr="val" single='s'> & more"#;
+    let escaped = ToastXml::escape(raw);
+    assert_eq!(
+        escaped,
+        "&lt;tag attr=&quot;val&quot; single=&apos;s&apos;&gt; &amp; more"
+    );
+}
+
+#[test]
+fn toast_xml_strips_disallowed_control_chars_preserving_whitespace() {
+    let raw = "line1\n\tline2\r\x00\x07\x1Fend";
+    assert_eq!(ToastXml::escape(raw), "line1\n\tline2\rend");
+}
+
+#[test]
+fn toast_xml_build_generic_escapes_title_and_body_without_raw_concat() {
+    let title = r#"Ocy <1 & "2">'s"#;
+    let body = r#"Break <soon> & "rest" 'now'"#;
+    let xml = ToastXml::build_generic(title, body);
+    assert_eq!(
+        xml,
+        "<toast><visual><binding template=\"ToastGeneric\">\
+         <text>Ocy &lt;1 &amp; &quot;2&quot;&gt;&apos;s</text>\
+         <text>Break &lt;soon&gt; &amp; &quot;rest&quot; &apos;now&apos;</text>\
+         </binding></visual></toast>"
+    );
+}
+
+#[test]
+fn aumid_registry_subkey_formats_expected_hkcu_path() {
+    assert_eq!(
+        aumid_registry_subkey("xyz.damt.ocy"),
+        r"Software\Classes\AppUserModelId\xyz.damt.ocy"
+    );
+}
+
+#[test]
+fn notify_icon_path_uses_localappdata_or_userprofile_fallback() {
+    assert_eq!(
+        notify_icon_path(
+            "Ocy",
+            Some(OsStr::new("/localappdata")),
+            Some(OsStr::new("/userprofile"))
+        ),
+        Some(
+            PathBuf::from("/localappdata")
+                .join("Ocy")
+                .join("notify-icon.png")
+        )
+    );
+    assert_eq!(
+        notify_icon_path(
+            "Ocy",
+            Some(OsStr::new("")),
+            Some(OsStr::new("/userprofile"))
+        ),
+        Some(
+            PathBuf::from("/userprofile")
+                .join("AppData")
+                .join("Local")
+                .join("Ocy")
+                .join("notify-icon.png")
+        )
+    );
+    assert_eq!(notify_icon_path("Ocy", None, None), None);
 }

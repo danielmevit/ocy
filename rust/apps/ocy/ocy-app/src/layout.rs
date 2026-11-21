@@ -331,3 +331,57 @@ impl OverlayLayout {
         DipSize::new(w, h)
     }
 }
+
+/// Default (and smallest auto-sized) logical height of the Settings window.
+pub const SETTINGS_DEFAULT_HEIGHT_DIP: f64 = 640.0;
+/// Logical allowance for the title bar and frame when fitting the Settings window in a work area.
+pub const SETTINGS_FRAME_ALLOWANCE_DIP: f64 = 40.0;
+
+/// Logical client height the Settings window should have so its content needs no scrolling.
+///
+/// * `content_dip`: height the content needs (`content-height`).
+/// * `work_area_dip`: height of the monitor work area in logical pixels.
+/// * `current_dip`: the window's current client height.
+/// * `user_resized`: the user resized the window by hand; their size wins (the content scrolls).
+///
+/// Grows to fit the content up to the work area (minus the frame), and shrinks back but never below
+/// the 640 px default. When the work area is too small the window fits it and the content scrolls.
+#[must_use]
+pub fn settings_window_height(
+    content_dip: f64,
+    work_area_dip: f64,
+    current_dip: f64,
+    user_resized: bool,
+) -> f64 {
+    if user_resized || !content_dip.is_finite() || !work_area_dip.is_finite() {
+        return current_dip;
+    }
+    let cap = (work_area_dip - SETTINGS_FRAME_ALLOWANCE_DIP).max(0.0);
+    content_dip.ceil().max(SETTINGS_DEFAULT_HEIGHT_DIP).min(cap)
+}
+
+/// Preferred logical width of the Settings window (`preferred-width` in `settings_v2.slint`).
+pub const SETTINGS_DEFAULT_WIDTH_DIP: f64 = 560.0;
+
+/// Logical client width for an auto-fit: the 560 px preferred width (clamped to the work area) until
+/// the user resizes by hand, then their width. Never the 480 px min-width the window may report
+/// while it is still being shown.
+#[must_use]
+pub fn settings_window_width(work_area_dip: f64, current_dip: f64, user_resized: bool) -> f64 {
+    if user_resized || !work_area_dip.is_finite() {
+        return current_dip;
+    }
+    SETTINGS_DEFAULT_WIDTH_DIP.min(work_area_dip.max(0.0))
+}
+
+/// Physical top edge for the Settings window after an auto-fit changes its outer height.
+///
+/// The window grows and shrinks downwards: the current top is kept, unless the new bottom would pass
+/// the work-area bottom; then the top moves up by exactly the overflow, never above the work-area top.
+#[must_use]
+pub fn settings_window_top(current_top: i32, new_outer_height: u32, work_area: ScreenRect) -> i32 {
+    let h = i32::try_from(new_outer_height).unwrap_or(i32::MAX);
+    let bottom = work_area.y.saturating_add(work_area.height);
+    let overflow = current_top.saturating_add(h).saturating_sub(bottom).max(0);
+    current_top.saturating_sub(overflow).max(work_area.y)
+}

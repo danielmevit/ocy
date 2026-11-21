@@ -10,7 +10,8 @@ pub mod pure;
 
 pub use pure::{
     AutostartCommand, AutostartCommandError, ExStyle, FocusStateMapper, IdleMath, MotionMath,
-    RectMath, RegistryValue, SessionEventMapper, TaskbarThemeMath,
+    RectMath, RegistryValue, SessionEventMapper, TaskbarThemeMath, ToastXml, aumid_registry_subkey,
+    notify_icon_path,
 };
 
 #[cfg(windows)]
@@ -18,6 +19,6 @@ mod windows;
 
 #[cfg(windows)]
 pub use windows::{
-    WinActiveScreen, WinAutostart, WinFocus, WinIdle, WinMotion, WinPlatform, WinSessionEvents,
-    WinTaskbarTheme,
+    WinActiveScreen, WinAutostart, WinFocus, WinIdle, WinMotion, WinNotifier, WinPlatform,
+    WinSessionEvents, WinTaskbarTheme,
 };

@@ -315,6 +315,94 @@ fn natural_moments_warning_and_long_break_are_also_held() {
 }
 
 #[test]
+fn natural_moments_kind_change_keeps_the_original_hold_deadline() {
+    // Short break due at 10 min; long-break warning due at 10 min + 50 s
+    // (15 min interval - 250 s warning); long break due at 15 min.
+    let mut h = NaturalHarness::with_settings(|s| {
+        s.natural_moments = true;
+        s.short_breaks.interval_minutes = 10;
+        s.long_breaks.interval_minutes = 15;
+        s.long_breaks.warning_seconds = 250;
+    });
+    h.set_idle(Duration::ZERO);
+
+    // The short break becomes due and is held.
+    let _ = h.tick_seconds(600);
+    assert_eq!(h.engine.phase(), EnginePhase::Working);
+    assert_eq!(h.hold_kind(), Some(NaturalHoldKind::ShortBreak));
+
+    // 50 s later the long-break warning becomes due: the hold switches kind but keeps
+    // the original deadline instead of restarting a fresh 60 s cap.
+    let events = h.tick_seconds(50);
+    assert_eq!(h.engine.phase(), EnginePhase::Working);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::LongBreakWarningStarted(_)))
+    );
+    assert_eq!(h.hold_kind(), Some(NaturalHoldKind::LongBreakWarning));
+
+    // The warning starts within the remaining ~10 s of the original 60 s cap.
+    let events = h.tick_seconds(10);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::LongBreakWarningStarted(_)))
+    );
+    assert_eq!(h.engine.phase(), EnginePhase::LongBreakWarning);
+    assert_eq!(h.hold_kind(), None);
+}
+
+#[test]
+fn natural_moments_continuous_typing_across_kind_change_totals_sixty_seconds() {
+    let mut h = NaturalHarness::with_settings(|s| {
+        s.natural_moments = true;
+        s.short_breaks.interval_minutes = 10;
+        s.long_breaks.interval_minutes = 15;
+        s.long_breaks.warning_seconds = 250;
+    });
+    h.set_idle(Duration::ZERO);
+
+    // The short break becomes due and is held.
+    let _ = h.tick_seconds(600);
+    assert_eq!(h.hold_kind(), Some(NaturalHoldKind::ShortBreak));
+
+    // Continuous typing across the kind change: the warning must start no later than
+    // 60 s after the first moment something became due.
+    let mut warning_started_at = 0;
+    for offset in 1..=60 {
+        let events = h.tick_seconds(1);
+        if events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::LongBreakWarningStarted(_)))
+        {
+            warning_started_at = offset;
+            break;
+        }
+        // Mid-hold the kind switches without a fresh cap.
+        if offset == 55 {
+            assert_eq!(h.hold_kind(), Some(NaturalHoldKind::LongBreakWarning));
+        }
+    }
+    assert_eq!(warning_started_at, 60);
+    assert_eq!(h.engine.phase(), EnginePhase::LongBreakWarning);
+    assert_eq!(h.hold_kind(), None);
+
+    // After the warning started, the long break at the end of its countdown holds
+    // afresh with its own 60 s cap.
+    let _ = h.tick_seconds(250);
+    assert_eq!(h.hold_kind(), Some(NaturalHoldKind::LongBreak));
+    let events = h.tick_seconds(60);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::BreakStarted(info) if info.kind == BreakKind::Long))
+    );
+    assert_eq!(h.engine.phase(), EnginePhase::LongBreak);
+    assert_eq!(NATURAL_MAX_HOLD, Duration::from_secs(60));
+}
+
+#[test]
 fn natural_moments_json_default_omitted_false_written_both_read() {
     // Default (true) is omitted so files stay byte-identical to the C# app's.
     let default_json = serde_json::to_string(&OcySettings::default()).expect("serialize");
