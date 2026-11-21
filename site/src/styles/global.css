@@ -324,15 +324,18 @@ p { margin: 0; text-wrap: pretty; }
 .tab[aria-selected="true"] .tab-icon { color: var(--accent); }
 .scene-note { margin-top: 14px; color: var(--muted); font-size: 0.94rem; max-width: 60ch; min-height: 3em; }
 
-/* One real laptop (an edited photo, decorative) with the app composited onto its display. The
-   screen box is the photo's flat grey display, measured on the 2880 x 1920 crop: x 14.722 %,
-   y 6.302 %, w 70.694 %, h 62.344 %. */
-.stage { position: relative; width: 100%; aspect-ratio: 3 / 2; border-radius: 14px; overflow: hidden; }
+/* One front-view laptop (a cut-out image with alpha, decorative) on the page background, with the
+   app composited onto its display. Screen box measured on the 2189 x 1241 cut-out: x 11.192 %,
+   y 5.802 %, w 77.707 %, h 83.642 %. */
+.stage { position: relative; width: 100%; aspect-ratio: 2189 / 1241; }
 .stage > * { position: absolute; }
+/* a very soft contact shadow under the base */
+.stage::before { content: ""; position: absolute; left: 6%; right: 6%; bottom: -3.5%; height: 7%; z-index: 0;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.22), transparent 70%); }
 .photo, .photo img { inset: 0; width: 100%; height: 100%; display: block; }
-.photo img { object-fit: cover; }
-.lap-rect { left: 14.722%; top: 6.302%; width: 70.694%; height: 62.344%; overflow: hidden; }
-.lap-screen { background: var(--wall-a); }
+.photo { z-index: 1; }
+.lap-rect { left: 11.192%; top: 5.802%; width: 77.707%; height: 83.642%; overflow: hidden; }
+.lap-screen { z-index: 1; background: var(--wall-a); }
 /* the glass: a faint inner edge shadow and a soft diagonal glare, above the app layer */
 .glass { z-index: 3; pointer-events: none;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 0 18px rgba(0, 0, 0, 0.22);
@@ -515,12 +518,3 @@ p { margin: 0; text-wrap: pretty; }
   word-break: auto-phrase;   /* Chromium 119+: break between phrases */
 }
 
-/* Dark page: lower the daytime photo (never the app screen) and soften its edges. */
-:root[data-theme="dark"] .photo img { filter: brightness(0.64) saturate(0.85); }
-:root[data-theme="dark"] .photo::after { content: ""; position: absolute; inset: 0;
-  background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.45)); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .photo img { filter: brightness(0.64) saturate(0.85); }
-  :root:not([data-theme="light"]) .photo::after { content: ""; position: absolute; inset: 0;
-    background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.45)); }
-}
