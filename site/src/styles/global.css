@@ -206,8 +206,14 @@ html { scroll-padding-top: 76px; }
   border: 1px solid transparent; font-weight: 600; font-size: 0.98rem;
   text-decoration: none; transition: background-color 120ms, border-color 120ms;
 }
-.btn-accent { background: var(--accent); color: var(--on-accent); }
-.btn-accent:hover { background: var(--accent-hover); color: var(--on-accent); }
+.btn-accent { background: var(--accent); color: var(--on-accent); font-weight: 400; flex-direction: column; }
+.btn-accent:hover, .btn-accent:focus-visible { background: var(--accent-hover); color: var(--on-accent); font-weight: 600; }
+/* white on the green is regular at rest, semibold on hover/focus; a hidden semibold copy of the label
+   (data-label) reserves its width so the button never changes size */
+.btn-accent[data-label]::after {
+  content: attr(data-label); font-weight: 600; height: 0; overflow: hidden; visibility: hidden;
+  user-select: none; pointer-events: none;
+}
 .btn-outline { color: var(--text); border-color: var(--border); background: transparent; }
 .btn-outline:hover { background: var(--surface); color: var(--text); border-color: var(--muted); }
 
