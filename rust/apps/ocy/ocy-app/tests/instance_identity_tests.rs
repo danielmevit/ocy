@@ -29,7 +29,7 @@ fn demo_in_alone_is_not_a_probe_launch() {
 
 #[test]
 fn probe_modes_use_per_pid_identity_without_scope() {
-    let cases: [&[&str]; 9] = [
+    let cases: [&[&str]; 7] = [
         &["--demo-break", "short"],
         &["--demo-break=warning"],
         &["--demo-break", "long", "--demo-in", "3"],
@@ -37,8 +37,6 @@ fn probe_modes_use_per_pid_identity_without_scope() {
         &["--report-memory"],
         &["--report-memory", "--demo-break", "short"],
         &["--report-memory", "--demo-settings", "--demo-break", "long"],
-        &["--soak", "30"],
-        &["--soak=5"],
     ];
 
     for args in cases {

@@ -1,10 +1,9 @@
 // Ocy's UI surfaces. Every string is an input property (the host localises); every action is a callback.
 // Layout mirrors the approved C# (Avalonia) windows in src/Ocy.Desktop/Windows.
 import { Theme } from "@app-theme/theme.slint";
-import { Button, ButtonKind, CloseButton, Card, ProgressLine } from "@damt-ui/kit.slint";
+import { Button, ButtonKind, CloseButton, LinkButton, Card, Toggle, NumberField, SettingRow, SectionHeader, ProgressLine } from "@damt-ui/kit.slint";
 
 export { Theme }
-export { SettingsWindowV2, TimelineMark, TimelineMarkKind } from "settings_v2.slint";
 
 // Exercise illustration slot: the host renders and animates the frames.
 component Art inherits Image {
@@ -18,7 +17,6 @@ component Art inherits Image {
 
 // Short-break corner card (392 px window, 16 px transparent margin around the card).
 export component ShortBreakCard inherits Window {
-    in property <string> font-family: "Segoe UI";
     in property <image> art;
     in property <string> heading;
     in property <string> body;
@@ -33,7 +31,7 @@ export component ShortBreakCard inherits Window {
     always-on-top: true;
     background: root.dim-backdrop ? Theme.overlay : transparent;
     width: 392px;
-    default-font-family: root.font-family;
+    default-font-family: "Segoe UI";
 
     frame := VerticalLayout {
         padding: 16px;
@@ -88,7 +86,6 @@ export component ShortBreakCard inherits Window {
 
 // Long-break warning card. In strict mode the strict line replaces Postpone and Skip.
 export component WarningCard inherits Window {
-    in property <string> font-family: "Segoe UI";
     in property <string> heading;
     in property <string> start-now-label;
     in property <string> postpone-label;
@@ -106,7 +103,7 @@ export component WarningCard inherits Window {
     always-on-top: true;
     background: transparent;
     width: 392px;
-    default-font-family: root.font-family;
+    default-font-family: "Segoe UI";
 
     frame := VerticalLayout {
         padding: 16px;
@@ -187,7 +184,6 @@ component Suggestion inherits HorizontalLayout {
 
 // Long-break overlay: a dim full-screen backdrop with a 480 px card centred on it.
 export component LongBreakCard inherits Window {
-    in property <string> font-family: "Segoe UI";
     in property <string> countdown-label;
     in property <string> countdown;
     in property <string> heading;
@@ -211,7 +207,7 @@ export component LongBreakCard inherits Window {
     no-frame: true;
     always-on-top: true;
     background: root.dim-backdrop ? Theme.overlay : transparent;
-    default-font-family: root.font-family;
+    default-font-family: "Segoe UI";
 
     // Esc ends the break like the End break button (C#: Escape skips unless strict); keys from the
     // focused button bubble up here.
@@ -303,6 +299,433 @@ export component LongBreakCard inherits Window {
                         padding-x: 12px;
                         padding-y: 5px;
                         clicked => { root.end-break(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Settings window, 560 x 640 (min 480 x 400), sections stacked in a scroll view.
+export component SettingsWindow inherits Window {
+    // Visibility flags.
+    in property <bool> show-start-with-system: true;
+    // Window and section titles.
+    in property <string> window-title;
+    in property <string> save-error;
+    in property <string> general-title;
+    in property <string> short-breaks-title;
+    in property <string> long-breaks-title;
+    in property <string> behaviour-title;
+    in property <string> about-title;
+    // Row labels and help lines.
+    in property <string> start-with-system-label;
+    in property <string> start-with-system-help;
+    in property <string> start-with-system-error;
+    in property <string> short-enabled-label;
+    in property <string> short-interval-label;
+    in property <string> short-interval-help;
+    in property <string> short-duration-label;
+    in property <string> short-duration-help;
+    in property <string> short-fullscreen-label;
+    in property <string> short-fullscreen-help;
+    in property <string> try-short-label;
+    in property <string> long-enabled-label;
+    in property <string> long-interval-label;
+    in property <string> long-interval-help;
+    in property <string> long-duration-label;
+    in property <string> long-duration-help;
+    in property <string> long-warning-label;
+    in property <string> long-warning-help;
+    in property <string> long-postpone-label;
+    in property <string> long-postpone-help;
+    in property <string> long-max-postpones-label;
+    in property <string> long-max-postpones-help;
+    in property <string> try-long-label;
+    in property <string> strict-label;
+    in property <string> strict-help;
+    in property <string> inactivity-label;
+    in property <string> inactivity-help;
+    in property <string> away-label;
+    in property <string> away-help;
+    in property <string> pause-fullscreen-label;
+    in property <string> pause-fullscreen-help;
+    in property <string> window-nearby-label;
+    in property <string> window-nearby-help;
+    in property <string> unit-minutes;
+    in property <string> unit-seconds;
+    in property <string> about-name-version;
+    in property <string> about-tagline;
+    // Values.
+    in-out property <bool> start-with-system;
+    in-out property <bool> short-enabled: true;
+    in-out property <int> short-interval: 10;
+    in-out property <int> short-duration: 15;
+    in-out property <bool> short-fullscreen;
+    in-out property <bool> long-enabled: true;
+    in-out property <int> long-interval: 60;
+    in-out property <int> long-duration: 5;
+    in-out property <int> long-warning: 60;
+    in-out property <int> long-postpone: 3;
+    in-out property <int> long-max-postpones: 3;
+    in-out property <bool> strict-mode;
+    in-out property <bool> inactivity-tracking: true;
+    in-out property <int> away-threshold: 120;
+    in-out property <bool> pause-fullscreen: true;
+    in-out property <bool> window-nearby: true;
+    // Called after any value changes; the host reads the properties and saves.
+    callback changed();
+    callback try-short-break();
+    callback try-long-break();
+    // Esc pressed: the host closes the window as if its close button was used.
+    callback escape-pressed();
+
+    title: root.window-title;
+    preferred-width: 560px;
+    preferred-height: 640px;
+    min-width: 480px;
+    min-height: 400px;
+    background: Theme.bg;
+    default-font-family: "Segoe UI";
+
+    // Keys from the focused control bubble up here; Esc closes the window.
+    keys := FocusScope {
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.escape-pressed(); return accept; }
+            reject
+        }
+
+        VerticalLayout {
+            if root.save-error != "" : HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 10px;
+                Text {
+                    text: root.save-error;
+                    font-size: Theme.font-size-help;
+                    color: Theme.error;
+                    wrap: word-wrap;
+                }
+            }
+            Flickable {
+                content-height: sections.preferred-height;
+                content-width: self.width;
+                sections := VerticalLayout {
+                    width: parent.width;
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    padding-top: 10px;
+                    padding-bottom: 10px;
+                    spacing: Theme.space-10;
+
+                    if root.show-start-with-system : Card {
+                        bordered: false;
+                        shadow: false;
+                        accessible-role: groupbox;
+                        accessible-label: root.general-title;
+                        VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            SectionHeader { title: root.general-title; }
+                            VerticalLayout {
+                                padding-top: 4px;
+                                SettingRow {
+                                    label: root.start-with-system-label;
+                                    help: root.start-with-system-help;
+                                    show-divider: false;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.start-with-system;
+                                        accessible-name: root.start-with-system-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                                if root.start-with-system-error != "" : Text {
+                                    text: root.start-with-system-error;
+                                    font-size: Theme.font-size-help;
+                                    color: Theme.error;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        bordered: false;
+                        shadow: false;
+                        accessible-role: groupbox;
+                        accessible-label: root.short-breaks-title;
+                        VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            SectionHeader {
+                                title: root.short-breaks-title;
+                                has-toggle: true;
+                                checked <=> root.short-enabled;
+                                toggle-accessible-name: root.short-enabled-label;
+                                toggled => { root.changed(); }
+                            }
+                            VerticalLayout {
+                                padding-top: 4px;
+                                SettingRow {
+                                    label: root.short-interval-label;
+                                    help: root.short-interval-help;
+                                    show-divider: false;
+                                    enabled: root.short-enabled;
+                                    NumberField {
+                                        value <=> root.short-interval;
+                                        minimum: 2;
+                                        maximum: 60;
+                                        unit: root.unit-minutes;
+                                        enabled: root.short-enabled;
+                                        accessible-name: root.short-interval-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.short-duration-label;
+                                    help: root.short-duration-help;
+                                    enabled: root.short-enabled;
+                                    NumberField {
+                                        value <=> root.short-duration;
+                                        minimum: 5;
+                                        maximum: 120;
+                                        unit: root.unit-seconds;
+                                        enabled: root.short-enabled;
+                                        accessible-name: root.short-duration-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.short-fullscreen-label;
+                                    help: root.short-fullscreen-help;
+                                    enabled: root.short-enabled;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.short-fullscreen;
+                                        enabled: root.short-enabled;
+                                        accessible-name: root.short-fullscreen-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: start;
+                                padding-top: 2px;
+                                LinkButton {
+                                    text: root.try-short-label;
+                                    clicked => { root.try-short-break(); }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        bordered: false;
+                        shadow: false;
+                        accessible-role: groupbox;
+                        accessible-label: root.long-breaks-title;
+                        VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            SectionHeader {
+                                title: root.long-breaks-title;
+                                has-toggle: true;
+                                checked <=> root.long-enabled;
+                                toggle-accessible-name: root.long-enabled-label;
+                                toggled => { root.changed(); }
+                            }
+                            VerticalLayout {
+                                padding-top: 4px;
+                                SettingRow {
+                                    label: root.long-interval-label;
+                                    help: root.long-interval-help;
+                                    show-divider: false;
+                                    enabled: root.long-enabled;
+                                    NumberField {
+                                        value <=> root.long-interval;
+                                        minimum: 15;
+                                        maximum: 240;
+                                        unit: root.unit-minutes;
+                                        enabled: root.long-enabled;
+                                        accessible-name: root.long-interval-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.long-duration-label;
+                                    help: root.long-duration-help;
+                                    enabled: root.long-enabled;
+                                    NumberField {
+                                        value <=> root.long-duration;
+                                        minimum: 1;
+                                        maximum: 30;
+                                        unit: root.unit-minutes;
+                                        enabled: root.long-enabled;
+                                        accessible-name: root.long-duration-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.long-warning-label;
+                                    help: root.long-warning-help;
+                                    enabled: root.long-enabled;
+                                    NumberField {
+                                        value <=> root.long-warning;
+                                        minimum: 0;
+                                        maximum: 300;
+                                        unit: root.unit-seconds;
+                                        enabled: root.long-enabled;
+                                        accessible-name: root.long-warning-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.long-postpone-label;
+                                    help: root.long-postpone-help;
+                                    enabled: root.long-enabled;
+                                    NumberField {
+                                        value <=> root.long-postpone;
+                                        minimum: 1;
+                                        maximum: 30;
+                                        unit: root.unit-minutes;
+                                        enabled: root.long-enabled;
+                                        accessible-name: root.long-postpone-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.long-max-postpones-label;
+                                    help: root.long-max-postpones-help;
+                                    enabled: root.long-enabled;
+                                    NumberField {
+                                        value <=> root.long-max-postpones;
+                                        minimum: 0;
+                                        maximum: 10;
+                                        enabled: root.long-enabled;
+                                        accessible-name: root.long-max-postpones-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: start;
+                                padding-top: 2px;
+                                LinkButton {
+                                    text: root.try-long-label;
+                                    clicked => { root.try-long-break(); }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        bordered: false;
+                        shadow: false;
+                        accessible-role: groupbox;
+                        accessible-label: root.behaviour-title;
+                        VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            SectionHeader { title: root.behaviour-title; }
+                            VerticalLayout {
+                                padding-top: 4px;
+                                SettingRow {
+                                    label: root.strict-label;
+                                    help: root.strict-help;
+                                    show-divider: false;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.strict-mode;
+                                        accessible-name: root.strict-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.inactivity-label;
+                                    help: root.inactivity-help;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.inactivity-tracking;
+                                        accessible-name: root.inactivity-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.away-label;
+                                    help: root.away-help;
+                                    NumberField {
+                                        value <=> root.away-threshold;
+                                        minimum: 30;
+                                        maximum: 1800;
+                                        unit: root.unit-seconds;
+                                        accessible-name: root.away-label;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.pause-fullscreen-label;
+                                    help: root.pause-fullscreen-help;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.pause-fullscreen;
+                                        accessible-name: root.pause-fullscreen-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: root.window-nearby-label;
+                                    help: root.window-nearby-help;
+                                    control-right: true;
+                                    Toggle {
+                                        checked <=> root.window-nearby;
+                                        accessible-name: root.window-nearby-label;
+                                        toggled => { root.changed(); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        bordered: false;
+                        shadow: false;
+                        accessible-role: groupbox;
+                        accessible-label: root.about-title;
+                        VerticalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            SectionHeader { title: root.about-title; }
+                            VerticalLayout {
+                                padding-top: 6px;
+                                spacing: Theme.space-2;
+                                Text {
+                                    text: root.about-name-version;
+                                    font-size: Theme.font-size-label;
+                                    font-weight: 600;
+                                    color: Theme.text;
+                                }
+                                Text {
+                                    text: root.about-tagline;
+                                    font-size: Theme.font-size-help;
+                                    color: Theme.text-muted;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -1,1 +1,0 @@
-- Website: built multilingual foundation (`site/src/lib/i18n.ts`, `site/src/i18n/en.json`, `de.json` German proof, `[lang]/` routes, reciprocal `hreflang` + `x-default`, `og:locale`, localized `sitemap.xml`, header language menu with dismissible preference hint, per-`:lang()` system font fallbacks, and `site/scripts/check-i18n.mjs`).

@@ -68,7 +68,7 @@ where
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         let arg = arg.as_ref();
-        if arg == "--demo-break" || arg == "--demo-in" || arg == "--soak" {
+        if arg == "--demo-break" || arg == "--demo-in" {
             let _ = iter.next();
         } else if arg == "--instance-scope" {
             let Some(next) = iter.next() else {
@@ -84,11 +84,11 @@ where
     Ok(scope)
 }
 
-/// Returns `true` when any probe/demo flag (`--demo-break`, `--demo-settings`, `--report-memory`,
-/// or `--soak`) is active.
+/// Returns `true` when any probe/demo flag (`--demo-break`, `--demo-settings`, or
+/// `--report-memory`) is active.
 #[must_use]
 pub const fn is_probe_mode(cli: &CliArgs) -> bool {
-    cli.demo_break.is_some() || cli.demo_settings || cli.report_memory || cli.soak_cycles.is_some()
+    cli.demo_break.is_some() || cli.demo_settings || cli.report_memory
 }
 
 /// Resolves the `app_id` passed to `damt_app::SingleInstance::acquire` for the given CLI flags,

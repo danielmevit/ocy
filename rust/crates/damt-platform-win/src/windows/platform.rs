@@ -1,11 +1,11 @@
 use damt_platform::{
     ActiveScreenProvider, AppThemeProvider, AutostartService, FocusStateProvider, IdleProvider,
-    MotionPreference, Notifier, PlatformServices, TaskbarThemeProvider, Unsupported,
+    MotionPreference, PlatformServices, TaskbarThemeProvider,
 };
 
 use super::{
-    WinActiveScreen, WinAppTheme, WinAutostart, WinFocus, WinIdle, WinMotion, WinNotifier,
-    WinSessionEvents, WinTaskbarTheme,
+    WinActiveScreen, WinAppTheme, WinAutostart, WinFocus, WinIdle, WinMotion, WinSessionEvents,
+    WinTaskbarTheme,
 };
 
 /// All Windows platform services, composed once at startup (C# `WindowsPlatformServices`).
@@ -19,7 +19,6 @@ pub struct WinPlatform {
     motion: WinMotion,
     taskbar_theme: WinTaskbarTheme,
     app_theme: WinAppTheme,
-    notifier: Option<WinNotifier>,
 }
 
 impl WinPlatform {
@@ -34,15 +33,7 @@ impl WinPlatform {
             motion: WinMotion,
             taskbar_theme: WinTaskbarTheme,
             app_theme: WinAppTheme,
-            notifier: None,
         }
-    }
-
-    /// Attaches a Windows toast [`WinNotifier`] to this platform service bundle.
-    #[must_use]
-    pub fn with_notifier(mut self, notifier: WinNotifier) -> Self {
-        self.notifier = Some(notifier);
-        self
     }
 
     /// The session event source, which is not part of the [`PlatformServices`] trait.
@@ -78,12 +69,5 @@ impl PlatformServices for WinPlatform {
 
     fn app_theme(&self) -> &dyn AppThemeProvider {
         &self.app_theme
-    }
-
-    fn notifier(&self) -> &dyn Notifier {
-        match &self.notifier {
-            Some(notifier) => notifier,
-            None => &Unsupported,
-        }
     }
 }

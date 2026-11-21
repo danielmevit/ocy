@@ -1,2 +1,0 @@
-- Added `damt_platform::Notifier` and Windows `WinNotifier` (WinRT ToastGeneric via `Windows.Data.Xml.Dom` + lazy `HKCU\Software\Classes\AppUserModelId\xyz.damt.ocy` registration on first send).
-- Added `ocy_app::notifications` (`STATUS_NOTIFICATIONS_SHIPPED = false` ship gate, `NotificationPresenter`, `RecordingNotifier`) and wired startup/absence hooks in `AppHost` and `main.rs`.

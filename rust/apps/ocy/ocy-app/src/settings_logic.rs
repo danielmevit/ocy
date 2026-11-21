@@ -9,52 +9,17 @@ use std::time::Duration;
 
 use damt_app::ErrorLog;
 use damt_platform::{
-    ActiveScreenProvider, AppThemeProvider, AutostartService, Clock, FocusStateProvider,
-    IdleProvider, MotionPreference, PlatformError, PlatformServices, SystemClock,
-    TaskbarThemeProvider,
+    ActiveScreenProvider, AppThemeProvider, AutostartService, FocusStateProvider, IdleProvider,
+    MotionPreference, PlatformError, PlatformServices, TaskbarThemeProvider,
 };
-use jiff::SignedDuration;
-use ocy_core::engine::{EnginePhase, EngineSnapshot};
-use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
-use ocy_core::statistics::StatisticsData;
-use ocy_core::time::Paused;
 
 use crate::break_logic::app_theme_is_dark;
 use crate::coordinator::SettingsWindow;
-use crate::language_choice;
-use crate::presets::{self, Preset};
-use crate::strings::{Strings, font_family_for};
-use crate::timeline::{self, TICK_LABEL_COUNT, TimelineMark};
-use crate::today::TodaySummary;
-
-/// Default settings for a fresh app install (`language: "auto"` to follow the Windows UI language).
-#[must_use]
-pub fn default_app_settings() -> OcySettings {
-    OcySettings {
-        language: "auto".to_owned(),
-        ..OcySettings::default()
-    }
-}
-
-/// Loads `settings.json` for an existing install (preserving its `"language"` value), or returns
-/// [`default_app_settings`] (`language: "auto"`) on a fresh install where `settings.json` is absent.
-#[must_use]
-pub fn load_app_settings(store: &AppDataStore) -> OcySettings {
-    if !store.settings_path().exists() {
-        return default_app_settings();
-    }
-    store.load_settings()
-}
+use crate::strings::Strings;
 
 /// Debounce delay before live settings changes are applied and persisted (matches C# `ApplyDelay`).
 pub const SETTINGS_APPLY_DELAY: Duration = Duration::from_millis(400);
-
-/// Refresh cadence for the Settings V2 timeline and today card while the window is open.
-pub const SETTINGS_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
-
-/// Suppression window matching `ScheduleCalculator` (short breaks yield when long break <= 2 min).
-const SHORT_BREAK_SUPPRESSION_WINDOW: Duration = Duration::from_secs(120);
 
 /// Returns the Ocy package version stripped of any `+build` metadata (mirrors C# `GetAppVersion`).
 #[must_use]
@@ -82,7 +47,6 @@ pub struct SettingsValues {
     pub away_threshold: i32,
     pub pause_fullscreen: bool,
     pub window_nearby: bool,
-    pub status_notifications: bool,
 }
 
 impl SettingsValues {
@@ -114,12 +78,11 @@ impl SettingsValues {
             away_threshold: settings.away_threshold_seconds,
             pause_fullscreen: settings.pause_during_fullscreen,
             window_nearby: settings.has_window_nearby,
-            status_notifications: settings.status_notifications,
         }
     }
 
     /// Clones `current` and overwrites only the UI-backed fields, preserving non-UI fields
-    /// (`schema_version`, `sounds`, `language`, and `status_notifications` while hidden) unchanged.
+    /// (`schema_version`, `sounds`, `status_notifications`, `language`) unchanged.
     #[must_use]
     pub fn apply_to(&self, current: &OcySettings, autostart_supported: bool) -> OcySettings {
         let mut updated = current.clone();
@@ -144,127 +107,83 @@ impl SettingsValues {
         if autostart_supported {
             updated.start_with_system = self.start_with_system;
         }
-        if crate::STATUS_NOTIFICATIONS_SHIPPED {
-            updated.status_notifications = self.status_notifications;
-        }
         updated
     }
 }
 
-fn format_preset_summary(strings: &Strings, preset: Preset) -> String {
-    let Some(values) = preset.values() else {
-        return String::new();
-    };
-    let short = strings.format(
-        "settings.v2.preset.shortSummary",
-        &[
-            ("seconds", &values.short_duration_seconds),
-            ("minutes", &values.short_interval_minutes),
-        ],
-    );
-    let long = strings.format(
-        "settings.v2.preset.longSummary",
-        &[
-            ("duration", &values.long_duration_minutes),
-            ("minutes", &values.long_interval_minutes),
-        ],
-    );
-    format!("{short}\n{long}")
-}
-
-/// Every localized text shown in `ocy_ui::SettingsWindowV2`.
+/// Every localized text shown in `ocy_ui::SettingsWindow`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsTexts {
-    pub font_family: String,
     pub window_title: String,
-    pub today_title: String,
-    pub today_taken_label: String,
-    pub today_skipped_label: String,
-    pub timeline_title: String,
-    pub timeline_short_label: String,
-    pub timeline_long_label: String,
-    pub now_label: String,
-    pub preset_gentle_label: String,
-    pub preset_balanced_label: String,
-    pub preset_focused_label: String,
-    pub preset_custom_label: String,
-    pub preset_gentle_summary: String,
-    pub preset_balanced_summary: String,
-    pub preset_focused_summary: String,
-    pub customize_title: String,
     pub general_title: String,
-    pub tab_breaks_label: String,
-    pub tab_strictness_label: String,
-    pub tab_quiet_label: String,
+    pub short_breaks_title: String,
+    pub long_breaks_title: String,
+    pub behaviour_title: String,
+    pub about_title: String,
     pub start_with_system_label: String,
     pub start_with_system_help: String,
     pub short_enabled_label: String,
     pub short_interval_label: String,
+    pub short_interval_help: String,
     pub short_duration_label: String,
+    pub short_duration_help: String,
     pub short_fullscreen_label: String,
     pub short_fullscreen_help: String,
     pub try_short_label: String,
     pub long_enabled_label: String,
     pub long_interval_label: String,
+    pub long_interval_help: String,
     pub long_duration_label: String,
+    pub long_duration_help: String,
     pub long_warning_label: String,
+    pub long_warning_help: String,
     pub long_postpone_label: String,
+    pub long_postpone_help: String,
     pub long_max_postpones_label: String,
+    pub long_max_postpones_help: String,
     pub try_long_label: String,
     pub strict_label: String,
     pub strict_help: String,
     pub inactivity_label: String,
     pub inactivity_help: String,
     pub away_label: String,
+    pub away_help: String,
     pub pause_fullscreen_label: String,
     pub pause_fullscreen_help: String,
     pub window_nearby_label: String,
     pub window_nearby_help: String,
-    pub language_label: String,
-    pub sounds_label: String,
-    pub sounds_help: String,
-    pub notifications_label: String,
-    pub notifications_help: String,
+    pub unit_minutes: String,
+    pub unit_seconds: String,
     pub about_name_version: String,
     pub about_tagline: String,
-    pub language_model: Vec<String>,
 }
 
 impl SettingsTexts {
-    /// Resolves all Settings V2 strings and language picker entries from `strings`.
+    /// Resolves all Settings window strings from `strings` using the exact `en.json` keys C# uses.
     #[must_use]
     pub fn from_strings(strings: &Strings, version: &str) -> Self {
         let app_name = strings.get("app.name");
         Self {
-            font_family: font_family_for(strings.language()).to_owned(),
             window_title: strings.format("settings.windowTitle", &[("app", &app_name)]),
-            today_title: strings.get("settings.v2.today.title").to_owned(),
-            today_taken_label: strings.get("settings.v2.today.taken").to_owned(),
-            today_skipped_label: strings.get("settings.v2.today.skipped").to_owned(),
-            timeline_title: strings.get("settings.v2.timeline.title").to_owned(),
-            timeline_short_label: strings.get("settings.v2.timeline.shortBreaks").to_owned(),
-            timeline_long_label: strings.get("settings.v2.timeline.longBreaks").to_owned(),
-            now_label: strings.get("settings.v2.timeline.now").to_owned(),
-            preset_gentle_label: strings.get("settings.v2.preset.gentle").to_owned(),
-            preset_balanced_label: strings.get("settings.v2.preset.balanced").to_owned(),
-            preset_focused_label: strings.get("settings.v2.preset.focused").to_owned(),
-            preset_custom_label: strings.get("settings.v2.preset.custom").to_owned(),
-            preset_gentle_summary: format_preset_summary(strings, Preset::Gentle),
-            preset_balanced_summary: format_preset_summary(strings, Preset::Balanced),
-            preset_focused_summary: format_preset_summary(strings, Preset::Focused),
-            customize_title: strings.get("settings.v2.section.customize").to_owned(),
             general_title: strings.get("settings.section.general").to_owned(),
-            tab_breaks_label: strings.get("settings.v2.tab.breaks").to_owned(),
-            tab_strictness_label: strings.get("settings.v2.tab.strictness").to_owned(),
-            tab_quiet_label: strings.get("settings.v2.tab.quietTimes").to_owned(),
+            short_breaks_title: strings.get("settings.section.shortBreaks").to_owned(),
+            long_breaks_title: strings.get("settings.section.longBreaks").to_owned(),
+            behaviour_title: strings.get("settings.section.behaviour").to_owned(),
+            about_title: strings.get("settings.section.about").to_owned(),
             start_with_system_label: strings.get("settings.startWithSystem.label").to_owned(),
             start_with_system_help: strings.get("settings.startWithSystem.help").to_owned(),
             short_enabled_label: strings.get("settings.shortBreaks.enabled.label").to_owned(),
             short_interval_label: strings
                 .get("settings.shortBreaks.intervalMinutes.label")
                 .to_owned(),
+            short_interval_help: strings
+                .get("settings.shortBreaks.intervalMinutes.help")
+                .to_owned(),
             short_duration_label: strings
                 .get("settings.shortBreaks.durationSeconds.label")
+                .to_owned(),
+            short_duration_help: strings
+                .get("settings.shortBreaks.durationSeconds.help")
                 .to_owned(),
             short_fullscreen_label: strings
                 .get("settings.shortBreaks.fullscreen.label")
@@ -277,17 +196,32 @@ impl SettingsTexts {
             long_interval_label: strings
                 .get("settings.longBreaks.intervalMinutes.label")
                 .to_owned(),
+            long_interval_help: strings
+                .get("settings.longBreaks.intervalMinutes.help")
+                .to_owned(),
             long_duration_label: strings
                 .get("settings.longBreaks.durationMinutes.label")
+                .to_owned(),
+            long_duration_help: strings
+                .get("settings.longBreaks.durationMinutes.help")
                 .to_owned(),
             long_warning_label: strings
                 .get("settings.longBreaks.warningSeconds.label")
                 .to_owned(),
+            long_warning_help: strings
+                .get("settings.longBreaks.warningSeconds.help")
+                .to_owned(),
             long_postpone_label: strings
                 .get("settings.longBreaks.postponeMinutes.label")
                 .to_owned(),
+            long_postpone_help: strings
+                .get("settings.longBreaks.postponeMinutes.help")
+                .to_owned(),
             long_max_postpones_label: strings
                 .get("settings.longBreaks.maxPostpones.label")
+                .to_owned(),
+            long_max_postpones_help: strings
+                .get("settings.longBreaks.maxPostpones.help")
                 .to_owned(),
             try_long_label: strings.get("settings.tryLongBreak").to_owned(),
             strict_label: strings.get("settings.strictMode.label").to_owned(),
@@ -297,6 +231,7 @@ impl SettingsTexts {
             away_label: strings
                 .get("settings.awayThresholdSeconds.label")
                 .to_owned(),
+            away_help: strings.get("settings.awayThresholdSeconds.help").to_owned(),
             pause_fullscreen_label: strings
                 .get("settings.pauseDuringFullscreen.label")
                 .to_owned(),
@@ -305,185 +240,14 @@ impl SettingsTexts {
                 .to_owned(),
             window_nearby_label: strings.get("settings.hasWindowNearby.label").to_owned(),
             window_nearby_help: strings.get("settings.hasWindowNearby.help").to_owned(),
-            language_label: strings.get("settings.language.label").to_owned(),
-            sounds_label: strings.get("settings.sounds.label").to_owned(),
-            sounds_help: strings.get("settings.sounds.help").to_owned(),
-            notifications_label: strings.get("settings.statusNotifications.label").to_owned(),
-            notifications_help: strings.get("settings.statusNotifications.help").to_owned(),
+            unit_minutes: strings.get("unit.minutes").to_owned(),
+            unit_seconds: strings.get("unit.seconds").to_owned(),
             about_name_version: strings.format(
                 "about.version",
                 &[("name", &app_name), ("version", &version)],
             ),
             about_tagline: strings.get("app.tagline").to_owned(),
-            language_model: language_choice::dropdown_model(
-                strings.get("settings.v2.language.automatic"),
-            ),
         }
-    }
-}
-
-/// Formats `every {minutes} min` for Settings V2 interval sliders.
-#[must_use]
-pub fn format_slider_every_minutes(strings: &Strings, minutes: i32) -> String {
-    strings.format("settings.v2.value.everyMinutes", &[("minutes", &minutes)])
-}
-
-/// Formats `{minutes} min` for Settings V2 duration sliders.
-#[must_use]
-pub fn format_slider_minutes(strings: &Strings, minutes: i32) -> String {
-    strings.format("settings.v2.value.minutes", &[("minutes", &minutes)])
-}
-
-/// Formats `{seconds} s` for Settings V2 duration sliders.
-#[must_use]
-pub fn format_slider_seconds(strings: &Strings, seconds: i32) -> String {
-    strings.format("settings.v2.value.seconds", &[("seconds", &seconds)])
-}
-
-/// Formats CLDR-pluralized `{count} time(s)` for Settings V2 postpone-count slider.
-#[must_use]
-pub fn format_slider_times(strings: &Strings, count: i32) -> String {
-    let n = u64::try_from(count.max(0)).unwrap_or(0);
-    strings.format_plural("settings.v2.value.times", n, &[("count", &count)])
-}
-
-/// Formats a seconds value as minutes when an exact positive multiple of 60, else seconds.
-#[must_use]
-pub fn format_slider_duration(strings: &Strings, seconds: i32) -> String {
-    if seconds >= 60 && seconds % 60 == 0 {
-        format_slider_minutes(strings, seconds / 60)
-    } else {
-        format_slider_seconds(strings, seconds)
-    }
-}
-
-/// Formats the Settings V2 header subtitle (`next-break-text`) from `snapshot`.
-#[must_use]
-pub fn format_next_break_text(
-    snapshot: &EngineSnapshot,
-    strings: &Strings,
-    clock: &dyn Clock,
-) -> String {
-    match snapshot.phase {
-        EnginePhase::Paused => match snapshot.paused_until_utc {
-            None | Some(Paused::UntilResumed) => {
-                strings.get("tray.menu.pausedIndefinitely").to_owned()
-            }
-            Some(Paused::Until(until)) => {
-                let current_zoned = clock.now();
-                let now_ts = current_zoned.timestamp();
-                let remaining = until
-                    .timestamp()
-                    .duration_since(now_ts)
-                    .max(SignedDuration::ZERO);
-                let time_text = if remaining < SignedDuration::from_mins(1) {
-                    strings.get("time.underOneMinute").to_owned()
-                } else {
-                    strings.format_time_signed(remaining)
-                };
-                let local_until = until
-                    .timestamp()
-                    .to_zoned_datetime(current_zoned.time_zone().clone());
-                let clock_text = format!("{:02}:{:02}", local_until.hour(), local_until.minute());
-                strings.format(
-                    "tray.menu.pausedUntil",
-                    &[("clock", &clock_text), ("time", &time_text)],
-                )
-            }
-        },
-        EnginePhase::ShortBreak | EnginePhase::LongBreak => {
-            strings.get("tray.tooltip.onBreak").to_owned()
-        }
-        EnginePhase::LongBreakWarning => {
-            let Some(until_long) = snapshot.time_until_long_break else {
-                return String::new();
-            };
-            let delta = SignedDuration::try_from(until_long).unwrap_or(SignedDuration::ZERO);
-            let now = clock.now();
-            let at = now.checked_add(delta).unwrap_or(now);
-            let clock_text = format!("{:02}:{:02}", at.hour(), at.minute());
-            strings.format("settings.v2.header.nextLong", &[("clock", &clock_text)])
-        }
-        EnginePhase::Working | EnginePhase::Deferred | EnginePhase::Away => {
-            let long_comes_first = match (
-                snapshot.time_until_short_break,
-                snapshot.time_until_long_break,
-            ) {
-                (None, Some(_)) => true,
-                (Some(s), Some(l)) => {
-                    l <= s || l.saturating_sub(s) <= SHORT_BREAK_SUPPRESSION_WINDOW
-                }
-                _ => false,
-            };
-            if long_comes_first && let Some(until_long) = snapshot.time_until_long_break {
-                let delta = SignedDuration::try_from(until_long).unwrap_or(SignedDuration::ZERO);
-                let now = clock.now();
-                let at = now.checked_add(delta).unwrap_or(now);
-                let clock_text = format!("{:02}:{:02}", at.hour(), at.minute());
-                return strings.format("settings.v2.header.nextLong", &[("clock", &clock_text)]);
-            }
-            if let Some(until_short) = snapshot.time_until_short_break {
-                let time_text = strings.format_time(until_short);
-                return strings.format("settings.v2.header.nextShort", &[("time", &time_text)]);
-            }
-            String::new()
-        }
-    }
-}
-
-/// Live header, 2-hour timeline projection, and today counters displayed by Settings V2.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SettingsLiveView {
-    pub next_break_text: String,
-    pub timeline_marks: Vec<TimelineMark>,
-    pub timeline_labels: [String; TICK_LABEL_COUNT],
-    pub today: TodaySummary,
-}
-
-/// Computes the live header, timeline projection, and today counters for Settings V2.
-#[must_use]
-pub fn build_live_view(
-    snapshot: &EngineSnapshot,
-    preview_settings: &OcySettings,
-    stats: &StatisticsData,
-    strings: &Strings,
-    clock: &dyn Clock,
-) -> SettingsLiveView {
-    let projection = timeline::project(snapshot, preview_settings, clock);
-    SettingsLiveView {
-        next_break_text: format_next_break_text(snapshot, strings, clock),
-        timeline_marks: projection.marks,
-        timeline_labels: projection.labels,
-        today: TodaySummary::from_statistics(stats, clock.now().date()),
-    }
-}
-
-fn fallback_snapshot(settings: &OcySettings) -> EngineSnapshot {
-    let mut clamped = settings.clone();
-    clamped.clamp();
-    EngineSnapshot {
-        phase: EnginePhase::Working,
-        time_until_short_break: clamped
-            .short_breaks
-            .enabled
-            .then(|| clamped.short_breaks.interval()),
-        time_until_long_break: clamped
-            .long_breaks
-            .enabled
-            .then(|| clamped.long_breaks.interval()),
-        time_until_long_break_warning: (clamped.long_breaks.enabled
-            && clamped.long_breaks.warning_seconds > 0)
-            .then(|| {
-                clamped
-                    .long_breaks
-                    .interval()
-                    .saturating_sub(clamped.long_breaks.warning_duration())
-            }),
-        current_break: None,
-        paused_until_utc: None,
-        postpones_left: u32::try_from(clamped.long_breaks.max_postpones.max(0)).unwrap_or(0),
-        strict_mode: clamped.strict_mode,
-        natural_hold: None,
     }
 }
 
@@ -745,8 +509,6 @@ impl fmt::Debug for SettingsCallbacks {
 #[derive(Clone)]
 pub struct SettingsUiHandlers {
     pub on_changed: Rc<dyn Fn()>,
-    pub on_preset_selected: Rc<dyn Fn(i32)>,
-    pub on_language_selected: Rc<dyn Fn(i32)>,
     pub on_try_short_break: Rc<dyn Fn()>,
     pub on_try_long_break: Rc<dyn Fn()>,
     pub on_close_requested: Rc<dyn Fn()>,
@@ -758,19 +520,6 @@ impl fmt::Debug for SettingsUiHandlers {
     }
 }
 
-/// Initialization payload passed to [`SettingsBackend::create`].
-#[derive(Debug, Clone)]
-pub struct SettingsCreateParams<'a> {
-    pub texts: &'a SettingsTexts,
-    pub values: &'a SettingsValues,
-    pub preset: i32,
-    pub language_index: i32,
-    pub live_view: &'a SettingsLiveView,
-    pub strings: &'a Arc<Strings>,
-    pub show_start_with_system: bool,
-    pub dark: bool,
-}
-
 /// Windowing/UI backend abstraction so Settings lifecycle, debounce, and error paths are unit-testable.
 pub trait SettingsBackend {
     type Instance;
@@ -778,24 +527,17 @@ pub trait SettingsBackend {
     /// Builds, populates, and shows a fresh Settings window instance.
     fn create(
         &self,
-        params: SettingsCreateParams<'_>,
+        texts: &SettingsTexts,
+        values: &SettingsValues,
+        show_start_with_system: bool,
+        dark: bool,
         handlers: SettingsUiHandlers,
     ) -> Result<Self::Instance, String>;
 
     /// Un-minimizes, brings to front, and focuses an already-open instance.
     fn activate(&self, instance: &Self::Instance);
 
-    /// Refills localized text properties, font, language model/index, and formatter strings on an open instance.
-    fn set_texts(
-        &self,
-        _instance: &Self::Instance,
-        _texts: &SettingsTexts,
-        _language_index: i32,
-        _strings: &Arc<Strings>,
-    ) {
-    }
-
-    /// Updates light/dark theme (and theme-aware assets) on an open instance.
+    /// Updates light/dark theme on an open instance.
     fn set_dark(&self, instance: &Self::Instance, dark: bool);
 
     /// Updates the taskbar-theme icon variant on an open instance.
@@ -803,24 +545,6 @@ pub trait SettingsBackend {
 
     /// Reads the current UI control values from `instance`.
     fn read_values(&self, instance: &Self::Instance) -> SettingsValues;
-
-    /// Updates the selected `preset` index (`0..=3`) on an open instance.
-    fn set_preset(&self, _instance: &Self::Instance, _preset: i32) {}
-
-    /// Applies preset-controlled break slider values and `preset` index on an open instance.
-    fn apply_preset_values(
-        &self,
-        _instance: &Self::Instance,
-        _preset: i32,
-        _values: &SettingsValues,
-    ) {
-    }
-
-    /// Updates the selected `language-index` on an open instance.
-    fn set_language_index(&self, _instance: &Self::Instance, _index: i32) {}
-
-    /// Updates the header next-break text, timeline marks/labels, and today counters on an open instance.
-    fn set_live_view(&self, _instance: &Self::Instance, _live_view: &SettingsLiveView) {}
 
     /// Updates the `start-with-system` toggle value on `instance`.
     fn set_start_with_system(&self, instance: &Self::Instance, enabled: bool);
@@ -834,12 +558,6 @@ pub trait SettingsBackend {
     /// Schedules a single-shot callback after `delay`.
     fn schedule_apply_timer(&self, delay: Duration, on_fire: Box<dyn FnOnce()>);
 
-    /// Starts (or replaces) the periodic 30 s refresh timer while the window is open.
-    fn start_refresh_timer(&self, _interval: Duration, _on_tick: Box<dyn Fn()>) {}
-
-    /// Stops any active periodic refresh timer.
-    fn stop_refresh_timer(&self) {}
-
     /// Hides and schedules destruction of `instance` after the close callback unwinds.
     fn destroy_on_close(&self, instance: Self::Instance);
 
@@ -850,101 +568,29 @@ pub trait SettingsBackend {
 struct ManagedSettingsInner<B: SettingsBackend> {
     backend: B,
     platform: Arc<dyn PlatformServices>,
-    clock: Arc<dyn Clock>,
-    strings: RefCell<Arc<Strings>>,
-    current_language: RefCell<String>,
+    strings: Arc<Strings>,
     error_log: ErrorLog,
     callbacks: SettingsCallbacks,
     current_settings: RefCell<OcySettings>,
-    last_snapshot: RefCell<Option<EngineSnapshot>>,
-    last_stats: RefCell<StatisticsData>,
     state: RefCell<SettingsDebounceState>,
     active: RefCell<Option<B::Instance>>,
     dark_theme: Cell<bool>,
 }
 
 impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
-    fn preview_settings_for(&self, values: &SettingsValues) -> OcySettings {
-        let autostart_supported = self.platform.autostart().is_supported();
-        let current = self.current_settings.borrow();
-        values.apply_to(&current, autostart_supported)
-    }
-
-    fn compute_live_view(&self, preview_settings: &OcySettings) -> SettingsLiveView {
-        let snapshot_guard = self.last_snapshot.borrow();
-        let owned_fallback;
-        let snapshot = match snapshot_guard.as_ref() {
-            Some(snap) => snap,
-            None => {
-                owned_fallback = fallback_snapshot(preview_settings);
-                &owned_fallback
-            }
-        };
-        let stats = self.last_stats.borrow();
-        let strings = self.strings.borrow();
-        build_live_view(
-            snapshot,
-            preview_settings,
-            &stats,
-            &strings,
-            self.clock.as_ref(),
-        )
-    }
-
-    fn refresh_open_live_view(&self) {
-        let preview_settings = {
-            let active = self.active.borrow();
-            let Some(inst) = active.as_ref() else {
-                return;
-            };
-            if self.state.borrow().has_pending_changes() {
-                let values = self.backend.read_values(inst);
-                self.preview_settings_for(&values)
-            } else {
-                self.current_settings.borrow().clone()
-            }
-        };
-        let live_view = self.compute_live_view(&preview_settings);
-        if let Some(inst) = self.active.borrow().as_ref() {
-            self.backend.set_live_view(inst, &live_view);
-        }
-    }
-
-    fn apply_language_change(&self, language_setting: &str, log_unknown: bool) {
-        *self.current_language.borrow_mut() = language_setting.to_owned();
-        let updated_strings = Arc::new(Strings::from_language(language_setting));
-        if let Some(rtl) = updated_strings.rtl_fallback_from() {
-            self.error_log.log(
-                Some("i18n"),
-                &format!("RTL language {rtl:?} is not supported yet; falling back to English"),
-            );
-        }
-        *self.strings.borrow_mut() = Arc::clone(&updated_strings);
-        if self.active.borrow().is_some() {
-            let texts = SettingsTexts::from_strings(&updated_strings, app_version());
-            let err_log = log_unknown.then_some(&self.error_log);
-            let language_index = language_choice::index_for_i32(language_setting, err_log);
-            if let Some(inst) = self.active.borrow().as_ref() {
-                self.backend
-                    .set_texts(inst, &texts, language_index, &updated_strings);
-            }
-            self.refresh_open_live_view();
-        }
-    }
-
     fn handle_changed(self: &Rc<Self>) {
         let autostart_supported = self.platform.autostart().is_supported();
-        let values = {
+        let current_autostart_ui = {
             let active = self.active.borrow();
             let Some(inst) = active.as_ref() else {
                 return;
             };
-            self.backend.read_values(inst)
+            self.backend.read_values(inst).start_with_system
         };
 
         let action = self.state.borrow_mut().on_changed(
             autostart_supported,
-            values.start_with_system,
+            current_autostart_ui,
             self.platform.autostart(),
         );
 
@@ -953,12 +599,10 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             ChangeAction::AutostartFailed { revert_to } => {
                 self.state.borrow_mut().set_suppress_autostart_events(true);
                 if let Some(inst) = self.active.borrow().as_ref() {
-                    let msg = self
-                        .strings
-                        .borrow()
-                        .get("settings.autostart.failed")
-                        .to_owned();
-                    self.backend.set_start_with_system_error(inst, &msg);
+                    self.backend.set_start_with_system_error(
+                        inst,
+                        self.strings.get("settings.autostart.failed"),
+                    );
                     self.backend.set_start_with_system(inst, revert_to);
                 }
                 self.state.borrow_mut().set_suppress_autostart_events(false);
@@ -967,15 +611,8 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                 generation,
                 clear_autostart_error,
             } => {
-                let preview = self.preview_settings_for(&values);
-                let detected_preset = presets::detect(&preview).index();
-                let live_view = self.compute_live_view(&preview);
-                if let Some(inst) = self.active.borrow().as_ref() {
-                    if clear_autostart_error {
-                        self.backend.set_start_with_system_error(inst, "");
-                    }
-                    self.backend.set_preset(inst, detected_preset);
-                    self.backend.set_live_view(inst, &live_view);
+                if clear_autostart_error && let Some(inst) = self.active.borrow().as_ref() {
+                    self.backend.set_start_with_system_error(inst, "");
                 }
                 let weak = Rc::downgrade(self);
                 self.backend.schedule_apply_timer(
@@ -987,67 +624,6 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                     }),
                 );
             }
-        }
-    }
-
-    fn handle_preset_selected(self: &Rc<Self>, index: i32) {
-        let Some(preset) = Preset::from_index(index) else {
-            return;
-        };
-        if preset == Preset::Custom {
-            return;
-        }
-        {
-            let active = self.active.borrow();
-            let Some(inst) = active.as_ref() else {
-                return;
-            };
-            let autostart_supported = self.platform.autostart().is_supported();
-            let values = self.backend.read_values(inst);
-            let edited = self.preview_settings_for(&values);
-            let applied = presets::apply(preset, &edited);
-            let updated_values = SettingsValues::from_settings(
-                &applied,
-                autostart_supported,
-                values.start_with_system,
-            );
-            self.backend
-                .apply_preset_values(inst, preset.index(), &updated_values);
-        }
-        self.handle_changed();
-    }
-
-    fn handle_language_selected(&self, index: i32) {
-        let tag = language_choice::language_for_i32(index);
-        let (updated, prev_lang) = {
-            let active = self.active.borrow();
-            let Some(inst) = active.as_ref() else {
-                return;
-            };
-            let values = self.backend.read_values(inst);
-            let prev = self.current_settings.borrow().language.clone();
-            let mut updated = self.preview_settings_for(&values);
-            updated.language = tag.to_owned();
-            (updated, prev)
-        };
-
-        // Any pending debounce changes are included in `updated` and saved immediately.
-        let _ = self.state.borrow_mut().flush_if_pending();
-
-        let ok = (self.callbacks.on_save)(updated.clone());
-        if ok {
-            *self.current_settings.borrow_mut() = updated.clone();
-            if *self.current_language.borrow() != updated.language {
-                self.apply_language_change(&updated.language, false);
-            }
-            if let Some(inst) = self.active.borrow().as_ref() {
-                self.backend.set_save_error(inst, "");
-            }
-        } else if let Some(inst) = self.active.borrow().as_ref() {
-            let prev_idx = language_choice::index_for_i32(&prev_lang, None);
-            self.backend.set_language_index(inst, prev_idx);
-            let msg = self.strings.borrow().get("settings.saveFailed").to_owned();
-            self.backend.set_save_error(inst, &msg);
         }
     }
 
@@ -1087,11 +663,11 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
 
         if let Some(inst) = self.active.borrow().as_ref() {
             let msg = if ok {
-                String::new()
+                ""
             } else {
-                self.strings.borrow().get("settings.saveFailed").to_owned()
+                self.strings.get("settings.saveFailed")
             };
-            self.backend.set_save_error(inst, &msg);
+            self.backend.set_save_error(inst, msg);
         }
     }
 
@@ -1108,7 +684,6 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
     fn handle_close_requested(&self) {
         self.flush_pending();
         self.state.borrow_mut().cancel_timer();
-        self.backend.stop_refresh_timer();
         let removed = self.active.borrow_mut().take();
         if let Some(inst) = removed {
             self.backend.destroy_on_close(inst);
@@ -1117,8 +692,6 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
 
     fn build_handlers(self: &Rc<Self>) -> SettingsUiHandlers {
         let weak_changed: Weak<Self> = Rc::downgrade(self);
-        let weak_preset: Weak<Self> = Rc::downgrade(self);
-        let weak_lang: Weak<Self> = Rc::downgrade(self);
         let weak_short: Weak<Self> = Rc::downgrade(self);
         let weak_long: Weak<Self> = Rc::downgrade(self);
         let weak_close: Weak<Self> = Rc::downgrade(self);
@@ -1126,16 +699,6 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             on_changed: Rc::new(move || {
                 if let Some(inner) = weak_changed.upgrade() {
                     inner.handle_changed();
-                }
-            }),
-            on_preset_selected: Rc::new(move |i| {
-                if let Some(inner) = weak_preset.upgrade() {
-                    inner.handle_preset_selected(i);
-                }
-            }),
-            on_language_selected: Rc::new(move |i| {
-                if let Some(inner) = weak_lang.upgrade() {
-                    inner.handle_language_selected(i);
                 }
             }),
             on_try_short_break: Rc::new(move || {
@@ -1174,7 +737,6 @@ impl<B: SettingsBackend + 'static> fmt::Debug for ManagedSettingsWindow<B> {
 impl<B: SettingsBackend> Drop for ManagedSettingsWindow<B> {
     fn drop(&mut self) {
         self.inner.state.borrow_mut().cancel_timer();
-        self.inner.backend.stop_refresh_timer();
         let removed = self.inner.active.borrow_mut().take();
         if let Some(inst) = removed {
             self.inner.backend.hide_and_destroy(inst);
@@ -1183,7 +745,7 @@ impl<B: SettingsBackend> Drop for ManagedSettingsWindow<B> {
 }
 
 impl<B: SettingsBackend + 'static> ManagedSettingsWindow<B> {
-    /// Creates a new [`ManagedSettingsWindow`] backed by [`SystemClock`].
+    /// Creates a new [`ManagedSettingsWindow`].
     #[must_use]
     pub fn new(
         backend: B,
@@ -1193,42 +755,15 @@ impl<B: SettingsBackend + 'static> ManagedSettingsWindow<B> {
         callbacks: SettingsCallbacks,
         initial_settings: OcySettings,
     ) -> Self {
-        Self::with_clock(
-            backend,
-            platform,
-            Arc::new(SystemClock),
-            strings,
-            error_log,
-            callbacks,
-            initial_settings,
-        )
-    }
-
-    /// Creates a new [`ManagedSettingsWindow`] using an explicit [`Clock`].
-    #[must_use]
-    pub fn with_clock(
-        backend: B,
-        platform: Arc<dyn PlatformServices>,
-        clock: Arc<dyn Clock>,
-        strings: Arc<Strings>,
-        error_log: ErrorLog,
-        callbacks: SettingsCallbacks,
-        initial_settings: OcySettings,
-    ) -> Self {
         let dark = app_theme_is_dark(platform.app_theme().is_light_app_theme());
-        let initial_language = initial_settings.language.clone();
         Self {
             inner: Rc::new(ManagedSettingsInner {
                 backend,
                 platform,
-                clock,
-                strings: RefCell::new(strings),
-                current_language: RefCell::new(initial_language),
+                strings,
                 error_log,
                 callbacks,
                 current_settings: RefCell::new(initial_settings),
-                last_snapshot: RefCell::new(None),
-                last_stats: RefCell::new(StatisticsData::default()),
                 state: RefCell::new(SettingsDebounceState::new()),
                 active: RefCell::new(None),
                 dark_theme: Cell::new(dark),
@@ -1268,26 +803,11 @@ impl<B: SettingsBackend + 'static> ManagedSettingsWindow<B> {
     pub fn backend(&self) -> &B {
         &self.inner.backend
     }
-
-    /// Runs `f` with the active backend instance if the Settings window is currently open.
-    pub fn with_active_instance<R>(&self, f: impl FnOnce(&B::Instance) -> R) -> Option<R> {
-        self.inner.active.borrow().as_ref().map(f)
-    }
 }
 
 impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
     fn sync_settings(&mut self, settings: &OcySettings) {
         *self.inner.current_settings.borrow_mut() = settings.clone();
-        let lang_changed = settings.language != *self.inner.current_language.borrow();
-        if lang_changed {
-            self.inner.apply_language_change(&settings.language, true);
-        }
-    }
-
-    fn sync_live_status(&mut self, snapshot: &EngineSnapshot, stats: &StatisticsData) {
-        *self.inner.last_snapshot.borrow_mut() = Some(snapshot.clone());
-        *self.inner.last_stats.borrow_mut() = stats.clone();
-        self.inner.refresh_open_live_view();
     }
 
     fn show(&mut self) {
@@ -1296,41 +816,24 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
 
         if let Some(inst) = self.inner.active.borrow().as_ref() {
             self.inner.backend.set_dark(inst, dark);
-            self.inner.refresh_open_live_view();
             self.inner.backend.activate(inst);
             return;
         }
 
         let autostart_supported = self.inner.platform.autostart().is_supported();
         let autostart_enabled = autostart_supported && self.inner.platform.autostart().is_enabled();
-        let (values, preset, language_index, live_view) = {
+        let values = {
             let current = self.inner.current_settings.borrow();
-            let values =
-                SettingsValues::from_settings(&current, autostart_supported, autostart_enabled);
-            let preset = presets::detect(&current).index();
-            let language_index =
-                language_choice::index_for_i32(&current.language, Some(&self.inner.error_log));
-            let live_view = self.inner.compute_live_view(&current);
-            (values, preset, language_index, live_view)
+            SettingsValues::from_settings(&current, autostart_supported, autostart_enabled)
         };
-        let strings = Arc::clone(&self.inner.strings.borrow());
-        let texts = SettingsTexts::from_strings(&strings, app_version());
+        let texts = SettingsTexts::from_strings(&self.inner.strings, app_version());
         let handlers = self.inner.build_handlers();
 
         self.inner.state.borrow_mut().begin_load();
-        let created = self.inner.backend.create(
-            SettingsCreateParams {
-                texts: &texts,
-                values: &values,
-                preset,
-                language_index,
-                live_view: &live_view,
-                strings: &strings,
-                show_start_with_system: autostart_supported,
-                dark,
-            },
-            handlers,
-        );
+        let created =
+            self.inner
+                .backend
+                .create(&texts, &values, autostart_supported, dark, handlers);
         self.inner
             .state
             .borrow_mut()
@@ -1339,15 +842,6 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
         match created {
             Ok(inst) => {
                 *self.inner.active.borrow_mut() = Some(inst);
-                let weak = Rc::downgrade(&self.inner);
-                self.inner.backend.start_refresh_timer(
-                    SETTINGS_REFRESH_INTERVAL,
-                    Box::new(move || {
-                        if let Some(inner) = weak.upgrade() {
-                            inner.refresh_open_live_view();
-                        }
-                    }),
-                );
             }
             Err(err) => {
                 self.inner

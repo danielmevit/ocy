@@ -1,8 +1,7 @@
 //! Embedded exercise illustration assets, caching, and stepped frame sequencing.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use damt_art::{ArtCache, ArtError, EmbeddedSource, FrameSequencer, Manifest, Theme};
@@ -273,7 +272,6 @@ pub struct OcyArt {
     manifest: Manifest,
     source: EmbeddedSource,
     cache: ArtCache,
-    tracked_cache_keys: Mutex<VecDeque<(String, Theme, u32, u32)>>,
 }
 
 impl fmt::Debug for OcyArt {
@@ -281,7 +279,6 @@ impl fmt::Debug for OcyArt {
         f.debug_struct("OcyArt")
             .field("exercise_count", &self.manifest.exercises.len())
             .field("cache_bytes", &self.cache.bytes_used())
-            .field("cache_entries", &self.cache_entry_count())
             .finish_non_exhaustive()
     }
 }
@@ -294,7 +291,6 @@ impl OcyArt {
             manifest,
             source: EmbeddedSource::new(EMBEDDED_SVGS),
             cache: ArtCache::new(),
-            tracked_cache_keys: Mutex::new(VecDeque::new()),
         })
     }
 
@@ -310,7 +306,6 @@ impl OcyArt {
             },
             source: EmbeddedSource::new(&[]),
             cache: ArtCache::new(),
-            tracked_cache_keys: Mutex::new(VecDeque::new()),
         }
     }
 
@@ -335,38 +330,6 @@ impl OcyArt {
         Some((seq, info.frozen))
     }
 
-    fn get_cached_raster(
-        &self,
-        exercise_id: &str,
-        theme: Theme,
-        frame: u32,
-        size_px: u32,
-    ) -> Option<Result<Arc<damt_art::Image>, ArtError>> {
-        let res = self
-            .cache
-            .get(&self.source, exercise_id, theme, frame, size_px)?;
-        if res.is_ok() {
-            let capacity = ArtCache::default_capacity();
-            if capacity > 0 {
-                let mut keys = self
-                    .tracked_cache_keys
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                let key = (exercise_id.to_owned(), theme, frame, size_px);
-                if let Some(pos) = keys.iter().position(|existing| existing == &key) {
-                    keys.remove(pos);
-                    keys.push_back(key);
-                } else {
-                    if keys.len() >= capacity {
-                        keys.pop_front();
-                    }
-                    keys.push_back(key);
-                }
-            }
-        }
-        Some(res)
-    }
-
     /// Rasterises `(exercise_id, theme, frame)` at `size_px` using the internal [`ArtCache`].
     pub fn render_frame(
         &self,
@@ -375,7 +338,9 @@ impl OcyArt {
         frame: u32,
         size_px: u32,
     ) -> Option<Result<Image, ArtError>> {
-        let raster = self.get_cached_raster(exercise_id, theme, frame, size_px)?;
+        let raster = self
+            .cache
+            .get(&self.source, exercise_id, theme, frame, size_px)?;
         Some(raster.map(|img| {
             let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(
                 &img.pixels,
@@ -402,10 +367,6 @@ impl OcyArt {
     /// Clears all cached rasterized frames so idle memory stays minimal.
     pub fn clear_cache(&self) {
         self.cache.clear();
-        self.tracked_cache_keys
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clear();
     }
 
     /// Pre-rasterises eligible short-break eye-exercise frames into the internal [`ArtCache`].
@@ -427,10 +388,14 @@ impl OcyArt {
                 continue;
             };
             if reduced_motion {
-                let _ = self.get_cached_raster(exercise.id, theme, info.frozen, size_px);
+                let _ = self
+                    .cache
+                    .get(&self.source, exercise.id, theme, info.frozen, size_px);
             } else {
                 for frame in 1..=info.frames {
-                    let _ = self.get_cached_raster(exercise.id, theme, frame, size_px);
+                    let _ = self
+                        .cache
+                        .get(&self.source, exercise.id, theme, frame, size_px);
                 }
             }
         }
@@ -453,10 +418,14 @@ impl OcyArt {
         for exercise in ocy_core::exercises::ExerciseCatalogue::ALL {
             if let Some(info) = self.manifest.get(exercise.id) {
                 if reduced_motion {
-                    let _ = self.get_cached_raster(exercise.id, theme, info.frozen, size_px);
+                    let _ = self
+                        .cache
+                        .get(&self.source, exercise.id, theme, info.frozen, size_px);
                 } else {
                     for frame in 1..=info.frames {
-                        let _ = self.get_cached_raster(exercise.id, theme, frame, size_px);
+                        let _ = self
+                            .cache
+                            .get(&self.source, exercise.id, theme, frame, size_px);
                     }
                 }
             }
@@ -467,14 +436,5 @@ impl OcyArt {
     #[must_use]
     pub fn cache_bytes_used(&self) -> usize {
         self.cache.bytes_used()
-    }
-
-    /// Returns the number of cached raster entries currently held.
-    #[must_use]
-    pub fn cache_entry_count(&self) -> usize {
-        self.tracked_cache_keys
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .len()
     }
 }

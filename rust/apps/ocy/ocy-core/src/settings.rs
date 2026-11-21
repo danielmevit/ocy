@@ -69,7 +69,7 @@ impl Default for ShortBreakSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            interval_minutes: 25,
+            interval_minutes: 10,
             duration_seconds: 15,
             fullscreen: false,
         }
@@ -177,7 +177,7 @@ impl Default for LongBreakSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OcySettings {
-    /// JSON schema version (currently `2`).
+    /// JSON schema version (currently `1`).
     pub schema_version: i32,
     /// Short-break settings.
     #[serde(deserialize_with = "deserialize_null_default")]
@@ -215,8 +215,6 @@ pub struct OcySettings {
 }
 
 impl OcySettings {
-    /// Current JSON schema version written by this version of Ocy.
-    pub const CURRENT_SCHEMA_VERSION: i32 = 2;
     /// Minimum allowed away threshold in seconds.
     pub const MIN_AWAY_THRESHOLD_SECONDS: i32 = 30;
     /// Maximum allowed away threshold in seconds.
@@ -245,7 +243,7 @@ impl OcySettings {
 impl Default for OcySettings {
     fn default() -> Self {
         Self {
-            schema_version: Self::CURRENT_SCHEMA_VERSION,
+            schema_version: 1,
             short_breaks: ShortBreakSettings::default(),
             long_breaks: LongBreakSettings::default(),
             strict_mode: false,

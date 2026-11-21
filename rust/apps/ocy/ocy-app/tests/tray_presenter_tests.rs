@@ -572,11 +572,11 @@ fn pause_status_line_formats_remainder_and_local_24h_clock_with_edge_cases() {
         "Paused until 14:25 \u{00b7} under 1 min left"
     );
 
-    // Exactly 1 h (3600 s) -> 1 h
+    // Exactly 1 h (3600 s) -> 1 h 00 min
     let p_1h = presenter.present(&make_paused(3600), None);
     assert_eq!(
         p_1h.pause_status.text,
-        "Paused until 15:25 \u{00b7} 1 h left"
+        "Paused until 15:25 \u{00b7} 1 h 00 min left"
     );
 
     // More than 3 h (e.g. 3 h 15 min) -> 3 h 15 min
@@ -605,7 +605,7 @@ fn pause_status_line_formats_remainder_and_local_24h_clock_with_edge_cases() {
     let p_midnight = night_presenter.present(&night_snapshot, None);
     assert_eq!(
         p_midnight.pause_status.text,
-        "Paused until 00:30 \u{00b7} 1 h left"
+        "Paused until 00:30 \u{00b7} 1 h 00 min left"
     );
 
     // Indefinite pause -> "Paused until you resume"
@@ -818,7 +818,7 @@ fn controller_refreshes_pause_status_on_ticks_and_on_reclicking_same_pause_optio
     assert!(second.pause_status.is_visible);
     assert_eq!(
         second.pause_status.text,
-        "Paused until 15:00 \u{00b7} 1 h left"
+        "Paused until 15:00 \u{00b7} 1 h 00 min left"
     );
     assert!(second.pause_1_hour.is_checked);
 

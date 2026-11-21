@@ -1,7 +1,5 @@
 //! Pure ports of the C# platform helpers: no Windows calls, so they are unit-tested on every target.
 
-use std::ffi::OsStr;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use damt_platform::{FocusState, ScreenRect, SessionEvent};
@@ -166,63 +164,4 @@ impl ExStyle {
             | Self::WS_EX_LAYERED
             | Self::WS_EX_NOACTIVATE
     }
-}
-
-/// Escapes XML text and builds `ToastGeneric` payloads without raw string interpolation.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ToastXml;
-
-impl ToastXml {
-    /// Escapes `&`, `<`, `>`, `"`, and `'` and strips disallowed XML 1.0 C0 control characters.
-    #[must_use]
-    pub fn escape(text: &str) -> String {
-        let mut out = String::with_capacity(text.len());
-        for ch in text.chars() {
-            match ch {
-                '&' => out.push_str("&amp;"),
-                '<' => out.push_str("&lt;"),
-                '>' => out.push_str("&gt;"),
-                '"' => out.push_str("&quot;"),
-                '\'' => out.push_str("&apos;"),
-                '\t' | '\n' | '\r' => out.push(ch),
-                c if (c as u32) < 0x20 => {}
-                c => out.push(c),
-            }
-        }
-        out
-    }
-
-    /// Builds a `ToastGeneric` XML template containing escaped `title` and `body`.
-    #[must_use]
-    pub fn build_generic(title: &str, body: &str) -> String {
-        let escaped_title = Self::escape(title);
-        let escaped_body = Self::escape(body);
-        format!(
-            "<toast><visual><binding template=\"ToastGeneric\"><text>{escaped_title}</text><text>{escaped_body}</text></binding></visual></toast>"
-        )
-    }
-}
-
-/// Returns the per-user registry subkey under `HKEY_CURRENT_USER` for an AppUserModelID.
-#[must_use]
-pub fn aumid_registry_subkey(aumid: &str) -> String {
-    format!(r"Software\Classes\AppUserModelId\{aumid}")
-}
-
-/// Resolves `%LOCALAPPDATA%\<app_dir_name>\notify-icon.png` (falling back to
-/// `%USERPROFILE%\AppData\Local`), returning `None` when neither environment value is present.
-#[must_use]
-pub fn notify_icon_path(
-    app_dir_name: &str,
-    local_app_data: Option<&OsStr>,
-    user_profile: Option<&OsStr>,
-) -> Option<PathBuf> {
-    let base = match local_app_data {
-        Some(value) if !value.is_empty() => PathBuf::from(value),
-        _ => match user_profile {
-            Some(value) if !value.is_empty() => PathBuf::from(value).join("AppData").join("Local"),
-            _ => return None,
-        },
-    };
-    Some(base.join(app_dir_name).join("notify-icon.png"))
 }

@@ -1,1 +1,0 @@
-- R5c2-rust-i18n-fonts: per-language Windows UI font-family mapping (`font_family_for`), RTL fallback to English with logging, DirectWrite glyph-coverage test, `ja.json` sample translation, and hidden `--demo-language <tag>` flag.

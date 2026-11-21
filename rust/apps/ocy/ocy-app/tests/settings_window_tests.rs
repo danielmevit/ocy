@@ -13,11 +13,8 @@ use ocy_app::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
 use ocy_app::host::AppHost;
 use ocy_app::settings_logic::{
     ChangeAction, DemoPlatformServices, ManagedSettingsWindow, SETTINGS_APPLY_DELAY,
-    SETTINGS_REFRESH_INTERVAL, SettingsBackend, SettingsCallbacks, SettingsCreateParams,
-    SettingsDebounceState, SettingsLiveView, SettingsTexts, SettingsUiHandlers, SettingsValues,
-    app_version, default_app_settings, format_next_break_text, format_slider_duration,
-    format_slider_every_minutes, format_slider_minutes, format_slider_seconds, format_slider_times,
-    load_app_settings,
+    SettingsBackend, SettingsCallbacks, SettingsDebounceState, SettingsTexts, SettingsUiHandlers,
+    SettingsValues, app_version,
 };
 use ocy_app::strings::Strings;
 use ocy_app::tray::{
@@ -107,9 +104,6 @@ impl PlatformServices for FakePlatform {
 struct FakeInstanceInner {
     values: RefCell<SettingsValues>,
     handlers: RefCell<SettingsUiHandlers>,
-    preset: Cell<i32>,
-    language_index: Cell<i32>,
-    live_view: RefCell<SettingsLiveView>,
     save_error: RefCell<String>,
     autostart_error: RefCell<String>,
     show_start_with_system: Cell<bool>,
@@ -124,13 +118,11 @@ struct FakeInstance(Rc<FakeInstanceInner>);
 struct FakeBackendState {
     create_count: usize,
     activate_count: usize,
-    set_texts_count: usize,
     destroy_on_close_count: usize,
     hide_and_destroy_count: usize,
     last_texts: Option<SettingsTexts>,
     current: Option<FakeInstance>,
     scheduled_timers: VecDeque<(Duration, Box<dyn FnOnce()>)>,
-    refresh_timer: Option<(Duration, Box<dyn Fn()>)>,
     retrigger_changed_on_revert: bool,
 }
 
@@ -155,31 +147,6 @@ impl FakeSettingsBackend {
             .current_instance()
             .map(|inst| Rc::clone(&inst.0.handlers.borrow().on_changed));
         if let Some(cb) = cb {
-            cb();
-        }
-    }
-
-    fn trigger_preset_selected(&self, index: i32) {
-        let cb = self
-            .current_instance()
-            .map(|inst| Rc::clone(&inst.0.handlers.borrow().on_preset_selected));
-        if let Some(cb) = cb {
-            cb(index);
-        }
-    }
-
-    fn trigger_language_selected(&self, index: i32) {
-        let cb = self
-            .current_instance()
-            .map(|inst| Rc::clone(&inst.0.handlers.borrow().on_language_selected));
-        if let Some(cb) = cb {
-            cb(index);
-        }
-    }
-
-    fn trigger_refresh_tick(&self) {
-        let borrow = self.state.borrow();
-        if let Some((_, ref cb)) = borrow.refresh_timer {
             cb();
         }
     }
@@ -237,43 +204,30 @@ impl SettingsBackend for FakeSettingsBackend {
 
     fn create(
         &self,
-        params: SettingsCreateParams<'_>,
+        texts: &SettingsTexts,
+        values: &SettingsValues,
+        show_start_with_system: bool,
+        dark: bool,
         handlers: SettingsUiHandlers,
     ) -> Result<Self::Instance, String> {
         let inst = FakeInstance(Rc::new(FakeInstanceInner {
-            values: RefCell::new(*params.values),
+            values: RefCell::new(*values),
             handlers: RefCell::new(handlers),
-            preset: Cell::new(params.preset),
-            language_index: Cell::new(params.language_index),
-            live_view: RefCell::new(params.live_view.clone()),
             save_error: RefCell::new(String::new()),
             autostart_error: RefCell::new(String::new()),
-            show_start_with_system: Cell::new(params.show_start_with_system),
-            dark: Cell::new(params.dark),
+            show_start_with_system: Cell::new(show_start_with_system),
+            dark: Cell::new(dark),
             light_icon_set: Cell::new(false),
         }));
         let mut st = self.state.borrow_mut();
         st.create_count += 1;
-        st.last_texts = Some(params.texts.clone());
+        st.last_texts = Some(texts.clone());
         st.current = Some(inst.clone());
         Ok(inst)
     }
 
     fn activate(&self, _instance: &Self::Instance) {
         self.state.borrow_mut().activate_count += 1;
-    }
-
-    fn set_texts(
-        &self,
-        instance: &Self::Instance,
-        texts: &SettingsTexts,
-        language_index: i32,
-        _strings: &Arc<Strings>,
-    ) {
-        instance.0.language_index.set(language_index);
-        let mut st = self.state.borrow_mut();
-        st.set_texts_count += 1;
-        st.last_texts = Some(texts.clone());
     }
 
     fn set_dark(&self, instance: &Self::Instance, dark: bool) {
@@ -286,27 +240,6 @@ impl SettingsBackend for FakeSettingsBackend {
 
     fn read_values(&self, instance: &Self::Instance) -> SettingsValues {
         *instance.0.values.borrow()
-    }
-
-    fn set_preset(&self, instance: &Self::Instance, preset: i32) {
-        instance.0.preset.set(preset);
-    }
-
-    fn apply_preset_values(&self, instance: &Self::Instance, preset: i32, values: &SettingsValues) {
-        instance.0.preset.set(preset);
-        let mut cur = instance.0.values.borrow_mut();
-        cur.short_interval = values.short_interval;
-        cur.short_duration = values.short_duration;
-        cur.long_interval = values.long_interval;
-        cur.long_duration = values.long_duration;
-    }
-
-    fn set_language_index(&self, instance: &Self::Instance, index: i32) {
-        instance.0.language_index.set(index);
-    }
-
-    fn set_live_view(&self, instance: &Self::Instance, live_view: &SettingsLiveView) {
-        *instance.0.live_view.borrow_mut() = live_view.clone();
     }
 
     fn set_start_with_system(&self, instance: &Self::Instance, enabled: bool) {
@@ -330,14 +263,6 @@ impl SettingsBackend for FakeSettingsBackend {
             .borrow_mut()
             .scheduled_timers
             .push_back((delay, on_fire));
-    }
-
-    fn start_refresh_timer(&self, interval: Duration, on_tick: Box<dyn Fn()>) {
-        self.state.borrow_mut().refresh_timer = Some((interval, on_tick));
-    }
-
-    fn stop_refresh_timer(&self) {
-        self.state.borrow_mut().refresh_timer = None;
     }
 
     fn destroy_on_close(&self, _instance: Self::Instance) {
@@ -455,89 +380,58 @@ fn settings_texts_resolve_every_en_json_key_without_missing_keys() {
     let texts = SettingsTexts::from_strings(&strings, app_version());
 
     assert_eq!(texts.window_title, "Ocy \u{2014} Settings");
-    assert_eq!(texts.today_title, "Today");
-    assert_eq!(texts.today_taken_label, "taken");
-    assert_eq!(texts.today_skipped_label, "skipped");
-    assert_eq!(texts.timeline_title, "The next 2 hours");
-    assert_eq!(texts.timeline_short_label, "Short breaks");
-    assert_eq!(texts.timeline_long_label, "Long breaks");
-    assert_eq!(texts.now_label, "Now");
-    assert_eq!(texts.preset_gentle_label, "Gentle");
-    assert_eq!(texts.preset_balanced_label, "Balanced");
-    assert_eq!(texts.preset_focused_label, "Focused");
-    assert_eq!(texts.preset_custom_label, "Custom");
-    assert_eq!(
-        texts.preset_gentle_summary,
-        "15 s every 40 min\n5 min every 90 min"
-    );
-    assert_eq!(
-        texts.preset_balanced_summary,
-        "15 s every 25 min\n5 min every 60 min"
-    );
-    assert_eq!(
-        texts.preset_focused_summary,
-        "20 s every 50 min\n10 min every 90 min"
-    );
-    assert_eq!(texts.customize_title, "Customize");
     assert_eq!(texts.general_title, "General");
-    assert_eq!(texts.tab_breaks_label, "Breaks");
-    assert_eq!(texts.tab_strictness_label, "Strictness");
-    assert_eq!(texts.tab_quiet_label, "Quiet times");
+    assert_eq!(texts.short_breaks_title, "Short breaks");
+    assert_eq!(texts.long_breaks_title, "Long breaks");
+    assert_eq!(texts.behaviour_title, "Behaviour");
+    assert_eq!(texts.about_title, "About");
     assert_eq!(texts.try_short_label, "Try a short break");
     assert_eq!(texts.try_long_label, "Try a long break");
+    assert_eq!(texts.unit_minutes, "min");
+    assert_eq!(texts.unit_seconds, "s");
     assert!(texts.about_name_version.starts_with("Ocy "));
-    assert_eq!(texts.language_model[0], "Automatic (Windows language)");
 
     let all_fields = [
         &texts.window_title,
-        &texts.today_title,
-        &texts.today_taken_label,
-        &texts.today_skipped_label,
-        &texts.timeline_title,
-        &texts.timeline_short_label,
-        &texts.timeline_long_label,
-        &texts.now_label,
-        &texts.preset_gentle_label,
-        &texts.preset_balanced_label,
-        &texts.preset_focused_label,
-        &texts.preset_custom_label,
-        &texts.preset_gentle_summary,
-        &texts.preset_balanced_summary,
-        &texts.preset_focused_summary,
-        &texts.customize_title,
         &texts.general_title,
-        &texts.tab_breaks_label,
-        &texts.tab_strictness_label,
-        &texts.tab_quiet_label,
+        &texts.short_breaks_title,
+        &texts.long_breaks_title,
+        &texts.behaviour_title,
+        &texts.about_title,
         &texts.start_with_system_label,
         &texts.start_with_system_help,
         &texts.short_enabled_label,
         &texts.short_interval_label,
+        &texts.short_interval_help,
         &texts.short_duration_label,
+        &texts.short_duration_help,
         &texts.short_fullscreen_label,
         &texts.short_fullscreen_help,
         &texts.try_short_label,
         &texts.long_enabled_label,
         &texts.long_interval_label,
+        &texts.long_interval_help,
         &texts.long_duration_label,
+        &texts.long_duration_help,
         &texts.long_warning_label,
+        &texts.long_warning_help,
         &texts.long_postpone_label,
+        &texts.long_postpone_help,
         &texts.long_max_postpones_label,
+        &texts.long_max_postpones_help,
         &texts.try_long_label,
         &texts.strict_label,
         &texts.strict_help,
         &texts.inactivity_label,
         &texts.inactivity_help,
         &texts.away_label,
+        &texts.away_help,
         &texts.pause_fullscreen_label,
         &texts.pause_fullscreen_help,
         &texts.window_nearby_label,
         &texts.window_nearby_help,
-        &texts.language_label,
-        &texts.sounds_label,
-        &texts.sounds_help,
-        &texts.notifications_label,
-        &texts.notifications_help,
+        &texts.unit_minutes,
+        &texts.unit_seconds,
         &texts.about_name_version,
         &texts.about_tagline,
     ];
@@ -1029,385 +923,4 @@ fn managed_settings_window_forwards_light_icon_set_to_open_instance() {
 
     drop(win);
     let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn fresh_install_defaults_language_to_auto_while_existing_files_keep_their_value() {
-    let dir = temp_dir("fresh-vs-existing-lang");
-    let store = AppDataStore::with_system_clock(&dir);
-
-    assert_eq!(default_app_settings().language, "auto");
-    // Missing settings.json -> fresh install gets "auto"
-    assert_eq!(load_app_settings(&store).language, "auto");
-
-    // Existing file with "en" keeps "en"
-    let existing = OcySettings::default();
-    store.save_settings(&existing).unwrap();
-    assert_eq!(load_app_settings(&store).language, "en");
-
-    // Existing file with "mk" keeps "mk"
-    let existing_mk = OcySettings {
-        language: "mk".to_owned(),
-        ..OcySettings::default()
-    };
-    store.save_settings(&existing_mk).unwrap();
-    assert_eq!(load_app_settings(&store).language, "mk");
-
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn live_language_switch_updates_tray_and_open_settings_window_immediately() {
-    let dir = temp_dir("live-lang-switch");
-    let clock = Arc::new(FakeClock::from_utc(2026, 11, 20, 8, 0, 0).unwrap());
-    let clock_dyn: Arc<dyn Clock> = clock.clone();
-    let store = AppDataStore::new(&dir, Arc::clone(&clock_dyn));
-    let platform = Arc::new(FakePlatform::new(FakeAutostart::new(true, false)));
-    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
-
-    let initial = OcySettings {
-        language: "en".to_owned(),
-        ..OcySettings::default()
-    };
-    let engine = BreakEngine::new(
-        initial.clone(),
-        platform.clone(),
-        Arc::clone(&clock_dyn),
-        None,
-        None,
-        None,
-        None,
-    );
-    let snapshot = engine.snapshot();
-    let strings = Arc::new(Strings::from_language(&initial.language));
-    let presenter = TrayPresenter::new(strings.clone(), Arc::clone(&clock_dyn));
-
-    #[derive(Debug, Default)]
-    struct CapturingTraySink {
-        last_tooltip: String,
-        last_presentation: Option<TrayPresentation>,
-    }
-    impl TraySink for CapturingTraySink {
-        fn set_tooltip(&mut self, tooltip: &str) {
-            self.last_tooltip = tooltip.to_owned();
-        }
-        fn set_icon(&mut self, _state: TrayIconState, _use_light_set: bool) {}
-        fn set_menu(&mut self, presentation: &TrayPresentation) {
-            self.last_presentation = Some(presentation.clone());
-        }
-    }
-
-    let tray = TrayController::new(
-        presenter,
-        CapturingTraySink::default(),
-        Rc::new(StaticTaskbarTheme),
-        Arc::clone(&clock_dyn),
-        Some(AppTheme::Light),
-        &snapshot,
-    );
-
-    let backend = FakeSettingsBackend::default();
-    let settings_win = ManagedSettingsWindow::new(
-        backend.clone(),
-        platform,
-        strings,
-        error_log.clone(),
-        SettingsCallbacks {
-            on_save: Rc::new(|_| true),
-            on_try_short_break: Rc::new(|| {}),
-            on_try_long_break: Rc::new(|| {}),
-        },
-        initial,
-    );
-    let coordinator = BreakUiCoordinator::new(DummyBreakWindows, settings_win);
-    let mut host = AppHost::with_store(engine, coordinator, tray, error_log, Some(store));
-
-    host.show_settings();
-    assert_eq!(
-        backend
-            .state
-            .borrow()
-            .last_texts
-            .as_ref()
-            .unwrap()
-            .font_family,
-        "Segoe UI"
-    );
-    assert_eq!(
-        backend
-            .state
-            .borrow()
-            .last_texts
-            .as_ref()
-            .unwrap()
-            .window_title,
-        "Ocy \u{2014} Settings"
-    );
-    assert_eq!(
-        host.tray()
-            .sink()
-            .last_presentation
-            .as_ref()
-            .unwrap()
-            .settings
-            .text,
-        "Settings"
-    );
-    assert_eq!(host.tray().sink().last_tooltip, "Next break in 25 min");
-
-    // Live switch to German -> both Settings texts and tray menu/tooltip update immediately
-    let mut updated_de = host.engine().settings().clone();
-    updated_de.language = "de".to_owned();
-    assert!(host.save_settings(updated_de));
-
-    assert_eq!(backend.state.borrow().set_texts_count, 1);
-    let de_texts = backend.state.borrow().last_texts.clone().unwrap();
-    assert_eq!(de_texts.window_title, "Ocy \u{2014} Einstellungen");
-    assert_eq!(de_texts.general_title, "Allgemein");
-    assert_eq!(
-        host.tray()
-            .sink()
-            .last_presentation
-            .as_ref()
-            .unwrap()
-            .settings
-            .text,
-        "Einstellungen"
-    );
-    assert_eq!(
-        host.tray()
-            .sink()
-            .last_presentation
-            .as_ref()
-            .unwrap()
-            .quit
-            .text,
-        "Ocy beenden"
-    );
-    assert_eq!(host.tray().sink().last_tooltip, "Nächste Pause in 25 Min.");
-
-    // Live switch to Macedonian -> updates again immediately
-    let mut updated_mk = host.engine().settings().clone();
-    updated_mk.language = "mk".to_owned();
-    assert!(host.save_settings(updated_mk));
-
-    assert_eq!(backend.state.borrow().set_texts_count, 2);
-    let mk_texts = backend.state.borrow().last_texts.clone().unwrap();
-    assert_eq!(mk_texts.font_family, "Segoe UI");
-    assert_eq!(mk_texts.window_title, "Ocy \u{2014} Поставки");
-    assert_eq!(mk_texts.general_title, "Општо");
-    assert_eq!(
-        host.tray()
-            .sink()
-            .last_presentation
-            .as_ref()
-            .unwrap()
-            .settings
-            .text,
-        "Поставки"
-    );
-    assert_eq!(host.tray().sink().last_tooltip, "Следна пауза за 25 мин");
-
-    // Live switch to Japanese -> updates font_family to Yu Gothic UI as well
-    let mut updated_ja = host.engine().settings().clone();
-    updated_ja.language = "ja".to_owned();
-    assert!(host.save_settings(updated_ja));
-    assert_eq!(backend.state.borrow().set_texts_count, 3);
-    let ja_texts = backend.state.borrow().last_texts.clone().unwrap();
-    assert_eq!(ja_texts.font_family, "Yu Gothic UI");
-    assert_eq!(ja_texts.window_title, "Ocy \u{2014} 設定");
-    assert_eq!(ja_texts.general_title, "一般");
-    assert_eq!(
-        host.tray()
-            .sink()
-            .last_presentation
-            .as_ref()
-            .unwrap()
-            .settings
-            .text,
-        "設定"
-    );
-    assert_eq!(host.tray().sink().last_tooltip, "次の休憩まで 25 分");
-
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn managed_settings_v2_refreshes_timeline_today_and_header_on_edits_and_30s_ticks() {
-    use ocy_core::engine::EnginePhase;
-    use ocy_core::statistics::StatisticsData;
-
-    let dir = temp_dir("v2-refresh");
-    let clock =
-        Arc::new(FakeClock::from_fixed_offset(2026, 11, 20, 14, 0, 0, 1).expect("valid clock"));
-    let clock_dyn: Arc<dyn Clock> = clock.clone();
-    let platform = Arc::new(FakePlatform::new(FakeAutostart::new(true, false)));
-    let saved: Rc<RefCell<Vec<OcySettings>>> = Rc::new(RefCell::new(Vec::new()));
-    let saved_cb = Rc::clone(&saved);
-    let backend = FakeSettingsBackend::default();
-
-    let mut win = ManagedSettingsWindow::with_clock(
-        backend.clone(),
-        platform,
-        Arc::clone(&clock_dyn),
-        Arc::new(Strings::from_embedded().unwrap()),
-        damt_app::ErrorLog::new(&dir, "ocy"),
-        SettingsCallbacks {
-            on_save: Rc::new(move |s| {
-                saved_cb.borrow_mut().push(s);
-                true
-            }),
-            on_try_short_break: Rc::new(|| {}),
-            on_try_long_break: Rc::new(|| {}),
-        },
-        OcySettings::default(),
-    );
-
-    let mut stats = StatisticsData::default();
-    let day = stats.get_or_create(clock.now().date());
-    day.short_completed = 4;
-    day.long_completed = 1;
-    day.short_skipped = 2;
-
-    let snap = EngineSnapshot {
-        phase: EnginePhase::Working,
-        time_until_short_break: Some(Duration::from_secs(7 * 60)),
-        time_until_long_break: Some(Duration::from_secs(47 * 60)),
-        time_until_long_break_warning: Some(Duration::from_secs(46 * 60)),
-        current_break: None,
-        paused_until_utc: None,
-        postpones_left: 3,
-        strict_mode: false,
-        natural_hold: None,
-    };
-    win.sync_live_status(&snap, &stats);
-    win.show();
-
-    let inst = backend.current_instance().unwrap();
-    assert_eq!(inst.0.preset.get(), 1); // Balanced
-    assert_eq!(
-        backend.state.borrow().refresh_timer.as_ref().map(|t| t.0),
-        Some(SETTINGS_REFRESH_INTERVAL)
-    );
-    {
-        let lv = inst.0.live_view.borrow();
-        assert_eq!(lv.next_break_text, "Next short break in 7 min");
-        assert_eq!(lv.today.taken, 5);
-        assert_eq!(lv.today.skipped, 2);
-        assert_eq!(lv.timeline_labels, ["14:30", "15:00", "15:30", "16:00"]);
-        assert!(!lv.timeline_marks.is_empty());
-    }
-
-    // Disabling short breaks switches header to next long break at {clock}.
-    let long_first_snap = EngineSnapshot {
-        time_until_short_break: None,
-        time_until_long_break: Some(Duration::from_secs(25 * 60)),
-        ..snap.clone()
-    };
-    win.sync_live_status(&long_first_snap, &stats);
-    assert_eq!(
-        inst.0.live_view.borrow().next_break_text,
-        "Next long break at 14:25"
-    );
-
-    // Selecting Focused preset updates sliders, preset index, timeline preview immediately, and debounces save.
-    backend.trigger_preset_selected(2);
-    assert_eq!(inst.0.preset.get(), 2);
-    assert_eq!(inst.0.values.borrow().short_interval, 50);
-    assert_eq!(inst.0.values.borrow().long_interval, 90);
-    assert!(win.has_pending_changes());
-    assert!(backend.fire_newest_timer());
-    assert_eq!(saved.borrow().len(), 1);
-    assert_eq!(saved.borrow()[0].short_breaks.interval_minutes, 50);
-
-    // Hand-edit short_interval -> preset becomes Custom (3) and timeline preview refreshes immediately.
-    let marks_before = inst.0.live_view.borrow().timeline_marks.clone();
-    backend.set_values(|v| v.short_interval = 12);
-    backend.trigger_changed();
-    assert_eq!(inst.0.preset.get(), 3);
-    assert_ne!(inst.0.live_view.borrow().timeline_marks, marks_before);
-
-    // 30 s timer tick refreshes labels and today counts while window is open.
-    clock.advance(Duration::from_secs(60));
-    backend.trigger_refresh_tick();
-    assert_eq!(
-        inst.0.live_view.borrow().timeline_labels,
-        ["14:31", "15:01", "15:31", "16:01"]
-    );
-
-    // Language switch through dropdown saves immediately and updates texts + font.
-    let ja_idx = ocy_app::language_choice::index_for_i32("ja", None);
-    backend.trigger_language_selected(ja_idx);
-    assert_eq!(saved.borrow().last().unwrap().language, "ja");
-    assert_eq!(
-        backend
-            .state
-            .borrow()
-            .last_texts
-            .as_ref()
-            .unwrap()
-            .font_family,
-        "Yu Gothic UI"
-    );
-
-    // Closing stops the 30 s refresh timer.
-    backend.trigger_close();
-    assert!(backend.state.borrow().refresh_timer.is_none());
-
-    drop(win);
-    let _ = fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn v2_formatters_and_next_break_header_cover_plurals_durations_and_phases() {
-    use ocy_core::engine::EnginePhase;
-    use ocy_core::time::Paused;
-
-    let en = Strings::from_language("en");
-    assert_eq!(format_slider_every_minutes(&en, 20), "every 20 min");
-    assert_eq!(format_slider_minutes(&en, 5), "5 min");
-    assert_eq!(format_slider_seconds(&en, 15), "15 s");
-    assert_eq!(format_slider_times(&en, 1), "1 time");
-    assert_eq!(format_slider_times(&en, 3), "3 times");
-    assert_eq!(format_slider_duration(&en, 30), "30 s");
-    assert_eq!(format_slider_duration(&en, 120), "2 min");
-    assert_eq!(format_slider_duration(&en, 90), "90 s");
-
-    let clock = FakeClock::from_fixed_offset(2026, 11, 20, 10, 0, 0, 0).expect("clock");
-    let working_short = EngineSnapshot {
-        phase: EnginePhase::Working,
-        time_until_short_break: Some(Duration::from_secs(600)),
-        time_until_long_break: Some(Duration::from_secs(3600)),
-        time_until_long_break_warning: None,
-        current_break: None,
-        paused_until_utc: None,
-        postpones_left: 3,
-        strict_mode: false,
-        natural_hold: None,
-    };
-    assert_eq!(
-        format_next_break_text(&working_short, &en, &clock),
-        "Next short break in 10 min"
-    );
-
-    // When long break is due within 2 minutes after short break, short break is suppressed -> show nextLong.
-    let suppressed_short = EngineSnapshot {
-        time_until_short_break: Some(Duration::from_secs(60)),
-        time_until_long_break: Some(Duration::from_secs(150)),
-        ..working_short.clone()
-    };
-    assert_eq!(
-        format_next_break_text(&suppressed_short, &en, &clock),
-        "Next long break at 10:02"
-    );
-
-    let paused_indef = EngineSnapshot {
-        phase: EnginePhase::Paused,
-        paused_until_utc: Some(Paused::UntilResumed),
-        ..working_short
-    };
-    assert_eq!(
-        format_next_break_text(&paused_indef, &en, &clock),
-        "Paused until you resume"
-    );
 }

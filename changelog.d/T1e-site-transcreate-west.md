@@ -1,1 +1,0 @@
-- Transcreated website copy for `de`, `es`, `fr`, `it`, `pt-BR`, `pt-PT`, `nl`, and `sq` into natural native phrasing while preserving all facts, product names, SEO targets, and placeholders.

@@ -2,20 +2,17 @@
    Regenerate: cargo run -p damt-theme --example gen -- <tokens.toml> <out_dir> */
 :root {
   --color-accent: #2F7D62FF;
-  --color-accent-text: #2F7D62FF;
-  --color-accent-text-pressed: #24654FFF;
   --color-attention: #B04E2CFF;
   --color-attention-frame: #B04E2C8C;
   --color-bg: #F6F7F5FF;
   --color-border: #5A606466;
-  --color-button-accent-hover: #24654FFF;
-  --color-button-accent-pressed: #1A4D3CFF;
+  --color-button-accent-hover: #469377FF;
+  --color-button-accent-pressed: #24654FFF;
   --color-button-outline-hover: #1B1E1F12;
   --color-button-outline-pressed: #1B1E1F1F;
   --color-divider: #1B1E1F14;
   --color-edge-frame: #2F7D628C;
   --color-error: #B3261EFF;
-  --color-input-border: #5A6064B3;
   --color-on-accent: #FFFFFFFF;
   --color-overlay: #000000C7;
   --color-progress-track: #1B1E1F1A;
@@ -46,63 +43,57 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-accent: #348267FF;
-    --color-accent-text: #A3C7B8FF;
-    --color-accent-text-pressed: #B8D5C9FF;
+    --color-accent: #5FBF97FF;
     --color-attention: #E08A64FF;
     --color-attention-frame: #E08A648C;
     --color-bg: #17191AFF;
     --color-border: #A4ABAF4D;
-    --color-button-accent-hover: #2F7D62FF;
-    --color-button-accent-pressed: #266951FF;
+    --color-button-accent-hover: #4DA380FF;
+    --color-button-accent-pressed: #3B8769FF;
     --color-button-outline-hover: #ECEEEC12;
     --color-button-outline-pressed: #ECEEEC1F;
     --color-divider: #ECEEEC14;
-    --color-edge-frame: #3482678C;
+    --color-edge-frame: #5FBF978C;
     --color-error: #FF8A80FF;
-    --color-input-border: #A4ABAF99;
-    --color-on-accent: #FFFFFFFF;
+    --color-on-accent: #0F1A15FF;
     --color-overlay: #000000D1;
-    --color-progress-track: #ECEEEC0A;
+    --color-progress-track: #ECEEEC1A;
     --color-surface: #212426FF;
-    --color-system-accent: #348267FF;
-    --color-system-accent-dark-1: #2F7D62FF;
-    --color-system-accent-dark-2: #266951FF;
-    --color-system-accent-dark-3: #1F5A45FF;
-    --color-system-accent-light-1: #388569FF;
-    --color-system-accent-light-2: #4F957BFF;
-    --color-system-accent-light-3: #6FA893FF;
+    --color-system-accent: #5FBF97FF;
+    --color-system-accent-dark-1: #4DA380FF;
+    --color-system-accent-dark-2: #3B8769FF;
+    --color-system-accent-dark-3: #2A6B53FF;
+    --color-system-accent-light-1: #78CBA9FF;
+    --color-system-accent-light-2: #95D7BCFF;
+    --color-system-accent-light-3: #B6E5D1FF;
     --color-text: #ECEEECFF;
     --color-text-muted: #A4ABAFFF;
   }
 }
 :root[data-theme="dark"] {
-  --color-accent: #348267FF;
-  --color-accent-text: #A3C7B8FF;
-  --color-accent-text-pressed: #B8D5C9FF;
+  --color-accent: #5FBF97FF;
   --color-attention: #E08A64FF;
   --color-attention-frame: #E08A648C;
   --color-bg: #17191AFF;
   --color-border: #A4ABAF4D;
-  --color-button-accent-hover: #2F7D62FF;
-  --color-button-accent-pressed: #266951FF;
+  --color-button-accent-hover: #4DA380FF;
+  --color-button-accent-pressed: #3B8769FF;
   --color-button-outline-hover: #ECEEEC12;
   --color-button-outline-pressed: #ECEEEC1F;
   --color-divider: #ECEEEC14;
-  --color-edge-frame: #3482678C;
+  --color-edge-frame: #5FBF978C;
   --color-error: #FF8A80FF;
-  --color-input-border: #A4ABAF99;
-  --color-on-accent: #FFFFFFFF;
+  --color-on-accent: #0F1A15FF;
   --color-overlay: #000000D1;
-  --color-progress-track: #ECEEEC0A;
+  --color-progress-track: #ECEEEC1A;
   --color-surface: #212426FF;
-  --color-system-accent: #348267FF;
-  --color-system-accent-dark-1: #2F7D62FF;
-  --color-system-accent-dark-2: #266951FF;
-  --color-system-accent-dark-3: #1F5A45FF;
-  --color-system-accent-light-1: #388569FF;
-  --color-system-accent-light-2: #4F957BFF;
-  --color-system-accent-light-3: #6FA893FF;
+  --color-system-accent: #5FBF97FF;
+  --color-system-accent-dark-1: #4DA380FF;
+  --color-system-accent-dark-2: #3B8769FF;
+  --color-system-accent-dark-3: #2A6B53FF;
+  --color-system-accent-light-1: #78CBA9FF;
+  --color-system-accent-light-2: #95D7BCFF;
+  --color-system-accent-light-3: #B6E5D1FF;
   --color-text: #ECEEECFF;
   --color-text-muted: #A4ABAFFF;
 }

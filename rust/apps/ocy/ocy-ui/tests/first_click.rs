@@ -3,7 +3,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use ocy_ui::{LongBreakCard, SettingsWindowV2, ShortBreakCard, Theme, WarningCard};
+use ocy_ui::{LongBreakCard, SettingsWindow, ShortBreakCard, Theme, WarningCard};
 use slint::platform::software_renderer::{
     MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType,
 };
@@ -342,6 +342,203 @@ fn long_break_end_button_fires_on_first_click() {
 }
 
 #[test]
+fn settings_toggle_section_toggle_stepper_and_try_links_fire_on_first_click() {
+    init_platform();
+
+    let build_settings = || {
+        let ui = SettingsWindow::new().unwrap();
+        let window = take_window();
+        ui.global::<Theme>().set_dark(false);
+        ui.set_show_start_with_system(true);
+        ui.set_general_title("General".into());
+        ui.set_short_breaks_title("Short breaks".into());
+        ui.set_long_breaks_title("Long breaks".into());
+        ui.set_behaviour_title("Behaviour".into());
+        ui.set_about_title("About".into());
+        ui.set_start_with_system_label("Start with system".into());
+        ui.set_start_with_system_help("Open Ocy automatically.".into());
+        ui.set_short_enabled_label("Short breaks".into());
+        ui.set_short_interval_label("Short break interval".into());
+        ui.set_short_duration_label("Short break length".into());
+        ui.set_short_fullscreen_label("Full-screen short breaks".into());
+        ui.set_try_short_label("Try a short break".into());
+        ui.set_long_enabled_label("Long breaks".into());
+        ui.set_long_interval_label("Long break interval".into());
+        ui.set_long_duration_label("Long break length".into());
+        ui.set_long_warning_label("Warning time".into());
+        ui.set_long_postpone_label("Postpone by".into());
+        ui.set_long_max_postpones_label("Maximum postpones".into());
+        ui.set_try_long_label("Try a long break".into());
+        ui.set_strict_label("Strict mode".into());
+        ui.set_inactivity_label("Track inactivity".into());
+        ui.set_away_label("Away after".into());
+        ui.set_pause_fullscreen_label("Pause in fullscreen".into());
+        ui.set_window_nearby_label("A window is nearby".into());
+        ui.set_unit_minutes("min".into());
+        ui.set_unit_seconds("s".into());
+        ui.set_about_name_version("Ocy 0.2.0".into());
+        ui.set_about_tagline("A quieter rhythm.".into());
+        ui.set_start_with_system(true);
+        ui.set_short_enabled(true);
+        ui.set_short_interval(10);
+        (ui, window)
+    };
+
+    // 1. SettingRow Toggle ("Start with system", checked = true -> solid accent pill on the right).
+    {
+        let (ui, window) = build_settings();
+        let changed = Rc::new(Cell::new(0u32));
+        let changed_cb = Rc::clone(&changed);
+        ui.on_changed(move || changed_cb.set(changed_cb.get() + 1));
+
+        let img = layout_and_render(&window, 560.0, || 1600.0);
+        // Find the first accent toggle pill (40x20) on the right side (x > 450, y < 95).
+        let toggle_box = bounding_box(&img, 450, 20, 540, 95, |px| near(px, LIGHT_ACCENT, 8))
+            .expect("Start with system toggle pill");
+        let (cx, cy) = center_of(toggle_box);
+        click_once(&window, cx, cy);
+        assert_eq!(
+            changed.get(),
+            1,
+            "Settings Toggle must fire changed once on first click (box={toggle_box:?}, center=({cx}, {cy}))"
+        );
+        assert!(
+            !ui.get_start_with_system(),
+            "Settings Toggle must flip checked on first click"
+        );
+    }
+
+    // 2. SectionHeader Toggle ("Short breaks", checked = true -> solid accent pill on the right).
+    {
+        let (ui, window) = build_settings();
+        let changed = Rc::new(Cell::new(0u32));
+        let changed_cb = Rc::clone(&changed);
+        ui.on_changed(move || changed_cb.set(changed_cb.get() + 1));
+
+        let img = layout_and_render(&window, 560.0, || 1600.0);
+        // Second accent pill on the right side sits at the Short breaks SectionHeader (y in 95..170).
+        let header_toggle = bounding_box(&img, 450, 95, 540, 170, |px| near(px, LIGHT_ACCENT, 8))
+            .expect("Short breaks SectionHeader toggle");
+        let (cx, cy) = center_of(header_toggle);
+        click_once(&window, cx, cy);
+        assert_eq!(
+            changed.get(),
+            1,
+            "SectionHeader Toggle must fire changed once on first click"
+        );
+        assert!(
+            !ui.get_short_enabled(),
+            "SectionHeader Toggle must flip short_enabled on first click"
+        );
+    }
+
+    // 3. NumberField stepper ("Short break interval", up and down chevrons).
+    {
+        let (ui, window) = build_settings();
+        let changed = Rc::new(Cell::new(0u32));
+        let changed_cb = Rc::clone(&changed);
+        ui.on_changed(move || changed_cb.set(changed_cb.get() + 1));
+
+        let img = layout_and_render(&window, 560.0, || 1600.0);
+        // Control column starts at x = 560 - 16 - 16 - 132 = 396; NumberField box is 92x28 (x=396..488).
+        // Scan right below the Short breaks SectionHeader toggle for the 92 px wide border.
+        let header_toggle = bounding_box(&img, 450, 95, 540, 170, |px| near(px, LIGHT_ACCENT, 8))
+            .expect("Short breaks SectionHeader toggle");
+        let box_rect = bounding_box(
+            &img,
+            395,
+            header_toggle.3 + 4,
+            490,
+            header_toggle.3 + 48,
+            |px| !near(px, LIGHT_SURFACE, 12),
+        )
+        .expect("Short break interval NumberField box");
+        let up_x = box_rect.2 as f32 - 9.0;
+        let up_y = box_rect.1 as f32 + 7.0;
+        click_once(&window, up_x, up_y);
+        assert_eq!(
+            changed.get(),
+            1,
+            "NumberField up stepper must fire changed once on first click"
+        );
+        assert_eq!(ui.get_short_interval(), 11);
+
+        // Also verify down stepper on a fresh window!
+        let (ui2, window2) = build_settings();
+        let changed2 = Rc::new(Cell::new(0u32));
+        let changed2_cb = Rc::clone(&changed2);
+        ui2.on_changed(move || changed2_cb.set(changed2_cb.get() + 1));
+        let _ = layout_and_render(&window2, 560.0, || 1600.0);
+        let down_y = box_rect.3 as f32 - 7.0;
+        click_once(&window2, up_x, down_y);
+        assert_eq!(
+            changed2.get(),
+            1,
+            "NumberField down stepper must fire changed once on first click"
+        );
+        assert_eq!(ui2.get_short_interval(), 9);
+        assert_eq!(ui2.get_short_duration(), 15);
+    }
+
+    // 4. Both "Try..." LinkButtons ("Try a short break" and "Try a long break").
+    {
+        let (ui, window) = build_settings();
+        let try_short = Rc::new(Cell::new(0u32));
+        let try_short_cb = Rc::clone(&try_short);
+        ui.on_try_short_break(move || try_short_cb.set(try_short_cb.get() + 1));
+
+        let img = layout_and_render(&window, 560.0, || 1600.0);
+        // Find accent pixels on the left side (x in 28..200) — the two LinkButtons are the only
+        // accent-coloured text on the left side!
+        let short_link = bounding_box(&img, 28, 250, 220, 480, |px| near(px, LIGHT_ACCENT, 25))
+            .expect("Try a short break LinkButton");
+        let (cx, cy) = center_of(short_link);
+        click_once(&window, cx, cy);
+        assert_eq!(
+            try_short.get(),
+            1,
+            "Try a short break LinkButton must fire on first click"
+        );
+
+        let (ui2, window2) = build_settings();
+        let try_long = Rc::new(Cell::new(0u32));
+        let try_long_cb = Rc::clone(&try_long);
+        ui2.on_try_long_break(move || try_long_cb.set(try_long_cb.get() + 1));
+
+        let img2 = layout_and_render(&window2, 560.0, || 1600.0);
+        let long_link = bounding_box(&img2, 28, 600, 220, 1000, |px| near(px, LIGHT_ACCENT, 25))
+            .expect("Try a long break LinkButton");
+        let (cx2, cy2) = center_of(long_link);
+        click_once(&window2, cx2, cy2);
+        assert_eq!(
+            try_long.get(),
+            1,
+            "Try a long break LinkButton must fire on first click"
+        );
+    }
+
+    // 5. Realistic scrollable 560x640 SettingsWindow (Flickable active): Toggle & Try short still fire on first click.
+    {
+        let (ui, window) = build_settings();
+        let changed = Rc::new(Cell::new(0u32));
+        let changed_cb = Rc::clone(&changed);
+        ui.on_changed(move || changed_cb.set(changed_cb.get() + 1));
+
+        let img = layout_and_render(&window, 560.0, || 640.0);
+        let toggle_box = bounding_box(&img, 450, 20, 540, 95, |px| near(px, LIGHT_ACCENT, 8))
+            .expect("Start with system toggle pill at 560x640");
+        let (cx, cy) = center_of(toggle_box);
+        click_once(&window, cx, cy);
+        assert_eq!(
+            changed.get(),
+            1,
+            "Scrollable 560x640 Settings Toggle must fire on first click"
+        );
+        assert!(!ui.get_start_with_system());
+    }
+}
+
+#[test]
 fn keyboard_tab_focuses_controls_shows_focus_ring_and_space_activates() {
     init_platform();
     // 1. Button in WarningCard: Tab twice -> Postpone -> focus ring appears -> Space fires postpone.
@@ -426,288 +623,4 @@ fn keyboard_tab_focuses_controls_shows_focus_ring_and_space_activates() {
             "Space on focused CloseButton must activate it"
         );
     }
-}
-
-// ---- Settings V2: every new control fires on the first click and works from the keyboard ----
-
-#[path = "support/mod.rs"]
-mod support;
-
-use i_slint_backend_testing::{AccessibleRole, ElementHandle, ElementQuery};
-
-fn v2_window(tab: Option<i32>) -> (SettingsWindowV2, Rc<MinimalSoftwareWindow>) {
-    init_platform();
-    let ui = support::settings_v2("en", false).unwrap();
-    let window = take_window();
-    if let Some(tab) = tab {
-        ui.set_customize_open(true);
-        ui.set_customize_tab(tab);
-    }
-    // The host grows the window to the content (never below 640).
-    let _ = layout_and_render(&window, 560.0, || ui.get_content_height().max(640.0));
-    (ui, window)
-}
-
-fn element(ui: &SettingsWindowV2, label: &str, role: AccessibleRole) -> ElementHandle {
-    ElementQuery::from_root(ui)
-        .match_descendants()
-        .match_accessible_label(label)
-        .match_accessible_role(role)
-        .find_first()
-        .unwrap_or_else(|| panic!("no {role:?} labelled {label:?}"))
-}
-
-/// Clicks at the fraction (`fx`, `fy`) of the element's box; returns the click point.
-fn click_in(window: &MinimalSoftwareWindow, e: &ElementHandle, fx: f32, fy: f32) -> (f32, f32) {
-    let p = e.absolute_position();
-    let s = e.size();
-    let (x, y) = (p.x + s.width * fx, p.y + s.height * fy);
-    click_once(window, x, y);
-    (x, y)
-}
-
-fn counter() -> (Rc<Cell<u32>>, Rc<Cell<u32>>) {
-    let c = Rc::new(Cell::new(0u32));
-    (Rc::clone(&c), c)
-}
-
-#[test]
-fn settings_v2_presets_accordion_tabs_toggles_and_links_fire_on_first_click() {
-    // Preset card.
-    {
-        let (ui, window) = v2_window(None);
-        let picked = Rc::new(Cell::new(-1));
-        let p = Rc::clone(&picked);
-        ui.on_preset_selected(move |i| p.set(i));
-        click_in(
-            &window,
-            &element(&ui, "Gentle", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert_eq!(picked.get(), 0, "Gentle preset must fire on first click");
-        assert_eq!(ui.get_preset(), 0);
-        click_in(
-            &window,
-            &element(&ui, "Focused", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert_eq!(picked.get(), 2, "Focused preset must fire on first click");
-    }
-    // Accordion header.
-    {
-        let (ui, window) = v2_window(None);
-        click_in(
-            &window,
-            &element(&ui, "Customize", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert!(
-            ui.get_customize_open(),
-            "Customize header must open on first click"
-        );
-        // General is open by default: fold it, then open it again; Customize stays open throughout.
-        let _ = layout_and_render(&window, 560.0, || ui.get_content_height().max(640.0));
-        click_in(
-            &window,
-            &element(&ui, "General", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert!(
-            !ui.get_general_open(),
-            "General header must fold on first click"
-        );
-        assert!(
-            ui.get_customize_open(),
-            "folding General keeps Customize open"
-        );
-        let _ = layout_and_render(&window, 560.0, || ui.get_content_height().max(640.0));
-        click_in(
-            &window,
-            &element(&ui, "General", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert!(
-            ui.get_general_open() && ui.get_customize_open(),
-            "both sections stay open"
-        );
-    }
-    // Tab.
-    {
-        let (ui, window) = v2_window(Some(0));
-        click_in(
-            &window,
-            &element(&ui, "Quiet times", AccessibleRole::Tab),
-            0.5,
-            0.5,
-        );
-        assert_eq!(
-            ui.get_customize_tab(),
-            2,
-            "Quiet times tab must select on first click"
-        );
-    }
-    // ToggleRow in General (Start with system) and Toggle + Try links on the Breaks tab.
-    {
-        let (ui, window) = v2_window(None);
-        let (changed, c) = counter();
-        ui.on_changed(move || c.set(c.get() + 1));
-        click_in(
-            &window,
-            &element(&ui, "Start with system", AccessibleRole::Switch),
-            0.5,
-            0.5,
-        );
-        assert_eq!(
-            changed.get(),
-            1,
-            "V2 ToggleRow must fire changed on first click"
-        );
-        assert!(!ui.get_start_with_system());
-
-        let (ui, window) = v2_window(Some(0));
-        let (changed, c) = counter();
-        ui.on_changed(move || c.set(c.get() + 1));
-        click_in(
-            &window,
-            &element(&ui, "Short breaks", AccessibleRole::Switch),
-            0.5,
-            0.5,
-        );
-        assert_eq!(
-            changed.get(),
-            1,
-            "V2 Toggle must fire changed on first click"
-        );
-        assert!(!ui.get_short_enabled());
-
-        let (ui, window) = v2_window(Some(0));
-        let (tries, t) = counter();
-        ui.on_try_short_break(move || t.set(t.get() + 1));
-        click_in(
-            &window,
-            &element(&ui, "Try a short break", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert_eq!(tries.get(), 1, "Try a short break must fire on first click");
-
-        let (ui, window) = v2_window(Some(0));
-        let (tries, t) = counter();
-        ui.on_try_long_break(move || t.set(t.get() + 1));
-        click_in(
-            &window,
-            &element(&ui, "Try a long break", AccessibleRole::Button),
-            0.5,
-            0.5,
-        );
-        assert_eq!(tries.get(), 1, "Try a long break must fire on first click");
-    }
-}
-
-#[test]
-fn settings_v2_slider_sets_value_on_first_press_and_drags() {
-    let (ui, window) = v2_window(Some(0));
-    let (changed, c) = counter();
-    ui.on_changed(move || c.set(c.get() + 1));
-    let slider = element(&ui, "Short break interval", AccessibleRole::Slider);
-    let p = slider.absolute_position();
-    let s = slider.size();
-    // The track is the slider's bottom 16 px; 7 px knob insets at both ends.
-    let y = p.y + s.height - 8.0;
-    let at = |t: f32| p.x + 7.0 + (s.width - 14.0) * t;
-    click_once(&window, at(1.0), y);
-    assert_eq!(changed.get(), 1, "Slider must change on the first click");
-    assert_eq!(ui.get_short_interval(), 60);
-    click_once(&window, at(0.0), y);
-    assert_eq!(ui.get_short_interval(), 2);
-
-    // Drag from the start to the middle.
-    window.dispatch_event(WindowEvent::PointerPressed {
-        position: LogicalPosition::new(at(0.0), y),
-        button: PointerEventButton::Left,
-    });
-    window.dispatch_event(WindowEvent::PointerMoved {
-        position: LogicalPosition::new(at(0.5), y),
-    });
-    window.dispatch_event(WindowEvent::PointerReleased {
-        position: LogicalPosition::new(at(0.5), y),
-        button: PointerEventButton::Left,
-    });
-    assert_eq!(ui.get_short_interval(), 31);
-}
-
-#[test]
-fn settings_v2_dropdown_opens_on_first_click_and_picks() {
-    let (ui, window) = v2_window(None);
-    let picked = Rc::new(Cell::new(-1));
-    let p = Rc::clone(&picked);
-    ui.on_language_selected(move |i| p.set(i));
-    let combo = element(&ui, "Language", AccessibleRole::Combobox);
-    click_in(&window, &combo, 0.5, 0.5);
-    let _ = redraw_only(&window, 560, 640);
-    let deutsch = ElementQuery::from_root(&ui)
-        .match_descendants()
-        .match_accessible_label("Deutsch")
-        .find_first()
-        .expect("the language list must open on the first click");
-    // Popup items report positions relative to the popup, which opens 2 px below the box.
-    let (cp, cs) = (combo.absolute_position(), combo.size());
-    let (dp, ds) = (deutsch.absolute_position(), deutsch.size());
-    click_once(
-        &window,
-        cp.x + dp.x + ds.width / 2.0,
-        cp.y + cs.height + 2.0 + dp.y + ds.height / 2.0,
-    );
-    assert_eq!(picked.get(), 2);
-    assert_eq!(ui.get_language_index(), 2);
-}
-
-#[test]
-fn settings_v2_keyboard_tab_reaches_new_controls_and_keys_act() {
-    let (ui, window) = v2_window(Some(2));
-    let tab: SharedString = Key::Tab.into();
-    let right: SharedString = Key::RightArrow.into();
-    let space: SharedString = " ".into();
-    // Tab order: Gentle, Balanced, Focused, Customize, tab list, inactivity, away slider.
-    for _ in 0..7 {
-        press_key(&window, tab.clone());
-    }
-    press_key(&window, right.clone());
-    assert_eq!(
-        ui.get_away_threshold(),
-        150,
-        "Right arrow steps the focused slider by 30 s"
-    );
-
-    let (ui, window) = v2_window(Some(0));
-    for _ in 0..5 {
-        press_key(&window, tab.clone());
-    }
-    press_key(&window, right);
-    assert_eq!(
-        ui.get_customize_tab(),
-        1,
-        "Right arrow moves the focused tab list"
-    );
-
-    let (ui, window) = v2_window(None);
-    let picked = Rc::new(Cell::new(-1));
-    let p = Rc::clone(&picked);
-    ui.on_preset_selected(move |i| p.set(i));
-    press_key(&window, tab.clone());
-    press_key(&window, space.clone());
-    assert_eq!(picked.get(), 0, "Space picks the focused preset");
-    for _ in 0..3 {
-        press_key(&window, tab.clone());
-    }
-    press_key(&window, space);
-    assert!(
-        ui.get_customize_open(),
-        "Space opens the focused accordion header"
-    );
 }

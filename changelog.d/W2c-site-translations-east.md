@@ -1,1 +1,0 @@
-- Website: added site translations for 8 more languages (mk, bg, ru, uk, el, hu, ro, sq) in `site/src/i18n/`, each covering every key of `en.json` with search-oriented titles and descriptions; machine translations pending native review.

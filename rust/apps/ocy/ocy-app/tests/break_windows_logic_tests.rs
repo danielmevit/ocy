@@ -141,7 +141,7 @@ fn placement_rects_corner_and_centered_across_dpi_and_work_area() {
 
 #[test]
 fn prewarm_decision_triggers_within_3s_and_respects_suppression_and_ttl() {
-    let settings = OcySettings::default(); // short 25m, long 60m, warning 60s
+    let settings = OcySettings::default(); // short 10m, long 60m, warning 60s
 
     // Outside 3s window -> None
     let snap = snapshot_working(Some(Duration::from_secs(4)), Some(Duration::from_secs(300)));
@@ -474,7 +474,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Short),
             demo_in_secs: None,
             demo_settings: false,
-            soak_cycles: None,
         }
     );
     assert_eq!(
@@ -484,7 +483,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Warning),
             demo_in_secs: Some(5),
             demo_settings: false,
-            soak_cycles: None,
         }
     );
     assert_eq!(
@@ -494,7 +492,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Long),
             demo_in_secs: Some(12),
             demo_settings: false,
-            soak_cycles: None,
         }
     );
     assert_eq!(
@@ -504,7 +501,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: true,
-            soak_cycles: None,
         }
     );
     assert_eq!(
@@ -514,7 +510,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: false,
-            soak_cycles: None,
         }
     );
     assert_eq!(
@@ -524,7 +519,6 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: false,
-            soak_cycles: None,
         }
     );
 }

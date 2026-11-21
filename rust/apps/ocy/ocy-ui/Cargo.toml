@@ -19,9 +19,6 @@ damt-ui = { path = "../../../crates/damt-ui" }
 damt-art = { path = "../../../crates/damt-art" }
 png = "=0.18.1"
 i-slint-backend-testing = "=1.19.0"
-slint-interpreter.workspace = true
-damt-ui = { path = "../../../crates/damt-ui" }
-spin_on.workspace = true
 
 [[example]]
 name = "gallery"

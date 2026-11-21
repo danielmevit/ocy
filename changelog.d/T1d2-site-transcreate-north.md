@@ -1,1 +1,0 @@
-- Transcreated website copy for `sv`, `da`, `nb`, `fi`, `et`, `lv`, `lt`, and `tr` into natural native phrasing while preserving all facts, product names, SEO targets, and placeholders.

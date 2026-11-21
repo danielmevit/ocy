@@ -1,1 +1,0 @@
-- R5c1-rust-i18n-core: embedded all `content/strings/*.json` tables via `build.rs` with English fallback, CLDR cardinal plural rules, `"auto"` Windows UI language resolution, live language switching, and sample `de.json` and `mk.json` translations.

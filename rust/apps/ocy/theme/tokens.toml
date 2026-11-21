@@ -37,20 +37,12 @@ light = "#5A6064"           # secondary text (AA on Surface)
 dark = "#A4ABAF"
 
 [color.accent]
-light = "#2F7D62"           # fills: buttons, toggles, progress, selected outlines, focus ring
-dark = "#348267"            # C1 "one green": the jade, a hair lighter so fills reach 3:1 on surface
-
-[color.accent-text]
-light = "#2F7D62"           # small accent text: links ("Try a short break"), Today counts
-dark = "#A3C7B8"            # same-hue low-chroma tint; the dark fill is too dark for 4.5:1 text
-
-[color.accent-text-pressed]
-light = { ref = "system-accent-dark-1" }   # LinkButton pressed
-dark = "#B8D5C9"
+light = "#2F7D62"           # buttons, progress, focus ring
+dark = "#5FBF97"
 
 [color.on-accent]
-light = "#FFFFFF"           # text on accent-filled buttons (AA), white in both themes
-dark = "#FFFFFF"
+light = "#FFFFFF"           # text on accent-filled buttons (AA)
+dark = "#0F1A15"
 
 [color.error]
 light = "#B3261E"           # inline error text (AA)
@@ -66,10 +58,6 @@ dark = "#E08A64"
 ref = "text-muted"          # BorderColor: TextMuted @ 40 % light, @ 30 % dark
 alpha = { light = 0.40, dark = 0.30 }
 
-[color.input-border]
-ref = "text-muted"          # NumberField border at rest: >= 3:1 on Surface (WCAG 1.4.11)
-alpha = { light = 0.70, dark = 0.60 }
-
 [color.overlay]
 light = "#000000C7"         # long-break dim: black @ 78 % light, @ 82 % dark
 dark = "#000000D1"
@@ -79,8 +67,8 @@ ref = "text"                # DividerColor: Text @ 8 % in both themes
 alpha = 0.08
 
 [color.progress-track]
-ref = "text"                # ProgressBarTrackBrush: Text @ 10 % light, @ 4 % dark (C1: the
-alpha = { light = 0.10, dark = 0.04 }  # jade fill needs 3:1 against the dark track)
+ref = "text"                # ProgressBarTrackBrush: Text @ 10 %
+alpha = 0.10
 
 [color.button-outline-hover]
 ref = "text"                # ButtonOutlineHoverBrush: Text @ 7 %
@@ -102,44 +90,40 @@ alpha = 0.55
 
 [color.system-accent]
 light = "#2F7D62"
-dark = "#348267"
+dark = "#5FBF97"
 
 [color.system-accent-light-1]
 light = "#469377"
-dark = "#388569"
+dark = "#78CBA9"
 
 [color.system-accent-light-2]
 light = "#66AB91"
-dark = "#4F957B"
+dark = "#95D7BC"
 
 [color.system-accent-light-3]
 light = "#8EC4AF"
-dark = "#6FA893"
+dark = "#B6E5D1"
 
 [color.system-accent-dark-1]
 light = "#24654F"
-dark = "#2F7D62"
+dark = "#4DA380"
 
 [color.system-accent-dark-2]
 light = "#1A4D3C"
-dark = "#266951"
+dark = "#3B8769"
 
 [color.system-accent-dark-3]
 light = "#11352A"
-dark = "#1F5A45"
+dark = "#2A6B53"
 
 # --- Button state colours (ButtonAccent*Brush in App.axaml) --------------------------------
 
-# V1 contrast audit: the old light hover (light-1, 3.68:1 with white) and dark pressed (dark-2,
-# 4.12:1 with on-accent) failed AA for the label. Light now darkens on hover/press; dark lightens
-# on hover and darkens one step on press (docs/design/CONTRAST-AUDIT.md). C1 "one green": the dark
-# label is white too, so dark now darkens on hover (to the exact jade) and press, like light.
 [color.button-accent-hover]
-light = { ref = "system-accent-dark-1" }
-dark = { ref = "system-accent-dark-1" }    # C1: white label, so dark darkens too (exact jade)
+light = { ref = "system-accent-light-1" }
+dark = { ref = "system-accent-dark-1" }
 
 [color.button-accent-pressed]
-light = { ref = "system-accent-dark-2" }
+light = { ref = "system-accent-dark-1" }
 dark = { ref = "system-accent-dark-2" }
 
 # --- Corner radii (px) ----------------------------------------------------------------------

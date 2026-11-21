@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use ocy_ui::{LongBreakCard, ShortBreakCard, Theme, WarningCard};
+use ocy_ui::{LongBreakCard, SettingsWindow, ShortBreakCard, Theme, WarningCard};
 use slint::platform::software_renderer::{
     MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType,
 };
@@ -366,6 +366,66 @@ fn long_break(dark: bool) -> Result<Rgba, String> {
     Ok(render(&window, 640.0, || 520.0))
 }
 
+fn settings(dark: bool) -> Result<Rgba, String> {
+    let ui = SettingsWindow::new().map_err(|e| e.to_string())?;
+    let window = take_window()?;
+    ui.global::<Theme>().set_dark(dark);
+    ui.set_window_title("Ocy — Settings".into());
+    ui.set_general_title("General".into());
+    ui.set_short_breaks_title("Short breaks".into());
+    ui.set_long_breaks_title("Long breaks".into());
+    ui.set_behaviour_title("Behaviour".into());
+    ui.set_about_title("About".into());
+    ui.set_start_with_system_label("Start with system".into());
+    ui.set_start_with_system_help("Open Ocy automatically when you sign in.".into());
+    ui.set_short_enabled_label("Short breaks".into());
+    ui.set_short_interval_label("Short break interval".into());
+    ui.set_short_interval_help("Choose how often a short break is due.".into());
+    ui.set_short_duration_label("Short break length".into());
+    ui.set_short_duration_help("Choose how long each short break lasts.".into());
+    ui.set_short_fullscreen_label("Full-screen short breaks".into());
+    ui.set_short_fullscreen_help(
+        "Show short breaks over a dimmed screen instead of a small corner window.".into(),
+    );
+    ui.set_try_short_label("Try a short break".into());
+    ui.set_long_enabled_label("Long breaks".into());
+    ui.set_long_interval_label("Long break interval".into());
+    ui.set_long_interval_help("Choose how often a long break is due.".into());
+    ui.set_long_duration_label("Long break length".into());
+    ui.set_long_duration_help("Choose how long each long break lasts.".into());
+    ui.set_long_warning_label("Warning time".into());
+    ui.set_long_warning_help(
+        "Choose how long before a long break to show its warning; set to zero for no warning."
+            .into(),
+    );
+    ui.set_long_postpone_label("Postpone by".into());
+    ui.set_long_postpone_help("Choose how long a postponement lasts.".into());
+    ui.set_long_max_postpones_label("Maximum postpones".into());
+    ui.set_long_max_postpones_help("Set how many times you can postpone a long break.".into());
+    ui.set_try_long_label("Try a long break".into());
+    ui.set_strict_label("Strict mode".into());
+    ui.set_strict_help(
+        "Keep long breaks on schedule; skipping and postponing them is unavailable.".into(),
+    );
+    ui.set_inactivity_label("Track inactivity".into());
+    ui.set_inactivity_help("Pause break timing while you are away from your computer.".into());
+    ui.set_away_label("Away after".into());
+    ui.set_away_help("Count you as away after this much idle time.".into());
+    ui.set_pause_fullscreen_label("Pause in fullscreen".into());
+    ui.set_pause_fullscreen_help(
+        "Defer breaks while a fullscreen app or presentation is active.".into(),
+    );
+    ui.set_window_nearby_label("A window is nearby".into());
+    ui.set_window_nearby_help(
+        "Turn this on if you can look through a window from your workspace.".into(),
+    );
+    ui.set_unit_minutes("min".into());
+    ui.set_unit_seconds("s".into());
+    ui.set_about_name_version("Ocy 0.2.0".into());
+    ui.set_about_tagline("A quieter rhythm for time at your screen.".into());
+    Ok(render(&window, 560.0, || 640.0))
+}
+
 /// Renders every gallery state in light and dark.
 pub fn render_all() -> Result<Vec<Shot>, String> {
     init_platform();
@@ -396,13 +456,11 @@ pub fn render_all() -> Result<Vec<Shot>, String> {
             name: "long-break",
             image: long_break(dark)?,
         });
-        for &state in V2_STATES {
-            shots.push(Shot {
-                theme,
-                name: state.name,
-                image: settings_v2_shot(state, dark)?,
-            });
-        }
+        shots.push(Shot {
+            theme,
+            name: "settings",
+            image: settings(dark)?,
+        });
     }
     Ok(shots)
 }
@@ -416,411 +474,4 @@ pub fn write_all(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
         paths.push(path);
     }
     Ok(paths)
-}
-
-// ---- Settings V2 ----
-
-const EN_JSON: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../content/strings/en.json"
-));
-const DE_JSON: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../content/strings/de.json"
-));
-const JA_JSON: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../content/strings/ja.json"
-));
-const BLINK_LIGHT_F1: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../assets/illustrations/ocy-v1f/svg/blink-light-f1.svg"
-));
-const BLINK_DARK_F1: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../assets/illustrations/ocy-v1f/svg/blink-dark-f1.svg"
-));
-
-/// Parses a flat `{"key": "string", ...}` JSON object (the string tables have no nesting).
-pub fn parse_flat_json(src: &str) -> Result<Vec<(String, String)>, String> {
-    fn string(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Result<String, String> {
-        let mut out = String::new();
-        loop {
-            match chars.next().ok_or("unterminated string")? {
-                '"' => return Ok(out),
-                '\\' => match chars.next().ok_or("bad escape")? {
-                    'n' => out.push('\n'),
-                    't' => out.push('\t'),
-                    'u' => {
-                        let hex: String = (0..4).filter_map(|_| chars.next()).collect();
-                        let code = u32::from_str_radix(&hex, 16).map_err(|e| e.to_string())?;
-                        out.push(char::from_u32(code).ok_or("bad \\u escape")?);
-                    }
-                    c => out.push(c),
-                },
-                c => out.push(c),
-            }
-        }
-    }
-    let mut chars = src.chars().peekable();
-    let mut out = Vec::new();
-    let mut key: Option<String> = None;
-    while let Some(c) = chars.next() {
-        if c == '"' {
-            let s = string(&mut chars)?;
-            match key.take() {
-                None => key = Some(s),
-                Some(k) => out.push((k, s)),
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// A string table with English fallback.
-pub struct Table(std::collections::HashMap<String, String>);
-
-impl Table {
-    pub fn load(lang: &str) -> Result<Self, String> {
-        let mut map = std::collections::HashMap::new();
-        let mut layers = vec![EN_JSON];
-        match lang {
-            "de" => layers.push(DE_JSON),
-            "ja" => layers.push(JA_JSON),
-            _ => {}
-        }
-        for layer in layers {
-            map.extend(parse_flat_json(layer)?);
-        }
-        Ok(Self(map))
-    }
-    pub fn get(&self, key: &str) -> String {
-        self.0.get(key).cloned().unwrap_or_else(|| key.to_owned())
-    }
-    pub fn fmt(&self, key: &str, args: &[(&str, String)]) -> String {
-        let mut s = self.get(key);
-        for (name, value) in args {
-            s = s.replace(&format!("{{{name}}}"), value);
-        }
-        s
-    }
-    fn plural(&self, key: &str, count: i32) -> String {
-        let form = if count == 1 { "one" } else { "other" };
-        let k = format!("{key}.{form}");
-        let k = if self.0.contains_key(&k) {
-            k
-        } else {
-            format!("{key}.other")
-        };
-        self.fmt(&k, &[("count", count.to_string())])
-    }
-}
-
-/// Builds a fully labelled `SettingsWindowV2` in `lang` ("en", "de", "ja") with sample data.
-pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, String> {
-    use ocy_ui::{TimelineMark, TimelineMarkKind};
-    let t = Rc::new(Table::load(lang)?);
-    let ui = ocy_ui::SettingsWindowV2::new().map_err(|e| e.to_string())?;
-    ui.global::<Theme>().set_dark(dark);
-    if lang == "ja" {
-        ui.set_font_family("Yu Gothic UI".into());
-    }
-    let s = |k: &str| -> slint::SharedString { t.get(k).into() };
-    ui.set_window_title(
-        t.fmt(
-            "settings.windowTitle",
-            &[("app", "Ocy".into()), ("name", "Ocy".into())],
-        )
-        .into(),
-    );
-    ui.set_mascot(art(
-        if dark { BLINK_DARK_F1 } else { BLINK_LIGHT_F1 },
-        48.0,
-    )?);
-    ui.set_next_break_text(
-        t.fmt(
-            "settings.v2.header.nextShort",
-            &[(
-                "time",
-                t.fmt("settings.v2.value.minutes", &[("minutes", "7".into())]),
-            )],
-        )
-        .into(),
-    );
-    ui.set_today_title(s("settings.v2.today.title"));
-    ui.set_today_taken_label(s("settings.v2.today.taken"));
-    ui.set_today_skipped_label(s("settings.v2.today.skipped"));
-    ui.set_today_taken(9);
-    ui.set_today_skipped(1);
-    ui.set_timeline_title(s("settings.v2.timeline.title"));
-    ui.set_timeline_short_label(s("settings.v2.timeline.shortBreaks"));
-    ui.set_timeline_long_label(s("settings.v2.timeline.longBreaks"));
-    ui.set_now_label(s("settings.v2.timeline.now"));
-    // Balanced: short every 20 min (next in 7), long every 60 min (next in 25), over 120 min.
-    let mut marks = Vec::new();
-    // A long break replaces the short one that falls on it.
-    for at in [7, 47, 67, 107] {
-        marks.push(TimelineMark {
-            kind: TimelineMarkKind::ShortBreak,
-            position: at as f32 / 120.0,
-        });
-    }
-    for at in [25, 85] {
-        marks.push(TimelineMark {
-            kind: TimelineMarkKind::LongBreak,
-            position: at as f32 / 120.0,
-        });
-    }
-    ui.set_timeline(slint::ModelRc::new(slint::VecModel::from(marks)));
-    let labels: Vec<slint::SharedString> = ["15:00", "15:30", "16:00", "16:30"]
-        .iter()
-        .map(|&l| l.into())
-        .collect();
-    ui.set_timeline_labels(slint::ModelRc::new(slint::VecModel::from(labels)));
-    ui.set_preset_gentle_label(s("settings.v2.preset.gentle"));
-    ui.set_preset_balanced_label(s("settings.v2.preset.balanced"));
-    ui.set_preset_focused_label(s("settings.v2.preset.focused"));
-    ui.set_preset_custom_label(s("settings.v2.preset.custom"));
-    let summary = |sd: i32, si: i32, ld: i32, li: i32| -> slint::SharedString {
-        format!(
-            "{}\n{}",
-            t.fmt(
-                "settings.v2.preset.shortSummary",
-                &[("seconds", sd.to_string()), ("minutes", si.to_string())]
-            ),
-            t.fmt(
-                "settings.v2.preset.longSummary",
-                &[("duration", ld.to_string()), ("minutes", li.to_string())]
-            ),
-        )
-        .into()
-    };
-    ui.set_preset_gentle_summary(summary(15, 30, 5, 60));
-    ui.set_preset_balanced_summary(summary(20, 20, 5, 60));
-    ui.set_preset_focused_summary(summary(20, 45, 10, 90));
-    ui.set_customize_title(s("settings.v2.section.customize"));
-    ui.set_general_title(s("settings.section.general"));
-    ui.set_tab_breaks_label(s("settings.v2.tab.breaks"));
-    ui.set_tab_strictness_label(s("settings.v2.tab.strictness"));
-    ui.set_tab_quiet_label(s("settings.v2.tab.quietTimes"));
-    ui.set_start_with_system_label(s("settings.startWithSystem.label"));
-    ui.set_start_with_system_help(s("settings.startWithSystem.help"));
-    ui.set_short_enabled_label(s("settings.shortBreaks.enabled.label"));
-    ui.set_short_interval_label(s("settings.shortBreaks.intervalMinutes.label"));
-    ui.set_short_duration_label(s("settings.shortBreaks.durationSeconds.label"));
-    ui.set_short_fullscreen_label(s("settings.shortBreaks.fullscreen.label"));
-    ui.set_short_fullscreen_help(s("settings.shortBreaks.fullscreen.help"));
-    ui.set_try_short_label(s("settings.tryShortBreak"));
-    ui.set_long_enabled_label(s("settings.longBreaks.enabled.label"));
-    ui.set_long_interval_label(s("settings.longBreaks.intervalMinutes.label"));
-    ui.set_long_duration_label(s("settings.longBreaks.durationMinutes.label"));
-    ui.set_long_warning_label(s("settings.longBreaks.warningSeconds.label"));
-    ui.set_long_postpone_label(s("settings.longBreaks.postponeMinutes.label"));
-    ui.set_long_max_postpones_label(s("settings.longBreaks.maxPostpones.label"));
-    ui.set_try_long_label(s("settings.tryLongBreak"));
-    ui.set_strict_label(s("settings.strictMode.label"));
-    ui.set_strict_help(s("settings.strictMode.help"));
-    ui.set_inactivity_label(s("settings.inactivityTracking.label"));
-    ui.set_inactivity_help(s("settings.inactivityTracking.help"));
-    ui.set_away_label(s("settings.awayThresholdSeconds.label"));
-    ui.set_pause_fullscreen_label(s("settings.pauseDuringFullscreen.label"));
-    ui.set_pause_fullscreen_help(s("settings.pauseDuringFullscreen.help"));
-    ui.set_window_nearby_label(s("settings.hasWindowNearby.label"));
-    ui.set_window_nearby_help(s("settings.hasWindowNearby.help"));
-    ui.set_language_label(s("settings.language.label"));
-    ui.set_sounds_label(s("settings.sounds.label"));
-    ui.set_sounds_help(s("settings.sounds.help"));
-    ui.set_notifications_label(s("settings.statusNotifications.label"));
-    ui.set_notifications_help(s("settings.statusNotifications.help"));
-    ui.set_about_name_version(
-        t.fmt(
-            "about.version",
-            &[("name", "Ocy".into()), ("version", "0.2.1".into())],
-        )
-        .into(),
-    );
-    ui.set_about_tagline(s("app.tagline"));
-    let languages: Vec<slint::SharedString> = [
-        t.get("settings.v2.language.automatic"),
-        "English".into(),
-        "Deutsch".into(),
-        "日本語".into(),
-        "Македонски".into(),
-    ]
-    .into_iter()
-    .map(Into::into)
-    .collect();
-    ui.set_language_model(slint::ModelRc::new(slint::VecModel::from(languages)));
-    ui.set_language_index(0);
-    ui.set_start_with_system(true);
-    ui.set_preset(1);
-    ui.set_short_interval(20);
-    ui.set_short_duration(20);
-    ui.set_long_interval(60);
-    ui.set_long_duration(5);
-
-    let tt = Rc::clone(&t);
-    ui.on_format_every_minutes(move |v| {
-        tt.fmt(
-            "settings.v2.value.everyMinutes",
-            &[("minutes", v.to_string())],
-        )
-        .into()
-    });
-    let tt = Rc::clone(&t);
-    ui.on_format_minutes(move |v| {
-        tt.fmt("settings.v2.value.minutes", &[("minutes", v.to_string())])
-            .into()
-    });
-    let tt = Rc::clone(&t);
-    ui.on_format_seconds(move |v| {
-        tt.fmt("settings.v2.value.seconds", &[("seconds", v.to_string())])
-            .into()
-    });
-    let tt = Rc::clone(&t);
-    ui.on_format_times(move |v| tt.plural("settings.v2.value.times", v).into());
-    let tt = Rc::clone(&t);
-    ui.on_format_duration(move |v| {
-        if v % 60 == 0 {
-            tt.fmt(
-                "settings.v2.value.minutes",
-                &[("minutes", (v / 60).to_string())],
-            )
-            .into()
-        } else {
-            tt.fmt("settings.v2.value.seconds", &[("seconds", v.to_string())])
-                .into()
-        }
-    });
-    Ok(ui)
-}
-
-/// One V2 gallery state.
-#[derive(Debug, Clone, Copy)]
-pub struct V2State {
-    pub name: &'static str,
-    pub lang: &'static str,
-    pub customize_tab: Option<i32>,
-    /// General stays open alongside Customize (both sections open).
-    pub general_open: bool,
-    pub width: f32,
-    pub height: f32,
-}
-
-pub const V2_STATES: &[V2State] = &[
-    V2State {
-        name: "settings-v2",
-        lang: "en",
-        customize_tab: None,
-        general_open: true,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-breaks",
-        lang: "en",
-        customize_tab: Some(0),
-        general_open: false,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-strictness",
-        lang: "en",
-        customize_tab: Some(1),
-        general_open: false,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-quiet",
-        lang: "en",
-        customize_tab: Some(2),
-        general_open: false,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-de",
-        lang: "de",
-        customize_tab: None,
-        general_open: true,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-de-breaks",
-        lang: "de",
-        customize_tab: Some(0),
-        general_open: false,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-ja",
-        lang: "ja",
-        customize_tab: None,
-        general_open: true,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-ja-breaks",
-        lang: "ja",
-        customize_tab: Some(0),
-        general_open: false,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-compact",
-        lang: "en",
-        customize_tab: None,
-        general_open: true,
-        width: 480.0,
-        height: 400.0,
-    },
-    V2State {
-        name: "settings-v2-compact-breaks",
-        lang: "en",
-        customize_tab: Some(0),
-        general_open: false,
-        width: 480.0,
-        height: 400.0,
-    },
-    V2State {
-        name: "settings-v2-both-open",
-        lang: "en",
-        customize_tab: Some(0),
-        general_open: true,
-        width: 560.0,
-        height: 640.0,
-    },
-    V2State {
-        name: "settings-v2-de-both-open",
-        lang: "de",
-        customize_tab: Some(0),
-        general_open: true,
-        width: 560.0,
-        height: 640.0,
-    },
-];
-
-fn settings_v2_shot(state: V2State, dark: bool) -> Result<Rgba, String> {
-    let ui = settings_v2(state.lang, dark)?;
-    let window = take_window()?;
-    if let Some(tab) = state.customize_tab {
-        ui.set_customize_open(true);
-        ui.set_customize_tab(tab);
-    }
-    ui.set_general_open(state.general_open);
-    // At the default size the host grows the window to the content (see `settings_window_height`).
-    let grow = state.height >= 640.0;
-    Ok(render(&window, state.width, || {
-        if grow {
-            state.height.max(ui.get_content_height().ceil())
-        } else {
-            state.height
-        }
-    }))
 }

@@ -23,13 +23,13 @@ use crate::art::{
     frame_and_next_delay, scaled_art_px,
 };
 use crate::break_logic::{
-    AppThemeTracker, PrewarmKind, PrewarmPlanner, long_break_can_end,
-    long_break_countdown_text_localized, long_break_progress, short_break_progress,
-    warning_buttons, warning_heading, warning_postpone_label,
+    AppThemeTracker, PrewarmKind, PrewarmPlanner, long_break_can_end, long_break_countdown_text,
+    long_break_progress, short_break_progress, warning_buttons, warning_heading,
+    warning_postpone_label,
 };
 use crate::coordinator::BreakWindows;
 use crate::layout::{DipSize, OverlayLayout, PixelPoint, ScreenInfo, select_active_screen};
-use crate::strings::{Strings, font_family_for};
+use crate::strings::Strings;
 use crate::win32_window::{
     WindowRole, WindowRoleGuard, install_break_window_subclass_and_style, should_allow_close,
 };
@@ -97,7 +97,6 @@ impl WarningState {
 
 struct LongBreakState {
     card: LongBreakCard,
-    variant: usize,
     suggestion_ids: (Option<String>, Option<String>),
     suggestion_frames: (Rc<Cell<u32>>, Rc<Cell<u32>>),
     scale: f64,
@@ -131,22 +130,6 @@ struct PrewarmEntry {
     created_at: Instant,
 }
 
-enum TrackedBreakWindow {
-    Short(Weak<ShortBreakCard>),
-    Warning(Weak<WarningCard>),
-    Long(Weak<LongBreakCard>),
-}
-
-impl TrackedBreakWindow {
-    fn is_alive(&self) -> bool {
-        match self {
-            Self::Short(w) => w.upgrade().is_some(),
-            Self::Warning(w) => w.upgrade().is_some(),
-            Self::Long(w) => w.upgrade().is_some(),
-        }
-    }
-}
-
 /// Real Slint break windows (`ShortBreakCard`, `WarningCard`, `LongBreakCard`) with Win32
 /// non-activating topmost styles, stepped `damt-art` animation, and 3 s pre-warming.
 pub struct SlintBreakWindows {
@@ -166,7 +149,6 @@ pub struct SlintBreakWindows {
     rng: SeededRng,
     active: Option<ActiveBreakWindow>,
     prewarm: Option<PrewarmEntry>,
-    tracked_windows: RefCell<Vec<TrackedBreakWindow>>,
     last_latency: Rc<RefCell<Option<BreakLatencySample>>>,
     log_latency: bool,
     print_latency_on_first_paint: bool,
@@ -226,7 +208,6 @@ impl SlintBreakWindows {
             rng: SeededRng::from_system_time(),
             active: None,
             prewarm: None,
-            tracked_windows: RefCell::new(Vec::new()),
             last_latency: Rc::new(RefCell::new(None)),
             log_latency: latency.log_to_file,
             print_latency_on_first_paint: latency.print_on_first_paint,
@@ -248,63 +229,6 @@ impl SlintBreakWindows {
     /// Pre-creates a hidden `ShortBreakCard` immediately (used by `--report-memory` latency probe).
     pub fn prewarm_short_break_now(&mut self) {
         self.create_prewarm(PrewarmKind::ShortBreak);
-    }
-
-    /// Returns the localized skip/close label currently held on the hidden pre-warmed
-    /// `ShortBreakCard`, if one is pre-warmed (for live-language-switch tests).
-    #[must_use]
-    pub fn prewarm_short_close_label(&self) -> Option<String> {
-        match self.prewarm.as_ref().map(|e| &e.card) {
-            Some(PrewarmedCard::ShortBreak(c)) => Some(c.get_close_label().to_string()),
-            _ => None,
-        }
-    }
-
-    /// Returns the number of live Slint break/warning card instances still referenced anywhere.
-    #[must_use]
-    pub fn live_break_windows(&self) -> usize {
-        let mut tracked = self.tracked_windows.borrow_mut();
-        tracked.retain(TrackedBreakWindow::is_alive);
-        tracked.len()
-    }
-
-    /// Returns the number of cached exercise raster entries currently held by [`OcyArt`].
-    #[must_use]
-    pub fn art_cache_entries(&self) -> usize {
-        self.art.cache_entry_count()
-    }
-
-    /// Returns a strong handle to the active [`ShortBreakCard`], if one is open.
-    #[must_use]
-    pub fn active_short_card(&self) -> Option<ShortBreakCard> {
-        match &self.active {
-            Some(ActiveBreakWindow::ShortBreak(s)) => Some(s.card.clone_strong()),
-            _ => None,
-        }
-    }
-
-    /// Returns a strong handle to the active [`WarningCard`], if one is open.
-    #[must_use]
-    pub fn active_warning_card(&self) -> Option<WarningCard> {
-        match &self.active {
-            Some(ActiveBreakWindow::Warning(w)) => Some(w.card.clone_strong()),
-            _ => None,
-        }
-    }
-
-    /// Returns a strong handle to the active [`LongBreakCard`], if one is open.
-    #[must_use]
-    pub fn active_long_card(&self) -> Option<LongBreakCard> {
-        match &self.active {
-            Some(ActiveBreakWindow::LongBreak(l)) => Some(l.card.clone_strong()),
-            _ => None,
-        }
-    }
-
-    fn track_window(&self, entry: TrackedBreakWindow) {
-        let mut tracked = self.tracked_windows.borrow_mut();
-        tracked.retain(TrackedBreakWindow::is_alive);
-        tracked.push(entry);
     }
 
     fn next_generation(&self) -> u64 {
@@ -371,12 +295,10 @@ impl SlintBreakWindows {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = ShortBreakCard::new()?;
         ocy_ui::set_dark(&card, dark);
-        card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_close_label(self.strings.get("shortbreak.skip").into());
         card.set_dim_backdrop(false);
         card.set_progress(1.0);
         self.configure_short_card_handlers(&card);
-        self.track_window(TrackedBreakWindow::Short(card.as_weak()));
         Ok(card)
     }
 
@@ -384,7 +306,6 @@ impl SlintBreakWindows {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = WarningCard::new()?;
         ocy_ui::set_dark(&card, dark);
-        card.set_font_family(font_family_for(self.strings.language()).into());
         let buttons = warning_buttons(self.strict_mode, self.postpones_left);
         card.set_heading(
             warning_heading(&self.strings, self.settings.long_breaks.warning_duration()).into(),
@@ -399,7 +320,6 @@ impl SlintBreakWindows {
         card.set_strict(buttons.show_strict_line);
         card.set_can_postpone(buttons.show_postpone);
         self.configure_warning_card_handlers(&card);
-        self.track_window(TrackedBreakWindow::Warning(card.as_weak()));
         Ok(card)
     }
 
@@ -407,23 +327,15 @@ impl SlintBreakWindows {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = LongBreakCard::new()?;
         ocy_ui::set_dark(&card, dark);
-        card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_dim_backdrop(false);
         card.set_countdown_label(self.strings.get("longbreak.countdownLabel").into());
-        card.set_countdown(
-            long_break_countdown_text_localized(
-                &self.strings,
-                self.settings.long_breaks.duration(),
-            )
-            .into(),
-        );
+        card.set_countdown(long_break_countdown_text(self.settings.long_breaks.duration()).into());
         card.set_progress(0.0);
         card.set_end_label(self.strings.get("longbreak.skip").into());
         card.set_can_end(long_break_can_end(self.strict_mode));
         card.set_show_suggestions(true);
         card.set_show_suggestion2(true);
         self.configure_long_card_handlers(&card);
-        self.track_window(TrackedBreakWindow::Long(card.as_weak()));
         Ok(card)
     }
 
@@ -530,84 +442,6 @@ impl SlintBreakWindows {
                     let _ = l.card.hide();
                 }
             }
-        }
-    }
-
-    fn reapply_texts_to_active(&self, snapshot: &EngineSnapshot) {
-        let font = font_family_for(self.strings.language());
-        match &self.active {
-            Some(ActiveBreakWindow::ShortBreak(state)) => {
-                state.card.set_font_family(font.into());
-                let title_key = format!("exercise.{}.title", state.exercise_id);
-                let body_key = format!("exercise.{}.body", state.exercise_id);
-                state.card.set_heading(self.strings.get(&title_key).into());
-                state.card.set_body(self.strings.get(&body_key).into());
-                state
-                    .card
-                    .set_close_label(self.strings.get("shortbreak.skip").into());
-            }
-            Some(ActiveBreakWindow::Warning(state)) => {
-                state.card.set_font_family(font.into());
-                let remaining = state.remaining(&*self.clock, snapshot.time_until_long_break);
-                state
-                    .card
-                    .set_heading(warning_heading(&self.strings, remaining).into());
-                state
-                    .card
-                    .set_start_now_label(self.strings.get("warning.startNow").into());
-                state.card.set_postpone_label(
-                    warning_postpone_label(
-                        &self.strings,
-                        self.settings.long_breaks.postpone_minutes,
-                    )
-                    .into(),
-                );
-                state
-                    .card
-                    .set_skip_label(self.strings.get("warning.skip").into());
-                state
-                    .card
-                    .set_strict_label(self.strings.get("warning.strictOn").into());
-            }
-            Some(ActiveBreakWindow::LongBreak(state)) => {
-                state.card.set_font_family(font.into());
-                let title_key = format!("longbreak.title.{}", state.variant);
-                let body_key = format!("longbreak.body.{}", state.variant);
-                state
-                    .card
-                    .set_countdown_label(self.strings.get("longbreak.countdownLabel").into());
-                if let Some(current) = &snapshot.current_break {
-                    state.card.set_countdown(
-                        long_break_countdown_text_localized(
-                            &self.strings,
-                            current.remaining_duration,
-                        )
-                        .into(),
-                    );
-                }
-                state.card.set_heading(self.strings.get(&title_key).into());
-                state.card.set_body(self.strings.get(&body_key).into());
-                state
-                    .card
-                    .set_end_label(self.strings.get("longbreak.skip").into());
-                if let Some(ref ex1) = state.suggestion_ids.0 {
-                    state.card.set_suggestion1_title(
-                        self.strings.get(&format!("exercise.{ex1}.title")).into(),
-                    );
-                    state.card.set_suggestion1_body(
-                        self.strings.get(&format!("exercise.{ex1}.body")).into(),
-                    );
-                }
-                if let Some(ref ex2) = state.suggestion_ids.1 {
-                    state.card.set_suggestion2_title(
-                        self.strings.get(&format!("exercise.{ex2}.title")).into(),
-                    );
-                    state.card.set_suggestion2_body(
-                        self.strings.get(&format!("exercise.{ex2}.body")).into(),
-                    );
-                }
-            }
-            None => {}
         }
     }
 
@@ -1051,23 +885,9 @@ fn show_card_window<C: ComponentHandle + 'static>(
 
 impl BreakWindows for SlintBreakWindows {
     fn sync_state(&mut self, snapshot: &EngineSnapshot, settings: &OcySettings) {
-        let language_changed = settings.language != self.settings.language;
         self.strict_mode = snapshot.strict_mode;
         self.postpones_left = snapshot.postpones_left;
         self.settings = settings.clone();
-        if language_changed {
-            self.strings = Arc::new(Strings::from_language(&settings.language));
-            if let Some(rtl) = self.strings.rtl_fallback_from() {
-                self.error_log.log(
-                    Some("i18n"),
-                    &format!("RTL language {rtl:?} is not supported yet; falling back to English"),
-                );
-            }
-            self.reapply_texts_to_active(snapshot);
-            if let Some(entry) = self.prewarm.take() {
-                self.create_prewarm(entry.card.kind());
-            }
-        }
     }
 
     fn on_tick(&mut self, snapshot: &EngineSnapshot) {
@@ -1140,7 +960,6 @@ impl BreakWindows for SlintBreakWindows {
             self.dark_theme.set(self.theme_tracker.is_dark());
         }
         ocy_ui::set_dark(&card, self.dark_theme.get());
-        card.set_font_family(font_family_for(self.strings.language()).into());
 
         let title_key = format!("exercise.{}.title", info.exercise_id);
         let body_key = format!("exercise.{}.body", info.exercise_id);
@@ -1203,7 +1022,6 @@ impl BreakWindows for SlintBreakWindows {
             self.dark_theme.set(self.theme_tracker.is_dark());
         }
         ocy_ui::set_dark(&card, self.dark_theme.get());
-        card.set_font_family(font_family_for(self.strings.language()).into());
 
         let buttons = warning_buttons(self.strict_mode, self.postpones_left);
         card.set_heading(warning_heading(&self.strings, countdown).into());
@@ -1256,7 +1074,6 @@ impl BreakWindows for SlintBreakWindows {
         }
         let dark = self.dark_theme.get();
         ocy_ui::set_dark(&card, dark);
-        card.set_font_family(font_family_for(self.strings.language()).into());
 
         let variant = self.rng.next_usize(5) + 1;
         let title_key = format!("longbreak.title.{variant}");
@@ -1264,9 +1081,7 @@ impl BreakWindows for SlintBreakWindows {
 
         card.set_dim_backdrop(false);
         card.set_countdown_label(self.strings.get("longbreak.countdownLabel").into());
-        card.set_countdown(
-            long_break_countdown_text_localized(&self.strings, info.total_duration).into(),
-        );
+        card.set_countdown(long_break_countdown_text(info.total_duration).into());
         card.set_heading(self.strings.get(&title_key).into());
         card.set_body(self.strings.get(&body_key).into());
         card.set_progress(long_break_progress(
@@ -1318,7 +1133,6 @@ impl BreakWindows for SlintBreakWindows {
 
         self.active = Some(ActiveBreakWindow::LongBreak(LongBreakState {
             card,
-            variant,
             suggestion_ids: (id1, id2),
             suggestion_frames,
             scale,
@@ -1357,11 +1171,7 @@ impl BreakWindows for SlintBreakWindows {
             Some(ActiveBreakWindow::LongBreak(state)) => {
                 if let Some(current) = &snapshot.current_break {
                     state.card.set_countdown(
-                        long_break_countdown_text_localized(
-                            &self.strings,
-                            current.remaining_duration,
-                        )
-                        .into(),
+                        long_break_countdown_text(current.remaining_duration).into(),
                     );
                     state.card.set_progress(long_break_progress(
                         current.remaining_duration,

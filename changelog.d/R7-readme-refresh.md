@@ -1,1 +1,0 @@
-- README refreshed: no more "alpha" wording, an SEO-friendly hero (eye break reminder, screen break, eye strain, Windows), new Privacy, 20-20-20 FAQ, Languages and Roadmap sections, data location and uninstall steps, and the break-card timing corrected to the changelog figure. `src/Ocy.Core/README.md` now notes it is the 0.1.x reference implementation.

@@ -1,13 +1,6 @@
 //! Drift guard for the migration: every `*Color` (and the literal state brushes) in the C# app's
 //! `App.axaml` theme dictionaries must equal Ocy's `tokens.toml`. Avalonia writes `#AARRGGBB`;
 //! the tokens use `#RRGGBBAA`, so the values are converted before comparing.
-//!
-//! Deliberate exception (C1 "one green"): the Rust app's DARK accent family moved to the jade with
-//! a white label and a separate `accent-text` role. The C# 0.1.x app is the frozen reference and
-//! has no `accent-text` role, so mirroring the new dark fill there would leave its links at 3.4:1
-//! (below AA). Those dark keys are listed in [`DARK_DIVERGED`]: the C# side must still hold the
-//! pre-C1 value it always had (so any other edit there is still caught), and the Rust side is
-//! asserted by `tests/contrast.rs`. Light and every other key are compared exactly as before.
 
 use std::collections::BTreeMap;
 
@@ -45,32 +38,6 @@ fn token_for_key(key: &str) -> Option<&'static str> {
         "SystemAccentColorDark3" => "system-accent-dark-3",
         _ => return None,
     })
-}
-
-/// Dark-theme tokens that diverge from the C# 0.1.x reference on purpose since C1, with the C#
-/// value (`#AARRGGBB`) the reference app still ships.
-const DARK_DIVERGED: &[(&str, &str)] = &[
-    ("accent", "#FF5FBF97"),
-    ("on-accent", "#FF0F1A15"),
-    ("system-accent", "#FF5FBF97"),
-    ("system-accent-light-1", "#FF78CBA9"),
-    ("system-accent-light-2", "#FF95D7BC"),
-    ("system-accent-light-3", "#FFB6E5D1"),
-    ("system-accent-dark-1", "#FF4DA380"),
-    ("system-accent-dark-2", "#FF3B8769"),
-    ("system-accent-dark-3", "#FF2A6B53"),
-    ("progress-track", "#1AECEEEC"),
-];
-
-/// The C# reference value when `name` diverges on purpose in `theme`.
-fn diverged(theme: &str, name: &str) -> Option<Rgba> {
-    if theme != "Dark" {
-        return None;
-    }
-    DARK_DIVERGED
-        .iter()
-        .find(|(n, _)| *n == name)
-        .map(|(_, v)| Rgba::from_argb_hex(v).unwrap())
 }
 
 /// C# brush key → tokens.toml colour name for the brushes with a literal `Color` value.
@@ -143,11 +110,11 @@ fn every_theme_dictionary_color_matches_tokens_toml() {
                 .unwrap_or_else(|e| panic!("bad colour for {key} in {theme}: {e}"));
             let name = token_for_key(key)
                 .unwrap_or_else(|| panic!("unmapped `*Color` key `{key}` in App.axaml; add it to the drift test and tokens.toml"));
-            let expected = diverged(theme, name).unwrap_or_else(|| match theme {
+            let expected = match theme {
                 "Light" => tokens.color(name).unwrap().light,
                 "Dark" => tokens.color(name).unwrap().dark,
                 _ => panic!("unknown theme `{theme}`"),
-            });
+            };
             assert_eq!(
                 argb, expected,
                 "{key} ({theme}) in App.axaml does not match tokens.toml `{name}`"
@@ -181,9 +148,9 @@ fn literal_state_brushes_match_derived_tokens() {
             let value = node.attribute("Color").unwrap_or_default();
             let argb = Rgba::from_argb_hex(value)
                 .unwrap_or_else(|e| panic!("bad colour for brush {key} in {theme}: {e}"));
-            let expected = diverged(theme, name).unwrap_or(pair_for(&tokens, theme, name).light);
+            let expected = pair_for(&tokens, theme, name);
             assert_eq!(
-                argb, expected,
+                argb, expected.light,
                 "{key} ({theme}) in App.axaml does not match tokens.toml `{name}`"
             );
         }

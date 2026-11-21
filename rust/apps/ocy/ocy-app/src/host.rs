@@ -1,18 +1,16 @@
 //! Application host wiring engine ticks, session events, autosave, coordinator, and tray.
 
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use damt_app::ErrorLog;
-use damt_platform::{Notifier, SessionEvent, Unsupported};
-use ocy_core::engine::{BreakEngine, EngineEvent, EngineSnapshot};
+use damt_platform::SessionEvent;
+use ocy_core::engine::BreakEngine;
 use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
 
 use crate::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
-use crate::notifications::{NotificationPresenter, StatusNotification};
 use crate::tray::{PauseSource, TrayController, TraySink};
 
 /// Autosave interval: save after this much monotonic time since the last save.
@@ -43,12 +41,8 @@ pub struct AppHost<W: BreakWindows, S: SettingsWindow, T: TraySink> {
     engine: BreakEngine,
     coordinator: BreakUiCoordinator<W, S>,
     tray: TrayController<T>,
-    notifier: Rc<dyn Notifier>,
-    notification_presenter: NotificationPresenter,
-    notification_error_logged: bool,
     settings_store: Option<AppDataStore>,
     error_log: ErrorLog,
-    last_language_setting: String,
     time_source: Arc<dyn MonotonicTimeSource>,
     last_save: Instant,
     shut_down: bool,
@@ -92,26 +86,15 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         error_log: ErrorLog,
         settings_store: Option<AppDataStore>,
     ) -> Self {
-        let last_language_setting = engine.settings().language.clone();
-        let notification_presenter =
-            NotificationPresenter::with_ship_gate(Arc::clone(tray.presenter().strings()));
-        coordinator.sync_state_with_stats(
-            &engine.snapshot(),
-            engine.settings(),
-            engine.statistics(),
-        );
+        coordinator.sync_state(&engine.snapshot(), engine.settings());
         let time_source: Arc<dyn MonotonicTimeSource> = Arc::new(SystemMonotonicTime);
         let last_save = time_source.now();
         Self {
             engine,
             coordinator,
             tray,
-            notifier: Rc::new(Unsupported),
-            notification_presenter,
-            notification_error_logged: false,
             settings_store,
             error_log,
-            last_language_setting,
             time_source,
             last_save,
             shut_down: false,
@@ -126,66 +109,6 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         self
     }
 
-    /// Installs the [`Notifier`] backend used for status notifications.
-    #[must_use]
-    pub fn with_notifier(mut self, notifier: Rc<dyn Notifier>) -> Self {
-        self.notifier = notifier;
-        self
-    }
-
-    /// Overrides the notification ship gate (for tests; production keeps [`crate::STATUS_NOTIFICATIONS_SHIPPED`]).
-    #[must_use]
-    pub fn with_notification_ship_gate(mut self, shipped: bool) -> Self {
-        self.notification_presenter.set_shipped(shipped);
-        self
-    }
-
-    /// Fires the one-shot startup status notification if eligible.
-    pub fn on_startup_notification_timer(&mut self) {
-        if self.shut_down {
-            return;
-        }
-
-        let snapshot = self.engine.snapshot();
-        if let Some(notification) = self
-            .notification_presenter
-            .on_startup_ready(self.engine.settings(), &snapshot)
-        {
-            self.dispatch_notification(&notification);
-        }
-    }
-
-    fn handle_notification_events(&mut self, events: &[EngineEvent], snapshot: &EngineSnapshot) {
-        if let Some(notification) =
-            self.notification_presenter
-                .on_engine_events(self.engine.settings(), snapshot, events)
-        {
-            self.dispatch_notification(&notification);
-        }
-    }
-
-    fn dispatch_notification(&mut self, notification: &StatusNotification) {
-        if !self.notifier.is_supported() {
-            return;
-        }
-        if let Err(err) = self
-            .notifier
-            .notify(&notification.title, &notification.body)
-            && !self.notification_error_logged
-        {
-            self.notification_error_logged = true;
-            self.error_log.log_error("status_notification", &err);
-        }
-    }
-
-    fn sync_coordinator_for_snapshot(&mut self, snapshot: &EngineSnapshot) {
-        self.coordinator.sync_state_with_stats(
-            snapshot,
-            self.engine.settings(),
-            self.engine.statistics(),
-        );
-    }
-
     /// Runs an engine tick (at the adaptive scheduler's cadence), updates break UI and
     /// tray, and autosaves periodically.
     pub fn on_tick(&mut self) {
@@ -195,13 +118,13 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let events = self.engine.tick();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
 
         let snapshot = self.engine.snapshot();
         self.coordinator.on_tick(&snapshot);
         self.tray.update(&snapshot);
-        self.handle_notification_events(&events, &snapshot);
 
         // Autosave on elapsed monotonic time (not tick count): the adaptive scheduler's
         // tick cadence varies (about 10 s working, 5 s away), so ticks are not seconds.
@@ -223,12 +146,12 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let events = self.engine.on_session_event(event);
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
 
         let snapshot = self.engine.snapshot();
         self.tray.update(&snapshot);
-        self.handle_notification_events(&events, &snapshot);
     }
 
     /// Triggers an immediate long break from the tray menu or warning card.
@@ -239,7 +162,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let (_started, events) = self.engine.start_long_break_now();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
     }
@@ -252,7 +176,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let (started, events) = self.engine.start_short_break_now();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
         started
@@ -266,7 +191,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let (postponed, events) = self.engine.postpone_long_break();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
         postponed
@@ -280,7 +206,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let (skipped, events) = self.engine.skip_current_break();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
         skipped
@@ -312,7 +239,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
     fn apply_pause(&mut self, duration: Option<Duration>) {
         let events = self.engine.pause_for(duration);
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
     }
@@ -326,7 +254,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         self.tray.clear_pause_source();
         let events = self.engine.resume();
         let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&snapshot, self.engine.settings());
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
     }
@@ -342,8 +271,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
             return;
         }
 
-        let snapshot = self.engine.snapshot();
-        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator
+            .sync_state(&self.engine.snapshot(), self.engine.settings());
         self.coordinator.show_settings();
     }
 
@@ -357,14 +286,7 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         let events = self.engine.update_settings(updated);
         let snapshot = self.engine.snapshot();
         let live_settings = self.engine.settings().clone();
-        if live_settings.language != self.last_language_setting {
-            self.last_language_setting = live_settings.language.clone();
-            self.tray.set_language(&live_settings.language);
-            self.notification_presenter
-                .set_strings(Arc::clone(self.tray.presenter().strings()));
-        }
-        self.coordinator
-            .sync_state_with_stats(&snapshot, &live_settings, self.engine.statistics());
+        self.coordinator.sync_state(&snapshot, &live_settings);
         self.coordinator.handle_events(&events);
         self.tray.update(&self.engine.snapshot());
 

@@ -114,13 +114,6 @@ pub trait AppThemeProvider {
     fn is_light_app_theme(&self) -> Option<bool>;
 }
 
-/// Displays brief OS status notifications.
-pub trait Notifier {
-    fn is_supported(&self) -> bool;
-    /// Shows a status notification with `title` and `body`. No-op (`Ok(())`) when unsupported.
-    fn notify(&self, title: &str, body: &str) -> Result<(), PlatformError>;
-}
-
 /// The set of platform services an app composes at startup. Defaults are "unsupported".
 pub trait PlatformServices {
     fn idle(&self) -> &dyn IdleProvider {
@@ -142,9 +135,6 @@ pub trait PlatformServices {
         &Unsupported
     }
     fn app_theme(&self) -> &dyn AppThemeProvider {
-        &Unsupported
-    }
-    fn notifier(&self) -> &dyn Notifier {
         &Unsupported
     }
 }
@@ -210,14 +200,6 @@ impl AppThemeProvider for Unsupported {
     }
     fn is_light_app_theme(&self) -> Option<bool> {
         None
-    }
-}
-impl Notifier for Unsupported {
-    fn is_supported(&self) -> bool {
-        false
-    }
-    fn notify(&self, _title: &str, _body: &str) -> Result<(), PlatformError> {
-        Ok(())
     }
 }
 impl PlatformServices for Unsupported {}
