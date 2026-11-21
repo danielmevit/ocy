@@ -521,7 +521,6 @@ html { scroll-padding-top: 76px; }
   .nav-links { gap: 8px; }
 }
 
-.hero-lang-note { font-size: 0.88rem; color: var(--muted); margin-top: calc(4px - clamp(18px, 2vw, 28px)); }
 
 /* ---------- CJK line breaking: never split a word mid-way ---------- */
 :lang(ko) body, :lang(ko) h1, :lang(ko) h2, :lang(ko) h3, :lang(ko) p { word-break: keep-all; }

@@ -180,7 +180,7 @@ fn defect_d_directory_at_settings_path_returns_defaults_without_renaming() {
     fs::create_dir_all(store.settings_path()).expect("create directory at settings.json");
 
     let settings = store.load_settings();
-    assert_eq!(settings.short_breaks.interval_minutes, 10);
+    assert_eq!(settings.short_breaks.interval_minutes, 25);
     assert_eq!(settings.long_breaks.interval_minutes, 60);
     assert!(store.settings_path().is_dir());
 
@@ -223,6 +223,26 @@ fn defect_d_directory_at_state_and_stats_path_returns_defaults_without_renaming(
     assert_eq!(bak_count, 0);
 }
 
+/// Default settings fields that deliberately diverge from the frozen C# 0.1.x reference fixture
+/// (`tests/fixtures/csharp/defaults/settings.json`), with `(key_label, csharp_line, rust_line)` and
+/// reasons:
+/// - `schemaVersion`: bumped from `1` to `2` in P1b-migration-once so the legacy Balanced
+///   migration runs once per file.
+/// - `shortBreaks.intervalMinutes`: retuned in P1-preset-retune from 10 min (C# 0.1.x) to 25 min
+///   (new Balanced default); loading the C# fixture migrates it automatically.
+const DIVERGED_DEFAULT_SETTINGS: &[(&str, &str, &str)] = &[
+    (
+        "schemaVersion",
+        "\"schemaVersion\": 1,",
+        "\"schemaVersion\": 2,",
+    ),
+    (
+        "shortBreaks.intervalMinutes",
+        "\"intervalMinutes\": 10,",
+        "\"intervalMinutes\": 25,",
+    ),
+];
+
 #[test]
 fn csharp_fixture_defaults_round_trip_byte_identical() {
     let dir = TempDir::new("fixture-defaults");
@@ -240,9 +260,18 @@ fn csharp_fixture_defaults_round_trip_byte_identical() {
     let settings = store.load_settings();
     assert_eq!(settings, OcySettings::default());
     store.save_settings(&settings).expect("save");
+    let mut expected_settings =
+        fs::read_to_string(fixture_path("defaults/settings.json")).expect("read fixture");
+    for (key, csharp_line, rust_line) in DIVERGED_DEFAULT_SETTINGS {
+        assert!(
+            expected_settings.contains(csharp_line),
+            "frozen C# fixture no longer holds expected value for {key}"
+        );
+        expected_settings = expected_settings.replacen(csharp_line, rust_line, 1);
+    }
     assert_eq!(
         fs::read(store.settings_path()).expect("read saved"),
-        fs::read(fixture_path("defaults/settings.json")).expect("read fixture")
+        expected_settings.as_bytes()
     );
 
     let state = store.load_state();
@@ -277,6 +306,8 @@ fn csharp_fixture_custom_round_trip_byte_identical() {
     let store = AppDataStore::with_newline(dir.path(), clock, NewlineStyle::Lf);
 
     let settings = store.load_settings();
+    // Loading any schemaVersion < 2 file upgrades schema_version to 2 in memory.
+    assert_eq!(settings.schema_version, 2);
     assert!(!settings.short_breaks.enabled);
     assert_eq!(settings.short_breaks.interval_minutes, 7);
     assert_eq!(settings.short_breaks.duration_seconds, 25);
@@ -298,9 +329,12 @@ fn csharp_fixture_custom_round_trip_byte_identical() {
     assert_eq!(settings.language, "mk");
 
     store.save_settings(&settings).expect("save");
+    let expected_custom = fs::read_to_string(fixture_path("custom/settings.json"))
+        .expect("read fixture")
+        .replacen("\"schemaVersion\": 1,", "\"schemaVersion\": 2,", 1);
     assert_eq!(
         fs::read(store.settings_path()).expect("read saved"),
-        fs::read(fixture_path("custom/settings.json")).expect("read fixture")
+        expected_custom.as_bytes()
     );
 
     let state = store.load_state();

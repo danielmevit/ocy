@@ -1,0 +1,545 @@
+// Settings window V2 ("A+C"): a header card (Ocy, current mode, next break, today, the next two hours),
+// three preset cards, then Customize (Breaks / Strictness / Quiet times tabs) and General as an
+// two independent sections (both may be open). The host grows the window to `content-height` (up to the
+// work area) so UI Automation sees every control without scrolling. Below 640 the timeline folds away
+// first, then the today card; a scroll view is the last resort at the 480 x 400 minimum.
+// Every string is an input property and every number shown in a phrase comes from a host formatter.
+import { Theme } from "@app-theme/theme.slint";
+import { Toggle, LinkButton, Slider, TabList, PresetCard, AccordionHeader, Dropdown, Timeline, TimelineMark, TimelineMarkKind, Swatch, Caption, CompactRow } from "@damt-ui/kit.slint";
+
+export { TimelineMark, TimelineMarkKind }
+
+// Flat card on the deep window background.
+component Group inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.radius-card;
+}
+
+// Compact toggle row: the label names the switch.
+component ToggleRow inherits CompactRow {
+    in-out property <bool> checked;
+    callback toggled(bool);
+    Toggle {
+        checked <=> root.checked;
+        enabled: root.enabled;
+        accessible-name: root.label;
+        toggled(v) => { root.toggled(v); }
+    }
+}
+
+export component SettingsWindowV2 inherits Window {
+    in property <string> font-family: "Segoe UI";
+    // Visibility flags. Sounds and status notifications have no behaviour yet, so they stay hidden.
+    in property <bool> show-start-with-system: true;
+    in property <bool> show-sounds: false;
+    in property <bool> show-notifications: false;
+
+    // Window, header and card texts.
+    in property <string> window-title;
+    in property <string> save-error;
+    in property <image> mascot;
+    in property <string> next-break-text;
+    in property <string> today-title;
+    in property <string> today-taken-label;
+    in property <string> today-skipped-label;
+    in property <string> timeline-title;
+    in property <string> timeline-short-label;
+    in property <string> timeline-long-label;
+    in property <string> now-label;
+    in property <string> preset-gentle-label;
+    in property <string> preset-balanced-label;
+    in property <string> preset-focused-label;
+    in property <string> preset-custom-label;
+    in property <string> preset-gentle-summary;
+    in property <string> preset-balanced-summary;
+    in property <string> preset-focused-summary;
+    in property <string> customize-title;
+    in property <string> general-title;
+    in property <string> tab-breaks-label;
+    in property <string> tab-strictness-label;
+    in property <string> tab-quiet-label;
+    // Row labels and help lines (same names as SettingsWindow).
+    in property <string> start-with-system-label;
+    in property <string> start-with-system-help;
+    in property <string> start-with-system-error;
+    in property <string> short-enabled-label;
+    in property <string> short-interval-label;
+    in property <string> short-duration-label;
+    in property <string> short-fullscreen-label;
+    in property <string> short-fullscreen-help;
+    in property <string> try-short-label;
+    in property <string> long-enabled-label;
+    in property <string> long-interval-label;
+    in property <string> long-duration-label;
+    in property <string> long-warning-label;
+    in property <string> long-postpone-label;
+    in property <string> long-max-postpones-label;
+    in property <string> try-long-label;
+    in property <string> strict-label;
+    in property <string> strict-help;
+    in property <string> inactivity-label;
+    in property <string> inactivity-help;
+    in property <string> away-label;
+    in property <string> pause-fullscreen-label;
+    in property <string> pause-fullscreen-help;
+    in property <string> window-nearby-label;
+    in property <string> window-nearby-help;
+    in property <string> language-label;
+    in property <string> sounds-label;
+    in property <string> sounds-help;
+    in property <string> notifications-label;
+    in property <string> notifications-help;
+    in property <string> about-name-version;
+    in property <string> about-tagline;
+    // Language picker: display names, entry 0 is "Automatic (Windows language)".
+    in property <[string]> language-model;
+    in-out property <int> language-index;
+
+    // Timeline and today card data (the host fills them).
+    in property <[TimelineMark]> timeline;
+    in property <[string]> timeline-labels;
+    in property <int> today-taken;
+    in property <int> today-skipped;
+
+    // Values (same ranges and units as SettingsWindow).
+    in-out property <int> preset: 1; // 0 Gentle, 1 Balanced, 2 Focused, 3 Custom
+    in-out property <bool> start-with-system;
+    in-out property <bool> short-enabled: true;
+    in-out property <int> short-interval: 25; // minutes, 2..60
+    in-out property <int> short-duration: 15; // seconds, 5..120
+    in-out property <bool> short-fullscreen;
+    in-out property <bool> long-enabled: true;
+    in-out property <int> long-interval: 60; // minutes, 15..240
+    in-out property <int> long-duration: 5; // minutes, 1..30
+    in-out property <int> long-warning: 60; // seconds, 0..300
+    in-out property <int> long-postpone: 3; // minutes, 1..30
+    in-out property <int> long-max-postpones: 3; // 0..10
+    in-out property <bool> strict-mode;
+    in-out property <bool> inactivity-tracking: true;
+    in-out property <int> away-threshold: 120; // seconds, 30..1800
+    in-out property <bool> pause-fullscreen: true;
+    in-out property <bool> window-nearby: true;
+    in-out property <bool> sounds;
+    in-out property <bool> status-notifications;
+    // View state: which sections are open (independent) and which Customize tab shows.
+    in-out property <bool> customize-open: false;
+    in-out property <bool> general-open: true;
+    in-out property <int> customize-tab: 0; // 0 Breaks, 1 Strictness, 2 Quiet times
+
+    // Whole-phrase formatters the host implements with its string tables (they update while dragging).
+    pure callback format-every-minutes(int) -> string; // "every 20 min"
+    pure callback format-minutes(int) -> string; // "5 min"
+    pure callback format-seconds(int) -> string; // "20 s"
+    pure callback format-times(int) -> string; // "3 times"
+    pure callback format-duration(int) -> string; // seconds as a friendly length: "2 min"
+
+    // Called after any value changes; the host reads the properties and saves.
+    callback changed();
+    // A preset card was picked; the host applies its values (and sets `preset`).
+    callback preset-selected(int);
+    callback language-selected(int);
+    callback try-short-break();
+    callback try-long-break();
+    // Esc pressed: the host closes the window as if its close button was used.
+    callback escape-pressed();
+
+    // Compact-height rule: fold the timeline first, then the today card.
+    out property <bool> timeline-shown: root.height >= 560px;
+    out property <bool> today-shown: root.height >= 480px;
+    // Height the content needs at the current width; the host grows the window to fit it.
+    out property <length> content-height: body.preferred-height;
+    callback content-height-changed(length);
+    changed content-height => { root.content-height-changed(self.content-height); }
+
+    title: root.window-title;
+    preferred-width: 560px;
+    preferred-height: 640px;
+    min-width: 480px;
+    min-height: 400px;
+    background: Theme.bg;
+    default-font-family: root.font-family;
+
+    property <string> mode-label: root.preset == 0 ? root.preset-gentle-label
+        : root.preset == 1 ? root.preset-balanced-label
+        : root.preset == 2 ? root.preset-focused-label
+        : root.preset-custom-label;
+
+    function pick-preset(i: int) {
+        root.preset = i;
+        root.preset-selected(i);
+    }
+
+    keys := FocusScope {
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.escape-pressed(); return accept; }
+            reject
+        }
+
+        Flickable {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            content-height: body.preferred-height;
+            content-width: self.width;
+            body := VerticalLayout {
+                width: parent.width;
+                alignment: start;
+                padding: 14px;
+                spacing: 8px;
+
+                if root.save-error != "" : Text {
+                    text: root.save-error;
+                    font-size: Theme.font-size-help;
+                    color: Theme.error;
+                    wrap: word-wrap;
+                }
+
+                // Header card: Ocy, current mode, next break, today and the next two hours.
+                Group {
+                    VerticalLayout {
+                        padding: 12px;
+                        padding-bottom: 12px;
+                        spacing: 6px;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Image {
+                                source: root.mascot;
+                                width: 48px;
+                                height: 48px;
+                                image-fit: contain;
+                                accessible-role: none;
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: root.mode-label;
+                                    font-size: Theme.font-size-title;
+                                    font-weight: 600;
+                                    color: Theme.text;
+                                    wrap: word-wrap;
+                                }
+                                Text {
+                                    text: root.next-break-text;
+                                    font-size: Theme.font-size-label;
+                                    color: Theme.text-muted;
+                                    wrap: word-wrap;
+                                }
+                            }
+                            if root.today-shown : VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    background: Theme.bg;
+                                    border-radius: Theme.radius-card;
+                                    min-width: today.preferred-width;
+                                    min-height: today.preferred-height;
+                                    horizontal-stretch: 0;
+                                    accessible-role: groupbox;
+                                    accessible-label: root.today-title;
+                                    today := VerticalLayout {
+                                        padding: 8px;
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 0px;
+                                        Caption { text: root.today-title; }
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            alignment: start;
+                                            HorizontalLayout {
+                                                spacing: 4px;
+                                                Text { text: root.today-taken; font-size: Theme.font-size-title; font-weight: 600; color: Theme.accent-text; vertical-alignment: bottom; }
+                                                Text { text: root.today-taken-label; font-size: Theme.font-size-help; color: Theme.text-muted; vertical-alignment: bottom; }
+                                            }
+                                            HorizontalLayout {
+                                                spacing: 4px;
+                                                Text { text: root.today-skipped; font-size: Theme.font-size-title; font-weight: 600; color: Theme.text; vertical-alignment: bottom; }
+                                                Text { text: root.today-skipped-label; font-size: Theme.font-size-help; color: Theme.text-muted; vertical-alignment: bottom; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if root.timeline-shown : HorizontalLayout {
+                            spacing: 6px;
+                            Caption { text: root.timeline-title; horizontal-stretch: 1; }
+                            VerticalLayout { alignment: center; Swatch { } }
+                            Text { text: root.timeline-short-label; font-size: Theme.font-size-help; color: Theme.text-muted; vertical-alignment: center; }
+                            Rectangle { width: 6px; }
+                            VerticalLayout { alignment: center; Swatch { block: true; } }
+                            Text { text: root.timeline-long-label; font-size: Theme.font-size-help; color: Theme.text-muted; vertical-alignment: center; }
+                        }
+                        if root.timeline-shown : Timeline {
+                            marks: root.timeline;
+                            labels: root.timeline-labels;
+                            now-label: root.now-label;
+                        }
+                    }
+                }
+
+                // Presets: three cards; "Custom" (3) selects none and shows in the header.
+                HorizontalLayout {
+                    spacing: 8px;
+                    PresetCard {
+                        title: root.preset-gentle-label;
+                        summary: root.preset-gentle-summary;
+                        selected: root.preset == 0;
+                        picked => { root.pick-preset(0); }
+                    }
+                    PresetCard {
+                        title: root.preset-balanced-label;
+                        summary: root.preset-balanced-summary;
+                        selected: root.preset == 1;
+                        picked => { root.pick-preset(1); }
+                    }
+                    PresetCard {
+                        title: root.preset-focused-label;
+                        summary: root.preset-focused-summary;
+                        selected: root.preset == 2;
+                        picked => { root.pick-preset(2); }
+                    }
+                }
+
+                // Customize (opens and closes on its own).
+                Group {
+                    VerticalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 2px;
+                        padding-bottom: root.customize-open ? 12px : 2px;
+                        spacing: 8px;
+                        AccordionHeader {
+                            text: root.customize-title;
+                            open: root.customize-open;
+                            toggled => { root.customize-open = !root.customize-open; }
+                        }
+                        if root.customize-open : VerticalLayout {
+                            spacing: 10px;
+                            TabList {
+                                items: [root.tab-breaks-label, root.tab-strictness-label, root.tab-quiet-label];
+                                selected <=> root.customize-tab;
+                                accessible-name: root.customize-title;
+                            }
+                            if root.customize-tab == 0 : VerticalLayout {
+                                spacing: 8px;
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    VerticalLayout {
+                                        alignment: end;
+                                        Toggle {
+                                            checked <=> root.short-enabled;
+                                            accessible-name: root.short-enabled-label;
+                                            toggled => { root.changed(); }
+                                        }
+                                    }
+                                    Slider {
+                                        label: root.short-interval-label;
+                                        value-text: root.format-every-minutes(root.short-interval);
+                                        value <=> root.short-interval;
+                                        minimum: 2;
+                                        maximum: 60;
+                                        enabled: root.short-enabled;
+                                        edited => { root.changed(); }
+                                    }
+                                    Slider {
+                                        width: 38%;
+                                        label: root.short-duration-label;
+                                        value-text: root.format-seconds(root.short-duration);
+                                        value <=> root.short-duration;
+                                        minimum: 5;
+                                        maximum: 120;
+                                        enabled: root.short-enabled;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    VerticalLayout {
+                                        alignment: end;
+                                        Toggle {
+                                            checked <=> root.long-enabled;
+                                            accessible-name: root.long-enabled-label;
+                                            toggled => { root.changed(); }
+                                        }
+                                    }
+                                    Slider {
+                                        label: root.long-interval-label;
+                                        value-text: root.format-every-minutes(root.long-interval);
+                                        value <=> root.long-interval;
+                                        minimum: 15;
+                                        maximum: 240;
+                                        step: 5;
+                                        enabled: root.long-enabled;
+                                        edited => { root.changed(); }
+                                    }
+                                    Slider {
+                                        width: 38%;
+                                        label: root.long-duration-label;
+                                        value-text: root.format-minutes(root.long-duration);
+                                        value <=> root.long-duration;
+                                        minimum: 1;
+                                        maximum: 30;
+                                        enabled: root.long-enabled;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                                ToggleRow {
+                                    label: root.short-fullscreen-label;
+                                    help: root.short-fullscreen-help;
+                                    checked <=> root.short-fullscreen;
+                                    enabled: root.short-enabled;
+                                    toggled => { root.changed(); }
+                                }
+                                HorizontalLayout {
+                                    spacing: 16px;
+                                    alignment: start;
+                                    LinkButton {
+                                        text: root.try-short-label;
+                                        padding-y: 2px;
+                                        enabled: root.short-enabled;
+                                        clicked => { root.try-short-break(); }
+                                    }
+                                    LinkButton {
+                                        text: root.try-long-label;
+                                        padding-y: 2px;
+                                        enabled: root.long-enabled;
+                                        clicked => { root.try-long-break(); }
+                                    }
+                                }
+                            }
+                            if root.customize-tab == 1 : VerticalLayout {
+                                spacing: 8px;
+                                ToggleRow {
+                                    label: root.strict-label;
+                                    help: root.strict-help;
+                                    checked <=> root.strict-mode;
+                                    enabled: root.long-enabled;
+                                    toggled => { root.changed(); }
+                                }
+                                Slider {
+                                    label: root.long-warning-label;
+                                    value-text: root.format-seconds(root.long-warning);
+                                    value <=> root.long-warning;
+                                    minimum: 0;
+                                    maximum: 300;
+                                    step: 5;
+                                    enabled: root.long-enabled;
+                                    edited => { root.changed(); }
+                                }
+                                HorizontalLayout {
+                                    spacing: 18px;
+                                    Slider {
+                                        label: root.long-postpone-label;
+                                        value-text: root.format-minutes(root.long-postpone);
+                                        value <=> root.long-postpone;
+                                        minimum: 1;
+                                        maximum: 30;
+                                        enabled: root.long-enabled && !root.strict-mode;
+                                        edited => { root.changed(); }
+                                    }
+                                    Slider {
+                                        label: root.long-max-postpones-label;
+                                        value-text: root.format-times(root.long-max-postpones);
+                                        value <=> root.long-max-postpones;
+                                        minimum: 0;
+                                        maximum: 10;
+                                        enabled: root.long-enabled && !root.strict-mode;
+                                        edited => { root.changed(); }
+                                    }
+                                }
+                            }
+                            if root.customize-tab == 2 : VerticalLayout {
+                                spacing: 8px;
+                                ToggleRow {
+                                    label: root.inactivity-label;
+                                    help: root.inactivity-help;
+                                    checked <=> root.inactivity-tracking;
+                                    toggled => { root.changed(); }
+                                }
+                                Slider {
+                                    label: root.away-label;
+                                    value-text: root.format-duration(root.away-threshold);
+                                    value <=> root.away-threshold;
+                                    minimum: 30;
+                                    maximum: 1800;
+                                    step: 30;
+                                    enabled: root.inactivity-tracking;
+                                    edited => { root.changed(); }
+                                }
+                                ToggleRow {
+                                    label: root.pause-fullscreen-label;
+                                    help: root.pause-fullscreen-help;
+                                    checked <=> root.pause-fullscreen;
+                                    toggled => { root.changed(); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // General (opens and closes on its own).
+                Group {
+                    VerticalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 2px;
+                        padding-bottom: root.general-open ? 8px : 2px;
+                        AccordionHeader {
+                            text: root.general-title;
+                            open: root.general-open;
+                            toggled => { root.general-open = !root.general-open; }
+                        }
+                        if root.general-open : VerticalLayout {
+                            CompactRow {
+                                label: root.language-label;
+                                Dropdown {
+                                    model: root.language-model;
+                                    current-index <=> root.language-index;
+                                    window-height: root.height;
+                                    accessible-name: root.language-label;
+                                    selected(i) => { root.language-selected(i); }
+                                }
+                            }
+                            if root.show-start-with-system : ToggleRow {
+                                label: root.start-with-system-label;
+                                help: root.start-with-system-error != "" ? root.start-with-system-error : root.start-with-system-help;
+                                checked <=> root.start-with-system;
+                                toggled => { root.changed(); }
+                            }
+                            if root.show-sounds : ToggleRow {
+                                label: root.sounds-label;
+                                help: root.sounds-help;
+                                checked <=> root.sounds;
+                                toggled => { root.changed(); }
+                            }
+                            if root.show-notifications : ToggleRow {
+                                label: root.notifications-label;
+                                help: root.notifications-help;
+                                checked <=> root.status-notifications;
+                                toggled => { root.changed(); }
+                            }
+                            ToggleRow {
+                                label: root.window-nearby-label;
+                                help: root.window-nearby-help;
+                                checked <=> root.window-nearby;
+                                toggled => { root.changed(); }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    padding-left: 2px;
+                    Text { text: root.about-name-version; font-size: Theme.font-size-help; font-weight: 600; color: Theme.text-muted; }
+                    Text { text: root.about-tagline; font-size: Theme.font-size-help; color: Theme.text-muted; wrap: word-wrap; horizontal-stretch: 1; }
+                }
+            }
+        }
+    }
+}

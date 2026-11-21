@@ -304,6 +304,17 @@ impl TrayPresenter {
         }
     }
 
+    /// Replaces the active [`Strings`] table (used for live language switching).
+    pub fn set_strings(&mut self, strings: Arc<Strings>) {
+        self.strings = strings;
+    }
+
+    /// Borrows the active [`Strings`] table.
+    #[must_use]
+    pub const fn strings(&self) -> &Arc<Strings> {
+        &self.strings
+    }
+
     /// Records which tray pause option initiated the current pause.
     pub fn record_pause(&self, source: PauseSource) {
         self.active_pause_source.set(Some(source));
@@ -448,7 +459,7 @@ impl TrayPresenter {
 
     fn format_pause_remainder(&self, remaining: SignedDuration) -> String {
         if remaining < SignedDuration::from_mins(1) {
-            format!("under 1 {}", self.strings.get("time.minutes"))
+            self.strings.get("time.underOneMinute").to_owned()
         } else {
             self.strings.format_time_signed(remaining)
         }
@@ -638,6 +649,26 @@ impl<S: TraySink> TrayController<S> {
     /// Clears the remembered pause option.
     pub fn clear_pause_source(&mut self) {
         self.presenter.clear_pause_source();
+    }
+
+    /// Replaces the presenter's [`Strings`] table and invalidates cached tooltip/menu snapshots
+    /// so the next [`Self::update`] pushes all localized texts to the [`TraySink`].
+    pub fn set_strings(&mut self, strings: Arc<Strings>) {
+        self.presenter.set_strings(strings);
+        self.last_tooltip = None;
+        self.last_menu = None;
+    }
+
+    /// Switches the tray presenter to the embedded table for `language_setting` (`"auto"`,
+    /// `"en"`, `"de"`, ...) and invalidates cached tooltip/menu snapshots.
+    pub fn set_language(&mut self, language_setting: &str) {
+        self.set_strings(Arc::new(Strings::from_language(language_setting)));
+    }
+
+    /// Returns the resolved BCP-47 language tag currently active in the presenter.
+    #[must_use]
+    pub fn current_language(&self) -> &str {
+        self.presenter.strings().language()
     }
 
     /// Returns a shared reference to the underlying [`TrayPresenter`].

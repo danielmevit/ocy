@@ -173,6 +173,24 @@ pub fn install_break_window_subclass_and_style(window: &slint::Window) -> bool {
     }
 }
 
+/// Announces `text` to screen readers (Narrator) for a break card that just appeared, without
+/// focusing it: raises a UI Automation notification event on the card's window. The cards are
+/// never-activate tool windows, so Narrator does not move to them on its own; the full card stays
+/// readable through AccessKit (Narrator scan mode / UIA tree) once a client queries it. Returns
+/// `true` when the event was raised (or no UIA client is listening); `false` before the `HWND`
+/// exists, so the caller can retry on the next window event.
+pub fn announce_to_screen_reader(window: &slint::Window, text: &str) -> bool {
+    #[cfg(windows)]
+    {
+        windows_impl::announce_to_screen_reader(window, text)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, text);
+        true
+    }
+}
+
 const BRAND_SPROUT_LIGHT_16: &[u8] =
     include_bytes!("../../../../../assets/icons/brand/png/ocy-sprout-light-16.png");
 const BRAND_SPROUT_LIGHT_20: &[u8] =
@@ -449,6 +467,38 @@ mod windows_impl {
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
         }
+    }
+
+    pub(super) fn announce_to_screen_reader(window: &slint::Window, text: &str) -> bool {
+        use windows::Win32::UI::Accessibility::{
+            NotificationKind_Other, NotificationProcessing_ImportantMostRecent,
+            UiaClientsAreListening, UiaHostProviderFromHwnd, UiaRaiseNotificationEvent,
+        };
+        use windows::core::BSTR;
+
+        let Some(hwnd) = extract_win32_hwnd(window) else {
+            return false;
+        };
+        if text.is_empty() {
+            return true;
+        }
+        // SAFETY: `hwnd` is the live card window on this (its owning) thread; the provider is a
+        // COM object owned by `provider` for the duration of the call, and the BSTRs outlive it.
+        unsafe {
+            if !UiaClientsAreListening().as_bool() {
+                return true;
+            }
+            if let Ok(provider) = UiaHostProviderFromHwnd(hwnd) {
+                let _ = UiaRaiseNotificationEvent(
+                    &provider,
+                    NotificationKind_Other,
+                    NotificationProcessing_ImportantMostRecent,
+                    &BSTR::from(text),
+                    &BSTR::from("ocy-break-card"),
+                );
+            }
+        }
+        true
     }
 
     fn extract_win32_hwnd(window: &slint::Window) -> Option<HWND> {

@@ -29,10 +29,11 @@ asking for review.
 | `Surface` | #FFFFFF | #212426 | cards |
 | `Text` | #1B1E1F | #ECEEEC | primary text |
 | `TextMuted` | #5A6064 | #A4ABAF | secondary text (AA on Surface) |
-| `Accent` | #2F7D62 | #5FBF97 | buttons, progress, focus ring |
+| `Accent` | #2F7D62 | #348267 | fills: buttons (white label), toggles, progress, selected outlines, focus ring |
+| `AccentText` | #2F7D62 | #A3C7B8 | small accent text: links, Today counts (C1 "one green") |
 | `Overlay` | #000000 @ 78% | #000000 @ 82% | long-break dim |
 | `Divider` | `Text` @ 8% | `Text` @ 8% | row dividers (never the Fluent `Separator`) |
-| `OnAccent` | #FFFFFF | #0F1A15 | text on accent-filled buttons (AA) |
+| `OnAccent` | #FFFFFF | #FFFFFF | text on accent-filled buttons (AA) |
 | `Error` | #B3261E | #FF8A80 | inline error text (AA) |
 
 Spacing scale: 2 / 4 / 6 / 8 / 10 / 16 px. Corner radius: 8 px for cards, 6 px for buttons.

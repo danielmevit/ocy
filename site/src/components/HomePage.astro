@@ -4,7 +4,7 @@ import ExerciseMascot from './ExerciseMascot.astro';
 import ArtFrame from './ArtFrame.astro';
 import { readAppVersion, readExercises } from '../lib/ocyData';
 import { readPngSize } from '../lib/pngSize';
-import { DEFAULT_LANG, pageAbsoluteUrl, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
+import { pageAbsoluteUrl, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
 import trayActiveL from '../../../assets/icons/tray/light/tray-active.svg?url';
 import trayPausedL from '../../../assets/icons/tray/light/tray-paused.svg?url';
 import trayBreakL from '../../../assets/icons/tray/light/tray-onbreak.svg?url';
@@ -219,7 +219,6 @@ const faqLd = {
       <p class="hero-meta">
         {t(lang, 'home.hero.meta', { version })}
       </p>
-      {lang !== DEFAULT_LANG && <p class="hero-lang-note">{t(lang, 'home.hero.appLanguageNote')}</p>}
     </div>
 
     <div class="hero-stage">

@@ -29,7 +29,7 @@
 ---
 
 Long screen sessions dry and tire your eyes. **Ocy is a free, open-source eye break reminder for Windows 10 and 11**
-that helps with eye strain the gentle way. Every ten minutes a small card shows one illustrated eye exercise for
+that helps with eye strain the gentle way. About every 25 minutes a small card shows one illustrated eye exercise for
 fifteen seconds. Every hour it asks for a real five-minute screen break. Between breaks it stays out of the way, in
 the tray. It is one 12 MB file that uses about 3.7 MB of memory while it waits.
 
@@ -53,6 +53,9 @@ the tray. It is one 12 MB file that uses about 3.7 MB of memory while it waits.
   If Windows animations are turned off, they hold still.
 - **Gentle first, firm when you want it.** A warning a minute before each long break lets you start it, postpone it a
   few times or skip it. Turn on **strict mode** and long breaks keep to the schedule.
+- **Three presets, one glance.** Settings opens on Gentle, Balanced or Focused, with a timeline of the next two
+  hours and today's taken and skipped breaks. Every value stays adjustable.
+- **In your language.** The app and the website are available in 40 languages.
 - **At home in Windows.** Light and dark themes follow your Windows setting, and the sprout tray icon matches your
   taskbar. Screen readers such as Narrator can read it through Windows UI Automation.
 - **Light on your PC.** About 3.7 MB of memory at idle, about 5–6 MB during a break, and it checks in about six
@@ -131,7 +134,7 @@ looking at the screen.
 
 | | Default | Range |
 | --- | --- | --- |
-| Short break | every 10 min, for 15 s | every 2–60 min, 5–120 s |
+| Short break | every 25 min, for 15 s | every 2–60 min, 5–120 s |
 | Long break | every 60 min, for 5 min | every 15–240 min, 1–30 min |
 | Warning before a long break | 60 s | 0–300 s |
 | Postpone | 3 min, up to 3 times | 1–30 min, 0–10 times |
@@ -163,7 +166,7 @@ code, exercises and art are all original.
 ### Does Ocy follow the 20-20-20 rule?
 
 It follows the same idea: look away from the screen often and rest your eyes. By default short breaks come every
-10 minutes for 15 seconds. If you prefer the 20-20-20 rule, set short breaks to every 20 minutes for 20 seconds in
+25 minutes for 15 seconds. If you prefer the 20-20-20 rule, set short breaks to every 20 minutes for 20 seconds in
 Settings.
 
 **Is it free?** Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.
@@ -186,13 +189,13 @@ professional.
 
 ## Languages
 
-The [website](https://danielmevit.github.io/ocy/) is available in 40 languages, each at its own address, for example
-[Deutsch](https://danielmevit.github.io/ocy/de/) or [日本語](https://danielmevit.github.io/ocy/ja/). The app itself is
-in English for now; its translations arrive with the next update.
+The app and the [website](https://danielmevit.github.io/ocy/) are available in 40 languages. The app follows your
+Windows language, or you can pick one in Settings. Each website language has its own address, for example
+[Deutsch](https://danielmevit.github.io/ocy/de/) or [日本語](https://danielmevit.github.io/ocy/ja/).
 
 ## Roadmap
 
-macOS and Linux, a redesigned Settings window and the app's translations are next. See [ROADMAP.md](ROADMAP.md).
+macOS and Linux are next. See [ROADMAP.md](ROADMAP.md).
 
 ## Build from source
 

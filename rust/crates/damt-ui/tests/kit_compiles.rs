@@ -21,7 +21,7 @@ fn compile(source: &str) -> slint_interpreter::CompilationResult {
 #[test]
 fn kit_compiles_with_every_component() {
     let source = r#"
-import { Button, ButtonKind, CloseButton, LinkButton, Card, Toggle, NumberField, SettingRow, SectionHeader, ProgressLine } from "@damt-ui/kit.slint";
+import { Button, ButtonKind, CloseButton, LinkButton, Card, Toggle, ProgressLine, Chevron, Check, Caption, Slider, TabList, PresetCard, AccordionHeader, Dropdown, Timeline, TimelineMark, TimelineMarkKind, Swatch, CompactRow } from "@damt-ui/kit.slint";
 export component Probe inherits Window {
     VerticalLayout {
         Button { text: "a"; kind: ButtonKind.accent; }
@@ -32,10 +32,18 @@ export component Probe inherits Window {
         LinkButton { text: "Try disabled"; enabled: false; padding-x: 4px; }
         Card { height: 20px; }
         Toggle { checked: true; }
-        NumberField { value: 5; minimum: 1; maximum: 9; unit: "min"; }
-        SettingRow { label: "L"; help: "H"; Toggle {} }
-        SectionHeader { title: "T"; has-toggle: true; }
         ProgressLine { progress: 0.5; }
+        Chevron { up: true; }
+        Check {}
+        Caption { text: "c"; }
+        Slider { label: "S"; value-text: "5 min"; value: 5; minimum: 1; maximum: 30; step: 1; }
+        TabList { items: ["a", "b"]; selected: 1; accessible-name: "Tabs"; }
+        PresetCard { title: "P"; summary: "s"; selected: true; }
+        AccordionHeader { text: "A"; open: true; }
+        Dropdown { model: ["x", "y"]; current-index: 0; accessible-name: "D"; }
+        Timeline { marks: [{ kind: TimelineMarkKind.short-break, position: 0.2 }, { kind: TimelineMarkKind.long-break, position: 0.5 }]; labels: ["1", "2"]; now-label: "Now"; }
+        Swatch { block: true; }
+        CompactRow { label: "R"; Toggle {} }
     }
 }
 "#;
@@ -53,7 +61,7 @@ export component Probe inherits Window {
 fn unknown_component_is_rejected() {
     // Guards the test above: a missing export must fail compilation.
     let result = compile(
-        r#"import { Slider } from "@damt-ui/kit.slint"; export component P inherits Window { Slider {} }"#,
+        r#"import { NoSuchWidget } from "@damt-ui/kit.slint"; export component P inherits Window { NoSuchWidget {} }"#,
     );
     assert!(result.has_errors());
 }

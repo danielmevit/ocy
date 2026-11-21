@@ -1,1 +1,0 @@
-- **Rust release packaging, notices, licence audit, and CI (`R4d`):** added `rust/tools/notices.py`, `rust/tools/dist.py`, unit tests under `rust/tools/tests/`, the licence compatibility audit in `docs/rust/LICENSES.md`, and the `windows-release` job (15 MiB exe budget + zip/sha256 artifact) in `.github/workflows/rust.yml`.

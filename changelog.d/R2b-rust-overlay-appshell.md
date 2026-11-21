@@ -1,2 +1,0 @@
-- Rust: new `damt-overlay` kit crate renders click-through edge frames and input-blocking long-break dims as native layered Win32 windows per monitor (mixed-DPI aware), with pure premultiplied-ARGB and border helpers tested on Linux.
-- Rust: new `damt-app` kit crate adds C#-compatible single instance (`xyz.damt.ocy` names), per-OS data paths, a 256 KB rotating error log with a panic hook, and Windows overlay/single-instance smoke demos.

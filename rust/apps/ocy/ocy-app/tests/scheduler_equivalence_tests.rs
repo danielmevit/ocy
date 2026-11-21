@@ -1,13 +1,27 @@
 //! Equivalence test: the adaptive host scheduler produces the same break/warning starts,
-//! ends, and event sequence as the previous fixed 1 s tick, within 1 s.
+//! ends, and event sequence as the previous fixed 1 s tick, with an explicit per-event
+//! tolerance.
 //!
 //! Each seeded script (idle, focus, and session-event timelines) is simulated twice
 //! against the real engine with a fake clock — once with 1 s ticks and once with the
 //! adaptive `ocy_app::scheduler` delays — with natural moments on and off.
 //!
+//! Tolerance, per event kind:
+//! - <= 1 s (`ACTIVE_WAKE_INTERVAL`) for every event whose schedule anchor is exact in
+//!   both hosts: session events (dispatched at the scripted second in both), natural
+//!   lulls (polled every second in both), and the initial schedule.
+//! - <= 5 s (`IDLE_PHASE_WAKE_INTERVAL`) for events caused by an away return or a
+//!   deferral ending that was detected at tick granularity — the away return itself
+//!   (`AbsenceCredited`), the break/warning start that ends a deferral, and everything
+//!   downstream: the return resets the counters, so the whole following schedule is
+//!   anchored to the (up to 5 s late) detection until the next exact re-anchor (a
+//!   session unlock/resume or a natural lull). The drift never accumulates: every
+//!   re-anchor is the detection of the same scripted moment within the host's own
+//!   granularity, so any single event stays within one granularity of its counterpart.
+//!
 //! Script constraints and why:
 //! - All script times are whole seconds, so the 1 s grid and the adaptive cadence land
-//!   on the same instants; the 1 s tolerance covers any residual drift.
+//!   on the same instants; the tolerances cover any residual drift.
 //! - Away spans (idle gaps and lock durations) are >= 65 s, so every away return credits
 //!   the long break and resets both counters. Shorter away spans (30-59 s) credit only the
 //!   short break; the adaptive scheduler detects away entry up to 10 s late (its working
@@ -25,7 +39,7 @@ use std::time::Duration;
 
 use damt_platform::{Clock, FocusState, FocusStateProvider, IdleProvider, PlatformServices};
 use ocy_app::scheduler;
-use ocy_core::engine::{BreakEngine, BreakKind, EngineEvent};
+use ocy_core::engine::{BreakEngine, BreakKind, EngineEvent, EnginePhase};
 use ocy_core::exercises::{DefaultExercisePicker, SeededRng};
 use ocy_core::settings::OcySettings;
 use ocy_core::time::FakeClock;
@@ -224,7 +238,17 @@ mod atomic {
     pub use std::sync::atomic::{AtomicU64, Ordering};
 }
 
-fn record_events(events: &[EngineEvent], at: Duration, out: &mut Vec<(Rec, Duration)>) {
+/// A recorded engine event: what happened, when, and whether its timing is anchored to
+/// a tick-granularity away return or deferral end (`loose`), which bounds its drift by
+/// the idle-phase wake interval instead of the active one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TimedRec {
+    rec: Rec,
+    at: Duration,
+    loose: bool,
+}
+
+fn record_events(events: &[EngineEvent], at: Duration, loose: bool, out: &mut Vec<TimedRec>) {
     for event in events {
         let rec = match event {
             EngineEvent::BreakStarted(info) => match info.kind {
@@ -242,15 +266,29 @@ fn record_events(events: &[EngineEvent], at: Duration, out: &mut Vec<(Rec, Durat
             },
             EngineEvent::PhaseChanged(_) => continue,
         };
-        out.push((rec, at));
+        out.push(TimedRec { rec, at, loose });
     }
+}
+
+/// True if the batch contains a break or warning start (a natural hold resolving).
+fn contains_start(events: &[EngineEvent]) -> bool {
+    events.iter().any(|event| {
+        matches!(
+            event,
+            EngineEvent::BreakStarted(_) | EngineEvent::LongBreakWarningStarted(_)
+        )
+    })
 }
 
 /// Simulates the host against the real engine: `adaptive` selects the scheduler's
 /// single-shot delays, otherwise the host ticks every second. Session events are
 /// dispatched at their exact scripted time in both modes (as the real hosts do) and
 /// re-arm the adaptive timer.
-fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<(Rec, Duration)> {
+///
+/// Each recorded event is flagged `loose` when its timing is anchored to a
+/// tick-granularity away return or deferral end (see the module docs); the flag drives
+/// the per-event tolerance in the comparison.
+fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<TimedRec> {
     let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 9, 0, 0).expect("valid date"));
     let platform = TestPlatform::new();
     let mut settings = OcySettings {
@@ -279,6 +317,9 @@ fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<(Rec, 
     let mut event_idx = 0usize;
     let horizon = Duration::from_secs(HORIZON_SECS);
     let mut iterations = 0u64;
+    // Whether the schedule is currently anchored to a tick-granularity away return or
+    // deferral end (drift bounded by the idle-phase wake interval).
+    let mut anchor_loose = false;
 
     loop {
         iterations += 1;
@@ -305,7 +346,17 @@ fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<(Rec, 
                 while let Some((t, event)) = timeline.session_events.get(event_idx).copied()
                     && Duration::from_secs(t) <= elapsed
                 {
-                    record_events(&engine.on_session_event(event), elapsed, &mut records);
+                    // Session events are dispatched at the exact scripted second in
+                    // both hosts, so their events are exact — and a session away
+                    // return re-anchors the schedule exactly.
+                    let phase_before = engine.snapshot().phase;
+                    let events = engine.on_session_event(event);
+                    let returned = phase_before == EnginePhase::Away
+                        && engine.snapshot().phase != phase_before;
+                    record_events(&events, elapsed, false, &mut records);
+                    if returned {
+                        anchor_loose = false;
+                    }
                     event_idx += 1;
                 }
                 continue;
@@ -323,7 +374,14 @@ fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<(Rec, 
         while let Some((t, event)) = timeline.session_events.get(event_idx).copied()
             && Duration::from_secs(t) <= elapsed
         {
-            record_events(&engine.on_session_event(event), elapsed, &mut records);
+            let phase_before = engine.snapshot().phase;
+            let events = engine.on_session_event(event);
+            let returned =
+                phase_before == EnginePhase::Away && engine.snapshot().phase != phase_before;
+            record_events(&events, elapsed, false, &mut records);
+            if returned {
+                anchor_loose = false;
+            }
             event_idx += 1;
         }
 
@@ -334,14 +392,38 @@ fn run(timeline: &Timeline, adaptive: bool, natural_moments: bool) -> Vec<(Rec, 
         *platform.focus.0.lock().unwrap_or_else(|e| e.into_inner()) =
             timeline.focus_at(elapsed.as_secs());
 
-        record_events(&engine.tick(), elapsed, &mut records);
+        let before = engine.snapshot();
+        let events = engine.tick();
+        let after = engine.snapshot();
+        let batch_loose = if before.natural_hold.is_some()
+            && after.natural_hold.is_none()
+            && contains_start(&events)
+        {
+            // A natural hold resolved at a lull: both hosts poll every second, so the
+            // start is lull-anchored and the schedule re-anchors exactly.
+            anchor_loose = false;
+            false
+        } else if before.phase == EnginePhase::Away && after.phase != EnginePhase::Away {
+            // An away return detected at tick granularity: the return and everything
+            // downstream drift by the idle-phase wake interval.
+            anchor_loose = true;
+            true
+        } else if before.phase == EnginePhase::Deferred && after.phase != EnginePhase::Deferred {
+            // A deferral ended at tick granularity (fullscreen exit): the start it
+            // releases is detection-anchored.
+            anchor_loose = true;
+            true
+        } else {
+            anchor_loose
+        };
+        record_events(&events, elapsed, batch_loose, &mut records);
     }
 
     records
 }
 
 #[test]
-fn adaptive_schedule_matches_one_second_ticks_within_one_second() {
+fn adaptive_schedule_matches_one_second_ticks_with_per_event_tolerance() {
     for &seed in SEEDS {
         let timeline = generate_timeline(seed);
         for &natural in &[true, false] {
@@ -353,19 +435,34 @@ fn adaptive_schedule_matches_one_second_ticks_within_one_second() {
                 adaptive.len(),
                 "seed {seed}, natural {natural}: event counts differ\n{fixed:?}\n{adaptive:?}"
             );
-            for (i, ((rec_a, at_a), (rec_b, at_b))) in fixed.iter().zip(&adaptive).enumerate() {
+            for (i, (a, b)) in fixed.iter().zip(&adaptive).enumerate() {
+                let TimedRec {
+                    rec: rec_a,
+                    at: at_a,
+                    loose: loose_a,
+                } = *a;
+                let TimedRec {
+                    rec: rec_b,
+                    at: at_b,
+                    loose: loose_b,
+                } = *b;
                 assert_eq!(
                     rec_a, rec_b,
                     "seed {seed}, natural {natural}: event {i} differs\n{fixed:?}\n{adaptive:?}"
                 );
-                let diff = if at_a > at_b {
-                    *at_a - *at_b
+                let diff = at_a.abs_diff(at_b);
+                // Explicit per-event-kind tolerance: away returns and deferral ends
+                // (and the schedule anchored to them) may lag by the idle-phase wake
+                // interval; everything else must stay within the active interval.
+                let tolerance = if loose_a || loose_b {
+                    scheduler::IDLE_PHASE_WAKE_INTERVAL
                 } else {
-                    *at_b - *at_a
+                    scheduler::ACTIVE_WAKE_INTERVAL
                 };
                 assert!(
-                    diff <= Duration::from_secs(1),
-                    "seed {seed}, natural {natural}: event {i} ({rec_a:?}) time differs by {diff:?}\n{fixed:?}\n{adaptive:?}"
+                    diff <= tolerance,
+                    "seed {seed}, natural {natural}: event {i} ({rec_a:?}, loose={loose_a}{loose_b}) \
+                     time differs by {diff:?} (tolerance {tolerance:?})\n{fixed:?}\n{adaptive:?}"
                 );
             }
         }

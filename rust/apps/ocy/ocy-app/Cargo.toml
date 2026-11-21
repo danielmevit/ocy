@@ -28,11 +28,12 @@ serde_json.workspace = true
 slint.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows = { workspace = true, features = ["Win32_System_Console", "Win32_System_ProcessStatus"] }
+windows = { workspace = true, features = ["Win32_Globalization", "Win32_System_Console", "Win32_System_ProcessStatus", "Win32_UI_Accessibility"] }
 
 [build-dependencies]
 damt-build.workspace = true
 embed-manifest.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

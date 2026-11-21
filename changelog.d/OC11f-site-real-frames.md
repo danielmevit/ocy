@@ -1,1 +1,0 @@
-- Website: the hero and FAQ faces now play only the illustrator's original frames with the app's timing (blink, look left/right, look up/down); the generated line-boil and synthesized eyes are gone.

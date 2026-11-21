@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.1 — 2026-11-21
+
+A new Settings window, Ocy in 40 languages, calmer presets and a warmer dark mode.
+
+### Added
+- **A new Settings window:**
+  - **Gentle, Balanced and Focused** presets, or your own values
+  - a **timeline of the next two hours** and **today's taken and skipped breaks**
+  - Customize and General open independently; the window grows to fit, downwards
+- **Ocy speaks 40 languages.** It follows your Windows language, or pick one in Settings (the list scrolls, and typing
+  a letter jumps to it). Every language was written natively rather than translated word for word, and addresses
+  everyone, not only men.
+- **Narrator announces each break card** as it appears, without the card taking focus.
+
+### Changed
+- **Calmer presets:**
+  - **Balanced** (the default) now asks for a 15-second break every **25** minutes (was every 10), plus 5 minutes
+    every hour
+  - **Gentle:** 15 s every 40 min, plus 5 min every 90 min
+  - **Focused:** 20 s every 50 min, plus 10 min every 90 min
+  - If you were on the old default, you move to the new Balanced once. Values you chose yourself stay.
+- **Dark mode uses Ocy's jade green** instead of mint, including the illustrations.
+- **Lighter while you're away:** in the long idle phases Ocy checks five times less often.
+
+### Fixed
+- When Ocy waits for a natural moment to start a break, the wait now really ends after a minute, even if the next
+  break becomes due in between.
+- No more double full stop at the end of status texts in German, Greek, Lithuanian and Polish.
+- The preset outlines are visible in both themes.
+
 ## 0.2.0 — 2026-11-20 (the Rust rebuild)
 
 Ocy is rebuilt from the ground up in Rust. It does everything 0.1.2 did, with a much lighter footprint, and a few

@@ -1,1 +1,0 @@
-- R4d2: Build `notices.py` closure from `cargo tree --locked -p ocy-app -e normal --target x86_64-pc-windows-msvc --prefix none`, vendor upstream licence fallbacks in `rust/tools/licenses-extra/` (including AccessKit), ignore `__pycache__/`, and refresh `docs/rust/LICENSES.md`.

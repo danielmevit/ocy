@@ -1,2 +1,0 @@
-- Probe launches (`--demo-break`, `--demo-settings`, `--report-memory`) now acquire per-PID instance identities (`Local\xyz.damt.ocy.probe-<pid>`) so test runs never signal or collide with a running Ocy instance.
-- Added the hidden `--instance-scope <name>` flag (ASCII letters, digits, and `-` only) to isolate test launches under `Local\xyz.damt.ocy.scope-<name>` and verify second-launch signalling without affecting a real launch (`Local\xyz.damt.ocy`).

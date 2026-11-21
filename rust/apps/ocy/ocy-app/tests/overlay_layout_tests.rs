@@ -327,3 +327,61 @@ fn compute_centered_work_area_selects_active_monitor_and_clamps_small_work_area(
         PixelPoint::new(-800, 30)
     );
 }
+
+#[test]
+fn settings_window_height_grows_to_content_within_work_area_and_respects_user_size() {
+    use ocy_app::layout::settings_window_height;
+    // 1080p work area above a 40 px taskbar: 1040 px, minus the 40 px frame allowance.
+    let work = 1040.0;
+    // Content that fits keeps the 640 default; growing never goes below it.
+    assert!((settings_window_height(500.0, work, 640.0, false) - 640.0).abs() < f64::EPSILON);
+    // Both sections open: grows to the content (rounded up).
+    assert!((settings_window_height(812.3, work, 640.0, false) - 813.0).abs() < f64::EPSILON);
+    // Shrinks back when a section folds, but not below 640.
+    assert!((settings_window_height(600.0, work, 813.0, false) - 640.0).abs() < f64::EPSILON);
+    // Capped by the work area: the rest scrolls.
+    assert!((settings_window_height(1400.0, work, 640.0, false) - 1000.0).abs() < f64::EPSILON);
+    // A tiny work area: the window fits it (and the content scrolls).
+    assert!((settings_window_height(900.0, 600.0, 640.0, false) - 560.0).abs() < f64::EPSILON);
+    // The user resized by hand: their size wins.
+    assert!((settings_window_height(900.0, work, 700.0, true) - 700.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn settings_window_width_uses_preferred_width_until_the_user_resizes() {
+    use ocy_app::layout::settings_window_width;
+    // First fit after show: the window may still report its 480 px min-width; use 560.
+    assert!((settings_window_width(1920.0, 480.0, false) - 560.0).abs() < f64::EPSILON);
+    // Clamped to a narrow work area.
+    assert!((settings_window_width(500.0, 480.0, false) - 500.0).abs() < f64::EPSILON);
+    // After a hand resize their width is kept.
+    assert!((settings_window_width(1920.0, 720.0, true) - 720.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn settings_window_top_opens_downwards_and_shifts_only_by_the_overflow() {
+    use ocy_app::layout::settings_window_top;
+    // 1080p work area above a 40 px taskbar.
+    let work = ScreenRect {
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1040,
+    };
+    // Grow: the top stays.
+    assert_eq!(settings_window_top(200, 780, work), 200);
+    // Shrink: the top stays.
+    assert_eq!(settings_window_top(200, 680, work), 200);
+    // Grow near the bottom: 300 + 800 = 1100, 60 past 1040, so up by exactly 60.
+    assert_eq!(settings_window_top(300, 800, work), 240);
+    // Taller than the work area (height is capped elsewhere): never above the top.
+    assert_eq!(settings_window_top(300, 1200, work), 0);
+    // Tiny work area with a negative origin (monitor above the primary).
+    let tiny = ScreenRect {
+        x: 0,
+        y: -600,
+        width: 800,
+        height: 560,
+    };
+    assert_eq!(settings_window_top(-500, 560, tiny), -600);
+}

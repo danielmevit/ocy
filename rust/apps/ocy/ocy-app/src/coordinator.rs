@@ -8,6 +8,7 @@ use damt_overlay::{Dims, EdgeFrames, enumerate_monitors};
 use damt_platform::{Clock, PlatformServices, SystemClock};
 use ocy_core::engine::{BreakInfo, BreakKind, EngineEvent, EnginePhase, EngineSnapshot};
 use ocy_core::settings::OcySettings;
+use ocy_core::statistics::StatisticsData;
 
 use crate::break_logic::AppThemeTracker;
 use crate::layout::non_active_monitors;
@@ -43,6 +44,9 @@ pub trait BreakWindows {
 pub trait SettingsWindow {
     /// Synchronizes current engine settings before `show()` or after external updates.
     fn sync_settings(&mut self, _settings: &OcySettings) {}
+
+    /// Synchronizes live engine snapshot and break statistics for status/timeline display.
+    fn sync_live_status(&mut self, _snapshot: &EngineSnapshot, _stats: &StatisticsData) {}
 
     /// Opens or focuses the Settings window.
     fn show(&mut self);
@@ -158,6 +162,14 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
     /// Returns a mutable reference to the wrapped inner [`BreakWindows`].
     pub const fn inner_mut(&mut self) -> &mut W {
         &mut self.inner
+    }
+
+    /// Returns the number of native overlay windows (`EdgeFrames` + `Dims`) currently alive.
+    #[must_use]
+    pub fn live_overlay_count(&self) -> usize {
+        let edge_frames = self.edge_frames.as_ref().map_or(0, EdgeFrames::len);
+        let dims = self.dims.as_ref().map_or(0, Dims::len);
+        edge_frames + dims
     }
 
     fn close_overlays(&mut self) {
@@ -307,6 +319,18 @@ impl<W: BreakWindows, S: SettingsWindow> BreakUiCoordinator<W, S> {
     pub fn sync_state(&mut self, snapshot: &EngineSnapshot, settings: &OcySettings) {
         self.break_windows.sync_state(snapshot, settings);
         self.settings_window.sync_settings(settings);
+    }
+
+    /// Synchronizes snapshot, settings, and break statistics to break windows and settings surfaces.
+    pub fn sync_state_with_stats(
+        &mut self,
+        snapshot: &EngineSnapshot,
+        settings: &OcySettings,
+        stats: &StatisticsData,
+    ) {
+        self.break_windows.sync_state(snapshot, settings);
+        self.settings_window.sync_settings(settings);
+        self.settings_window.sync_live_status(snapshot, stats);
     }
 
     /// Updates pre-warming, theme checks, and active countdown displays on each engine tick.

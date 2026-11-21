@@ -1,2 +1,0 @@
-- Rust: new `damt-platform-win` crate implements the frozen `damt-platform` contracts on Windows (idle, focus, autostart, active screen, motion, taskbar theme, session/power events) with the C# helper math ported and tested on every target.
-- Rust: `damt-platform-win` now registers the session window for suspend/resume power notifications (falling back to lock/unlock only) and closes registry handles through an RAII guard.
