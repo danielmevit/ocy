@@ -641,6 +641,10 @@ pub enum ChangeAction {
     },
     /// `AutostartService::set_enabled` failed; revert UI toggle to `revert_to` without scheduling a save.
     AutostartFailed { revert_to: bool },
+    /// `AutostartService::set_enabled_or_defer` deferred the change (Flatpak Background portal):
+    /// the platform flow runs off the UI thread and the result arrives later via
+    /// [`SettingsDebounceState::on_autostart_result`]. The toggle stays where the user put it.
+    AutostartPending { requested: bool },
 }
 
 /// Pure state machine for Settings loading guards, 400 ms debouncing, and autostart error handling.
@@ -650,6 +654,8 @@ pub struct SettingsDebounceState {
     suppress_autostart_events: bool,
     has_pending_changes: bool,
     last_autostart_value: bool,
+    /// The requested value of a deferred autostart change that has not completed yet.
+    autostart_pending: Option<bool>,
     timer_generation: u64,
 }
 
@@ -662,15 +668,18 @@ impl SettingsDebounceState {
             suppress_autostart_events: false,
             has_pending_changes: false,
             last_autostart_value: false,
+            autostart_pending: None,
             timer_generation: 0,
         }
     }
 
     /// Enters load mode, suppressing change and autostart side-effects until [`Self::end_load`].
+    /// A reload also makes any in-flight deferred autostart result stale.
     pub fn begin_load(&mut self) {
         self.loading = true;
         self.suppress_autostart_events = true;
         self.has_pending_changes = false;
+        self.autostart_pending = None;
         self.timer_generation = self.timer_generation.wrapping_add(1);
     }
 
@@ -698,20 +707,35 @@ impl SettingsDebounceState {
         self.timer_generation
     }
 
+    /// True while a deferred autostart change is in flight (its result has not arrived yet).
+    #[must_use]
+    pub const fn is_autostart_pending(&self) -> bool {
+        self.autostart_pending.is_some()
+    }
+
     /// Handles a UI `changed()` signal, applying autostart immediately if that toggle changed.
+    ///
+    /// `done` is the completion callback for a deferred autostart change
+    /// ([`AutostartService::set_enabled_or_defer`]); every synchronous path drops it unused.
     pub fn on_changed(
         &mut self,
         autostart_supported: bool,
         current_autostart_ui: bool,
         autostart: &dyn AutostartService,
+        done: Box<dyn FnOnce(Result<(), PlatformError>) + Send>,
     ) -> ChangeAction {
         if self.loading || self.suppress_autostart_events {
             return ChangeAction::Ignored;
         }
 
         if autostart_supported && current_autostart_ui != self.last_autostart_value {
-            return match autostart.set_enabled(current_autostart_ui) {
-                Ok(()) => {
+            if self.autostart_pending.is_some() {
+                // A deferred change is already in flight; further autostart toggles are
+                // ignored until its result arrives (the portal dialog may still be showing).
+                return ChangeAction::Ignored;
+            }
+            return match autostart.set_enabled_or_defer(current_autostart_ui, done) {
+                Some(Ok(())) => {
                     self.last_autostart_value = current_autostart_ui;
                     let generation = self.schedule_apply();
                     ChangeAction::ScheduleTimer {
@@ -719,9 +743,15 @@ impl SettingsDebounceState {
                         clear_autostart_error: true,
                     }
                 }
-                Err(_) => ChangeAction::AutostartFailed {
+                Some(Err(_)) => ChangeAction::AutostartFailed {
                     revert_to: !current_autostart_ui,
                 },
+                None => {
+                    self.autostart_pending = Some(current_autostart_ui);
+                    ChangeAction::AutostartPending {
+                        requested: current_autostart_ui,
+                    }
+                }
             };
         }
 
@@ -729,6 +759,34 @@ impl SettingsDebounceState {
         ChangeAction::ScheduleTimer {
             generation,
             clear_autostart_error: false,
+        }
+    }
+
+    /// Feeds the result of a deferred autostart change back into the machine.
+    ///
+    /// `requested` is the value that was asked for when the change was deferred. A stale
+    /// result (the window reloaded, or the pending request no longer matches) is ignored.
+    pub fn on_autostart_result(
+        &mut self,
+        requested: bool,
+        result: Result<(), PlatformError>,
+    ) -> ChangeAction {
+        if self.autostart_pending != Some(requested) {
+            return ChangeAction::Ignored;
+        }
+        self.autostart_pending = None;
+        match result {
+            Ok(()) => {
+                self.last_autostart_value = requested;
+                let generation = self.schedule_apply();
+                ChangeAction::ScheduleTimer {
+                    generation,
+                    clear_autostart_error: true,
+                }
+            }
+            Err(_) => ChangeAction::AutostartFailed {
+                revert_to: !requested,
+            },
         }
     }
 
@@ -764,6 +822,35 @@ impl SettingsDebounceState {
     pub fn cancel_timer(&mut self) {
         self.timer_generation = self.timer_generation.wrapping_add(1);
     }
+}
+
+/// UI-thread callback receiving the final result of a deferred autostart change.
+type AutostartResultSink = Box<dyn FnOnce(Result<(), PlatformError>)>;
+
+thread_local! {
+    /// UI-thread sink for the result of a deferred autostart change.
+    /// [`ManagedSettingsInner::handle_changed`] registers it right before calling
+    /// [`AutostartService::set_enabled_or_defer`]; the UI-thread half of the `done` callback
+    /// (built by [`SettingsBackend::autostart_result_done`]) takes it and invokes it. A single
+    /// slot is enough: only one deferred change can be in flight, and while one is, the slot
+    /// is not overwritten.
+    static AUTOSTART_RESULT_SINK: RefCell<Option<AutostartResultSink>> =
+        RefCell::new(None);
+}
+
+/// Registers the UI-thread sink invoked with the result of a deferred autostart change.
+pub(crate) fn register_autostart_result_sink(sink: AutostartResultSink) {
+    AUTOSTART_RESULT_SINK.with(|slot| *slot.borrow_mut() = Some(sink));
+}
+
+/// Invokes and clears the registered autostart result sink, if any. Must run on the thread
+/// that registered the sink (the UI thread); a no-op when no sink is registered (stale result).
+pub(crate) fn invoke_registered_autostart_result_sink(result: Result<(), PlatformError>) {
+    AUTOSTART_RESULT_SINK.with(|slot| {
+        if let Some(sink) = slot.borrow_mut().take() {
+            sink(result);
+        }
+    });
 }
 
 /// Host callbacks invoked by the Settings window.
@@ -883,6 +970,18 @@ pub trait SettingsBackend {
 
     /// Schedules a single-shot callback after `delay`.
     fn schedule_apply_timer(&self, delay: Duration, on_fire: Box<dyn FnOnce()>);
+
+    /// Builds the completion callback handed to [`AutostartService::set_enabled_or_defer`]
+    /// when an autostart change may complete asynchronously (Linux Flatpak Background portal).
+    ///
+    /// The returned callback can be invoked from any thread (it is `Send`) and must marshal
+    /// the result back to the UI thread, where it invokes the sink most recently registered
+    /// with [`register_autostart_result_sink`]. The default invokes the sink inline and is
+    /// therefore only correct when `done` is called on the UI thread (unit tests,
+    /// single-threaded hosts); the Slint backend overrides it with `slint::invoke_from_event_loop`.
+    fn autostart_result_done(&self) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+        Box::new(invoke_registered_autostart_result_sink)
+    }
 
     /// Starts (or replaces) the periodic 30 s refresh timer while the window is open.
     fn start_refresh_timer(&self, _interval: Duration, _on_tick: Box<dyn Fn()>) {}
@@ -1035,14 +1134,37 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             self.backend.read_values(inst)
         };
 
+        // Deferred-autostart plumbing: register the UI-thread result sink (unless a deferred
+        // change is already in flight — its sink must survive until the result arrives) and
+        // get the `Send` completion callback from the backend (the Slint backend marshals
+        // through `slint::invoke_from_event_loop`). Every synchronous path drops `done` unused.
+        if !self.state.borrow().is_autostart_pending() {
+            let weak = Rc::downgrade(self);
+            let requested = values.start_with_system;
+            register_autostart_result_sink(Box::new(move |result| {
+                if let Some(inner) = weak.upgrade() {
+                    inner.handle_autostart_result(requested, result);
+                }
+            }));
+        }
+        let done = self.backend.autostart_result_done();
+
         let action = self.state.borrow_mut().on_changed(
             autostart_supported,
             values.start_with_system,
             self.platform.autostart(),
+            done,
         );
+        self.apply_change_action(action);
+    }
 
+    /// Applies a [`ChangeAction`] produced by the debounce state machine (UI updates + save timer).
+    fn apply_change_action(self: &Rc<Self>, action: ChangeAction) {
         match action {
             ChangeAction::Ignored => {}
+            // Calm pending: leave the toggle where the user put it; nothing else happens
+            // until the deferred result arrives in `handle_autostart_result`. No new strings.
+            ChangeAction::AutostartPending { .. } => {}
             ChangeAction::AutostartFailed { revert_to } => {
                 self.state.borrow_mut().set_suppress_autostart_events(true);
                 if let Some(inst) = self.active.borrow().as_ref() {
@@ -1060,6 +1182,13 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                 generation,
                 clear_autostart_error,
             } => {
+                let values = {
+                    let active = self.active.borrow();
+                    let Some(inst) = active.as_ref() else {
+                        return;
+                    };
+                    self.backend.read_values(inst)
+                };
                 let preview = self.preview_settings_for(&values);
                 let detected_preset = presets::detect(&preview).index();
                 let live_view = self.compute_live_view(&preview);
@@ -1081,6 +1210,20 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                 );
             }
         }
+    }
+
+    /// Feeds the result of a deferred autostart change (marshaled back to the UI thread by
+    /// the `done` callback) into the state machine and applies the resulting action.
+    fn handle_autostart_result(
+        self: &Rc<Self>,
+        requested: bool,
+        result: Result<(), PlatformError>,
+    ) {
+        let action = self
+            .state
+            .borrow_mut()
+            .on_autostart_result(requested, result);
+        self.apply_change_action(action);
     }
 
     fn handle_preset_selected(self: &Rc<Self>, index: i32) {

@@ -184,6 +184,7 @@ First run `cargo clippy --workspace --all-targets --locked -- -D warnings && car
    - Connect an external monitor (ideally mixed DPI, e.g. Retina built-in + 1x/1.5x external).
    - Move the mouse cursor to the built-in display and trigger a short break: confirm the card opens in the bottom-right work area (above Dock, below menu bar) of the built-in display, and the external display shows the click-through accent edge frame (clicks pass through the frame to windows underneath).
    - Move the mouse cursor to the external display and repeat: confirm the card opens on the external display and the edge frame moves to the built-in display.
+   - **Edge strips (M5, not covered by CI; the runner has one display):** on the non-active display, confirm the edge frame is four thin translucent accent strips (top, bottom, left, right) at the configured thickness on both Retina and 1x displays, with no darker corners (strips must not overlap), no black or opaque full-screen window, clicks passing through every strip, and the strips disappearing when the break ends.
    - Trigger a long break: confirm dims cover **both** displays and the long-break card is centered on the active display.
 7. **Settings window & login item (`SMAppService.mainApp`):**
    - Click `Settings` in the menu-bar menu: confirm the Settings window opens, comes to the front, receives keyboard focus, and centers on the active display's work area.
@@ -269,9 +270,15 @@ macOS only:
   between them), each with `alphaValue` = border alpha; same level, click-through and collection
   behaviour as before.
 
+Settings activation: `slint_settings` calls `activate_settings_window` on the Settings window
+itself when it is created or re-activated (`app.activate()` then `makeKeyAndOrderFront` on that
+`NSWindow`); the old `app.keyWindow()` helper is removed (M5b).
+
 CI asserts the pink backdrop 1 pt inside the short/warning window corner (outside the 8 pt
 arc), the light card surface at the card's centre-left, and for the long break a darkened-pink
-dim (not black, `R > 15`, darker than the backdrop) with the card above it.
+dim sampled at (40, 120) pt, below the menu bar and outside the card (not black, `R > 15`,
+`R > G`, darker than the backdrop), with the card above it. Edge strips stay on the manual
+multi-display checklist above.
 
 ## Honest estimate
 

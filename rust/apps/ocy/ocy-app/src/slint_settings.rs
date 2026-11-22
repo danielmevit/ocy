@@ -9,7 +9,7 @@ use std::time::Duration;
 use damt_app::ErrorLog;
 #[cfg(not(target_os = "macos"))]
 use damt_overlay::enumerate_monitors;
-use damt_platform::{Clock, PlatformServices};
+use damt_platform::{Clock, PlatformError, PlatformServices};
 use ocy_core::engine::EngineSnapshot;
 use ocy_core::settings::OcySettings;
 use ocy_core::statistics::StatisticsData;
@@ -37,6 +37,7 @@ use crate::settings_logic::{
     ManagedSettingsWindow, SettingsBackend, SettingsCallbacks, SettingsCreateParams,
     SettingsLiveView, SettingsTexts, SettingsUiHandlers, SettingsValues, format_slider_duration,
     format_slider_every_minutes, format_slider_minutes, format_slider_seconds, format_slider_times,
+    invoke_registered_autostart_result_sink,
 };
 use crate::strings::Strings;
 use crate::tray::TaskbarIconTracker;
@@ -669,6 +670,10 @@ impl SettingsBackend for SlintSettingsBackend {
             winit_win.set_minimized(false);
             winit_win.focus_window();
         });
+        // macOS: activate the accessory app and make this Settings window key directly
+        // (`app.keyWindow()` can still be `None` right after `activate()`).
+        #[cfg(target_os = "macos")]
+        let _ = crate::macos_window::activate_settings_window(ui.window());
 
         Ok(ui)
     }
@@ -681,6 +686,8 @@ impl SettingsBackend for SlintSettingsBackend {
             winit_win.set_minimized(false);
             winit_win.focus_window();
         });
+        #[cfg(target_os = "macos")]
+        let _ = crate::macos_window::activate_settings_window(instance.window());
     }
 
     fn set_texts(
@@ -751,6 +758,20 @@ impl SettingsBackend for SlintSettingsBackend {
 
     fn schedule_apply_timer(&self, delay: Duration, on_fire: Box<dyn FnOnce()>) {
         Timer::single_shot(delay, on_fire);
+    }
+
+    fn autostart_result_done(&self) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+        // The portal worker thread calls `done`; hop to the Slint event loop (the UI thread)
+        // before the registered result sink touches the Rc-based settings state machine.
+        let error_log = self.error_log.clone();
+        Box::new(move |result| {
+            if let Err(err) = slint::invoke_from_event_loop(move || {
+                invoke_registered_autostart_result_sink(result)
+            }) {
+                // The event loop is gone (the app is shutting down); the result is dropped.
+                error_log.log_error("autostart_result_dispatch", &err);
+            }
+        })
     }
 
     fn start_refresh_timer(&self, interval: Duration, on_tick: Box<dyn Fn()>) {

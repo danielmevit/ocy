@@ -222,6 +222,15 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
   `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (inside the sandbox) and reports `false` if none is stored.
   External changes made in the host desktop's Settings will not be reflected in that cached file.
   **Unverified:** whether GNOME's and KDE's portal backends both honour `autostart` in a live Flatpak session.
+- **Off the UI thread (`L3b`, implemented):** the portal call blocks for up to 30 s (the desktop may show a
+  permission dialog), so Settings never calls it synchronously. `AutostartService::set_enabled_or_defer`
+  (default: plain `set_enabled`, `done` dropped) is overridden by `LinuxAutostart` in Flatpak mode: the portal
+  flow runs on a `std::thread` and `done(result)` is called from there (including the timeout); the state file
+  is written on success only, in that thread. The Settings state machine answers with `ChangeAction::
+  AutostartPending`, leaves the toggle where the user put it, ignores further toggles while pending, and
+  applies the result via `on_autostart_result` when it arrives (marshaled back with
+  `slint::invoke_from_event_loop`); a stale result (window reload) is ignored. Non-Flatpak paths are
+  unchanged.
 - Outside Flatpak, `--autostart` argument handling stays as on Windows.
 
 ## 9. Notifications
@@ -345,6 +354,8 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
 - **Done (`L3a`):**
   - **Wayland `app_id` / `StartupWMClass`:** `ocy-app` calls `slint::set_xdg_app_id(ocy_app::instance::APP_ID)` (`"xyz.damt.ocy"`) on Linux before creating the first window, setting `xdg_toplevel.app_id` on Wayland and `WM_CLASS = ("", "xyz.damt.ocy")` on X11 via winit 0.30; updated `StartupWMClass=xyz.damt.ocy` in `packaging/linux/xyz.damt.ocy.desktop`.
   - **Flatpak autostart:** `LinuxAutostart` detects Flatpak (`FLATPAK_ID` or `/.flatpak-info`) and uses `org.freedesktop.portal.Background.RequestBackground` via `zbus` (blocking API, 30 s `Response` wait, `autostart` + `dbus-activatable: false` + `commandline: ["Ocy"]`), caching the last confirmed state in `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (reports `false` if none stored; pure helpers unit-tested).
+- **Done (`L3b`):**
+  - **Portal off the UI thread:** `AutostartService::set_enabled_or_defer` (completion-style default method; the default is exactly `set_enabled`, so Windows/macOS/non-Flatpak Linux are unchanged) plus a `LinuxAutostart` override that runs the Flatpak portal flow on a `std::thread` and reports the result through `done`. The Settings state machine gained `ChangeAction::AutostartPending` and `on_autostart_result` (stale results ignored; further toggles ignored while pending), and the Slint backend marshals the result back with `slint::invoke_from_event_loop`. The Settings window no longer freezes while the portal permission dialog is open.
 - **Tester install (from the `ocy-linux-flatpak` CI artifact):**
   ```sh
   flatpak install --user ./Ocy-<version>-x86_64.flatpak

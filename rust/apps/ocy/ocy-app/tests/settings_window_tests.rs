@@ -103,6 +103,81 @@ impl PlatformServices for FakePlatform {
     }
 }
 
+/// A no-op completion callback for [`damt_platform::AutostartService::set_enabled_or_defer`].
+fn noop_done() -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+    Box::new(|_| {})
+}
+
+type DeferredDone = Box<dyn FnOnce(Result<(), PlatformError>) + Send>;
+
+/// Autostart service that defers every change (like the Flatpak Background portal):
+/// `set_enabled_or_defer` stores `done` and the test completes it later on this thread.
+#[derive(Clone, Default)]
+struct DeferredAutostart {
+    inner: Arc<DeferredAutostartInner>,
+}
+
+#[derive(Default)]
+struct DeferredAutostartInner {
+    enabled: Mutex<bool>,
+    deferred: Mutex<Vec<(bool, DeferredDone)>>,
+}
+
+impl DeferredAutostart {
+    fn new(enabled: bool) -> Self {
+        Self {
+            inner: Arc::new(DeferredAutostartInner {
+                enabled: Mutex::new(enabled),
+                deferred: Mutex::new(Vec::new()),
+            }),
+        }
+    }
+
+    fn deferred_count(&self) -> usize {
+        self.inner.deferred.lock().unwrap().len()
+    }
+
+    /// Completes the oldest deferred change with `result`, as the portal thread would.
+    fn finish(&self, result: Result<(), PlatformError>) {
+        let (_, done) = self.inner.deferred.lock().unwrap().remove(0);
+        done(result);
+    }
+}
+
+impl AutostartService for DeferredAutostart {
+    fn is_supported(&self) -> bool {
+        true
+    }
+
+    fn is_enabled(&self) -> bool {
+        *self.inner.enabled.lock().unwrap()
+    }
+
+    fn set_enabled(&self, enabled: bool) -> Result<(), PlatformError> {
+        *self.inner.enabled.lock().unwrap() = enabled;
+        Ok(())
+    }
+
+    fn set_enabled_or_defer(
+        &self,
+        enabled: bool,
+        done: DeferredDone,
+    ) -> Option<Result<(), PlatformError>> {
+        self.inner.deferred.lock().unwrap().push((enabled, done));
+        None
+    }
+}
+
+struct DeferredPlatform {
+    autostart: DeferredAutostart,
+}
+
+impl PlatformServices for DeferredPlatform {
+    fn autostart(&self) -> &dyn AutostartService {
+        &self.autostart
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FakeInstanceInner {
     values: RefCell<SettingsValues>,
@@ -572,7 +647,7 @@ fn debounce_state_machine_schedule_restart_flush_and_loading_guard() {
     // Events during load must be ignored.
     state.begin_load();
     assert_eq!(
-        state.on_changed(true, true, &autostart),
+        state.on_changed(true, true, &autostart, noop_done()),
         ChangeAction::Ignored
     );
     assert!(!state.has_pending_changes());
@@ -580,7 +655,7 @@ fn debounce_state_machine_schedule_restart_flush_and_loading_guard() {
     state.end_load(false);
 
     // First edit schedules a timer.
-    let g1 = match state.on_changed(true, false, &autostart) {
+    let g1 = match state.on_changed(true, false, &autostart, noop_done()) {
         ChangeAction::ScheduleTimer {
             generation,
             clear_autostart_error,
@@ -593,7 +668,7 @@ fn debounce_state_machine_schedule_restart_flush_and_loading_guard() {
     assert!(state.has_pending_changes());
 
     // Second edit restarts the timer with a fresh generation; stale g1 is ignored.
-    let g2 = match state.on_changed(true, false, &autostart) {
+    let g2 = match state.on_changed(true, false, &autostart, noop_done()) {
         ChangeAction::ScheduleTimer { generation, .. } => generation,
         other => panic!("unexpected action: {other:?}"),
     };
@@ -607,7 +682,7 @@ fn debounce_state_machine_schedule_restart_flush_and_loading_guard() {
     assert!(!state.flush_if_pending());
 
     // Edit then flush (on close or Try) applies immediately and invalidates the old timer.
-    let g3 = match state.on_changed(true, false, &autostart) {
+    let g3 = match state.on_changed(true, false, &autostart, noop_done()) {
         ChangeAction::ScheduleTimer { generation, .. } => generation,
         other => panic!("unexpected action: {other:?}"),
     };
@@ -670,6 +745,314 @@ fn autostart_error_reverts_toggle_without_save_loop() {
     assert!(backend.fire_newest_timer());
     assert_eq!(saved.borrow().len(), 1);
     assert!(saved.borrow()[0].start_with_system);
+
+    drop(win);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn autostart_sync_paths_unchanged_with_defer_plumbing() {
+    // Synchronous success: same action as before the defer plumbing.
+    let autostart = FakeAutostart::new(true, false);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+    match state.on_changed(true, true, &autostart, noop_done()) {
+        ChangeAction::ScheduleTimer {
+            clear_autostart_error,
+            ..
+        } => assert!(clear_autostart_error),
+        other => panic!("unexpected action: {other:?}"),
+    }
+    assert!(!state.is_autostart_pending());
+    assert_eq!(autostart.calls(), vec![true]);
+
+    // Synchronous failure: revert, no pending state.
+    let failing = FakeAutostart::new(true, false);
+    failing.set_fail(true);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+    assert_eq!(
+        state.on_changed(true, true, &failing, noop_done()),
+        ChangeAction::AutostartFailed { revert_to: false }
+    );
+    assert!(!state.is_autostart_pending());
+}
+
+#[test]
+fn autostart_deferred_pending_then_ok_schedules_save() {
+    let autostart = DeferredAutostart::new(false);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+
+    assert_eq!(
+        state.on_changed(true, true, &autostart, noop_done()),
+        ChangeAction::AutostartPending { requested: true }
+    );
+    assert!(state.is_autostart_pending());
+    assert_eq!(autostart.deferred_count(), 1);
+    assert!(!state.has_pending_changes());
+
+    // The deferred result lands: exactly the synchronous-success handling.
+    match state.on_autostart_result(true, Ok(())) {
+        ChangeAction::ScheduleTimer {
+            clear_autostart_error,
+            ..
+        } => assert!(clear_autostart_error),
+        other => panic!("unexpected action: {other:?}"),
+    }
+    assert!(!state.is_autostart_pending());
+    assert!(state.has_pending_changes());
+
+    // `last_autostart_value` was updated: repeating the same value no longer clears the error.
+    match state.on_changed(true, true, &autostart, noop_done()) {
+        ChangeAction::ScheduleTimer {
+            clear_autostart_error,
+            ..
+        } => assert!(!clear_autostart_error),
+        other => panic!("unexpected action: {other:?}"),
+    }
+}
+
+#[test]
+fn autostart_deferred_pending_then_error_reverts() {
+    let autostart = DeferredAutostart::new(false);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+    assert_eq!(
+        state.on_changed(true, true, &autostart, noop_done()),
+        ChangeAction::AutostartPending { requested: true }
+    );
+
+    // The deferred failure reverts exactly like a synchronous failure.
+    assert_eq!(
+        state.on_autostart_result(true, Err(PlatformError("portal denied".to_owned()))),
+        ChangeAction::AutostartFailed { revert_to: false }
+    );
+    assert!(!state.is_autostart_pending());
+    assert!(!state.has_pending_changes());
+}
+
+#[test]
+fn autostart_pending_ignores_further_toggles() {
+    let autostart = DeferredAutostart::new(false);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+    assert_eq!(
+        state.on_changed(true, true, &autostart, noop_done()),
+        ChangeAction::AutostartPending { requested: true }
+    );
+
+    // While pending, any event with the toggle away from the last confirmed value is ignored:
+    // no second platform call, no save.
+    assert_eq!(
+        state.on_changed(true, true, &autostart, noop_done()),
+        ChangeAction::Ignored
+    );
+    assert_eq!(autostart.deferred_count(), 1);
+    assert!(!state.has_pending_changes());
+    assert!(state.is_autostart_pending());
+
+    // Toggling back to the last confirmed value is indistinguishable from a non-autostart
+    // edit and debounces normally; still no second platform call.
+    match state.on_changed(true, false, &autostart, noop_done()) {
+        ChangeAction::ScheduleTimer {
+            clear_autostart_error,
+            ..
+        } => assert!(!clear_autostart_error),
+        other => panic!("unexpected action: {other:?}"),
+    }
+    assert_eq!(autostart.deferred_count(), 1);
+    assert!(state.is_autostart_pending());
+
+    // The in-flight result still lands afterwards.
+    match state.on_autostart_result(true, Ok(())) {
+        ChangeAction::ScheduleTimer {
+            clear_autostart_error,
+            ..
+        } => assert!(clear_autostart_error),
+        other => panic!("unexpected action: {other:?}"),
+    }
+    assert!(!state.is_autostart_pending());
+}
+
+#[test]
+fn autostart_deferred_stale_results_are_ignored() {
+    let autostart = DeferredAutostart::new(false);
+    let mut state = SettingsDebounceState::new();
+    state.end_load(false);
+    assert_eq!(
+        state.on_changed(true, true, &autostart, noop_done()),
+        ChangeAction::AutostartPending { requested: true }
+    );
+
+    // A result for a value that was not requested is stale.
+    assert_eq!(
+        state.on_autostart_result(false, Ok(())),
+        ChangeAction::Ignored
+    );
+    assert!(state.is_autostart_pending());
+
+    // A window reload clears the pending request; the late result is stale.
+    state.begin_load();
+    assert!(!state.is_autostart_pending());
+    state.end_load(false);
+    assert_eq!(
+        state.on_autostart_result(true, Ok(())),
+        ChangeAction::Ignored
+    );
+    assert!(!state.has_pending_changes());
+}
+
+#[test]
+fn deferred_autostart_keeps_toggle_then_saves_when_result_arrives() {
+    let dir = temp_dir("autostart-defer-ok");
+    let autostart = DeferredAutostart::new(false);
+    let platform = Arc::new(DeferredPlatform {
+        autostart: autostart.clone(),
+    });
+    let saved: Rc<RefCell<Vec<OcySettings>>> = Rc::new(RefCell::new(Vec::new()));
+    let saved_cb = Rc::clone(&saved);
+    let backend = FakeSettingsBackend::default();
+
+    let mut win = ManagedSettingsWindow::new(
+        backend.clone(),
+        platform,
+        Arc::new(Strings::from_embedded().unwrap()),
+        damt_app::ErrorLog::new(&dir, "ocy"),
+        SettingsCallbacks {
+            on_save: Rc::new(move |s| {
+                saved_cb.borrow_mut().push(s);
+                true
+            }),
+            on_try_short_break: Rc::new(|| {}),
+            on_try_long_break: Rc::new(|| {}),
+        },
+        OcySettings::default(),
+    );
+
+    win.show();
+    let inst = backend.current_instance().unwrap();
+    assert!(!inst.0.values.borrow().start_with_system);
+
+    // User flips the toggle; the platform defers -> pending: the toggle stays where the user
+    // put it, no error, no save scheduled.
+    backend.set_values(|v| v.start_with_system = true);
+    backend.trigger_changed();
+    assert_eq!(autostart.deferred_count(), 1);
+    assert!(inst.0.values.borrow().start_with_system);
+    assert_eq!(*inst.0.autostart_error.borrow(), "");
+    assert!(!win.has_pending_changes());
+    assert!(backend.state.borrow().scheduled_timers.is_empty());
+    assert!(saved.borrow().is_empty());
+
+    // The portal result arrives (marshaled to the UI thread by the backend's `done`):
+    // success schedules the save; the toggle keeps the user's position.
+    autostart.finish(Ok(()));
+    assert!(win.has_pending_changes());
+    assert!(inst.0.values.borrow().start_with_system);
+    assert_eq!(*inst.0.autostart_error.borrow(), "");
+    assert!(backend.fire_newest_timer());
+    assert_eq!(saved.borrow().len(), 1);
+    assert!(saved.borrow()[0].start_with_system);
+
+    drop(win);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn deferred_autostart_error_reverts_toggle_when_result_arrives() {
+    let dir = temp_dir("autostart-defer-err");
+    let autostart = DeferredAutostart::new(false);
+    let platform = Arc::new(DeferredPlatform {
+        autostart: autostart.clone(),
+    });
+    let saved: Rc<RefCell<Vec<OcySettings>>> = Rc::new(RefCell::new(Vec::new()));
+    let saved_cb = Rc::clone(&saved);
+    let backend = FakeSettingsBackend::default();
+
+    let mut win = ManagedSettingsWindow::new(
+        backend.clone(),
+        platform,
+        Arc::new(Strings::from_embedded().unwrap()),
+        damt_app::ErrorLog::new(&dir, "ocy"),
+        SettingsCallbacks {
+            on_save: Rc::new(move |s| {
+                saved_cb.borrow_mut().push(s);
+                true
+            }),
+            on_try_short_break: Rc::new(|| {}),
+            on_try_long_break: Rc::new(|| {}),
+        },
+        OcySettings::default(),
+    );
+
+    win.show();
+    let inst = backend.current_instance().unwrap();
+
+    backend.set_values(|v| v.start_with_system = true);
+    backend.trigger_changed();
+    assert_eq!(autostart.deferred_count(), 1);
+
+    // The portal denies the request: the toggle is reverted and the error shown, as synchronously.
+    autostart.finish(Err(PlatformError("portal denied".to_owned())));
+    assert!(!inst.0.values.borrow().start_with_system);
+    assert_eq!(
+        *inst.0.autostart_error.borrow(),
+        "Could not change the start-up setting."
+    );
+    assert!(!win.has_pending_changes());
+    assert!(backend.state.borrow().scheduled_timers.is_empty());
+    assert!(saved.borrow().is_empty());
+
+    drop(win);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn deferred_autostart_result_after_window_reload_is_stale() {
+    let dir = temp_dir("autostart-defer-stale");
+    let autostart = DeferredAutostart::new(false);
+    let platform = Arc::new(DeferredPlatform {
+        autostart: autostart.clone(),
+    });
+    let saved: Rc<RefCell<Vec<OcySettings>>> = Rc::new(RefCell::new(Vec::new()));
+    let saved_cb = Rc::clone(&saved);
+    let backend = FakeSettingsBackend::default();
+
+    let mut win = ManagedSettingsWindow::new(
+        backend.clone(),
+        platform,
+        Arc::new(Strings::from_embedded().unwrap()),
+        damt_app::ErrorLog::new(&dir, "ocy"),
+        SettingsCallbacks {
+            on_save: Rc::new(move |s| {
+                saved_cb.borrow_mut().push(s);
+                true
+            }),
+            on_try_short_break: Rc::new(|| {}),
+            on_try_long_break: Rc::new(|| {}),
+        },
+        OcySettings::default(),
+    );
+
+    win.show();
+    backend.set_values(|v| v.start_with_system = true);
+    backend.trigger_changed();
+    assert_eq!(autostart.deferred_count(), 1);
+
+    // The window is closed and reopened (a reload) while the portal flow is still pending.
+    backend.trigger_close();
+    win.show();
+    assert_eq!(backend.state.borrow().create_count, 2);
+
+    // The late result is stale: no save, no error, the fresh window keeps its loaded value.
+    autostart.finish(Ok(()));
+    assert!(!win.has_pending_changes());
+    assert!(backend.state.borrow().scheduled_timers.is_empty());
+    assert!(saved.borrow().is_empty());
+    let inst = backend.current_instance().unwrap();
+    assert!(!inst.0.values.borrow().start_with_system);
+    assert_eq!(*inst.0.autostart_error.borrow(), "");
 
     drop(win);
     let _ = fs::remove_dir_all(&dir);

@@ -198,6 +198,42 @@ impl AutostartService for LinuxAutostart {
             }
         }
     }
+
+    fn set_enabled_or_defer(
+        &self,
+        enabled: bool,
+        done: Box<dyn FnOnce(Result<(), PlatformError>) + Send>,
+    ) -> Option<Result<(), PlatformError>> {
+        if !self.use_portal {
+            // Outside Flatpak the .desktop write is fast; keep it synchronous (trait default).
+            drop(done);
+            return Some(self.set_enabled(enabled));
+        }
+
+        // Flatpak portal: the flow blocks for up to 30 s while the desktop may show a
+        // permission dialog, so it must not run on the caller's (UI) thread. The state file
+        // is written on success only, as in the synchronous path.
+        let Some(state_path) = self.portal_state_file.clone() else {
+            drop(done);
+            return Some(Err(PlatformError(
+                "could not resolve config directory for autostart state".to_owned(),
+            )));
+        };
+        let app_name = self.app_name.clone();
+        match std::thread::Builder::new()
+            .name("ocy-autostart-portal".to_owned())
+            .spawn(move || {
+                let result = request_background_portal_autostart(&app_name, enabled)
+                    .and_then(|()| write_portal_autostart_state(&state_path, enabled));
+                done(result);
+            }) {
+            Ok(_handle) => None,
+            // The thread never started, so nothing is pending; `done` was dropped uncalled.
+            Err(err) => Some(Err(PlatformError(format!(
+                "could not start the autostart portal thread: {err}"
+            )))),
+        }
+    }
 }
 
 fn request_background_portal_autostart(app_name: &str, enabled: bool) -> Result<(), PlatformError> {

@@ -165,7 +165,11 @@ jobs:
 
           # The dim is #000000 at alphaValue 0xc7/255 over the pink backdrop (232, 93, 154): it
           # must read as a darkened pink (about 51, 20, 34), not opaque black and not the backdrop.
-          dim = pixel_at(20, 20)
+          # Sample at (40, 120) pt: below the ~24 pt menu bar (which sits above the backdrop, so
+          # (20, 20) hit its Apple glyph) and left of the centred 480 pt card.
+          dim_x, dim_y = 40, 120
+          assert not (card["x"] <= dim_x < card["x"] + card["width"] and card["y"] <= dim_y < card["y"] + card["height"]), f"dim sample point is inside the card {card}"
+          dim = pixel_at(dim_x, dim_y)
           d_red, d_green, d_blue, _ = dim
           print(f"long dim RGBA={dim}")
           assert dim[:3] != [0, 0, 0], f"long dim is opaque black; RGBA={dim}"

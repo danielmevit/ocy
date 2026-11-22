@@ -157,6 +157,26 @@ pub trait AutostartService {
     fn is_enabled(&self) -> bool;
     /// Enable or disable autostart for the current user. No-op (Ok) when unsupported.
     fn set_enabled(&self, enabled: bool) -> Result<(), PlatformError>;
+
+    /// [`AutostartService::set_enabled`], possibly completing asynchronously.
+    ///
+    /// Returns `Some(result)` when the change finished synchronously; `done` is then dropped
+    /// without being called. Returns `None` when the change is deferred: the implementation
+    /// took ownership of `done` and will call it exactly once with the final result, from any
+    /// thread, when the flow finishes (including its timeout). While a change is deferred, the
+    /// caller's UI must stay responsive and further toggles should wait for the result.
+    ///
+    /// The default implementation is exactly [`AutostartService::set_enabled`], so platforms
+    /// without a blocking permission dialog behave identically, with the same timing.
+    fn set_enabled_or_defer(
+        &self,
+        enabled: bool,
+        done: Box<dyn FnOnce(Result<(), PlatformError>) + Send>,
+    ) -> Option<Result<(), PlatformError>> {
+        // The change completed synchronously; `done` is dropped without being called.
+        drop(done);
+        Some(self.set_enabled(enabled))
+    }
 }
 
 /// OS session events. Delivered on an arbitrary thread; the host marshals them to the engine's thread.

@@ -606,33 +606,6 @@ mod macos_impl {
             .unwrap_or(false)
     }
 
-    /// Activates Ocy as an explicit result of opening Settings, then promotes the
-    /// application's current key window for keyboard focus.
-    pub fn activate_macos_application() -> bool {
-        let Some(mtm) = MainThreadMarker::new() else {
-            return false;
-        };
-        if !window_role_should_activate(MacWindowRole::Normal) {
-            return false;
-        }
-
-        let app = NSApplication::sharedApplication(mtm);
-        if objc2::available!(macos = 14.0) {
-            app.activate();
-        } else {
-            // SAFETY: `activateIgnoringOtherApps` is the macOS 11-13 fallback for
-            // activating this accessory app when Settings is explicitly opened.
-            #[allow(deprecated)]
-            app.activateIgnoringOtherApps(true);
-        }
-
-        if let Some(window) = app.keyWindow() {
-            window.makeKeyAndOrderFront(None);
-            window.makeMainWindow();
-        }
-        true
-    }
-
     /// Configures a break/warning card window on macOS so it floats over fullscreen Spaces
     /// without activating Ocy.
     pub fn install_break_window_role(window: &slint::Window) -> bool {
@@ -819,7 +792,7 @@ mod macos_impl {
 
 #[cfg(target_os = "macos")]
 pub use macos_impl::{
-    MacosOverlays, activate_macos_application, activate_settings_window, apply_ns_window_policy,
+    MacosOverlays, activate_settings_window, apply_ns_window_policy,
     apply_window_attributes_for_role, configure_event_loop_builder,
     ensure_accessory_activation_policy, enumerate_monitors, install_break_window_role,
     monitor_info_from_mac,
