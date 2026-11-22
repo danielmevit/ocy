@@ -12,18 +12,20 @@ mod linux_pure_tests {
     use damt_platform_linux::pure::{
         AutostartDesktopError, DbusSignal, ExtIdleMapping, IdleEnv, IdleMath, IdleSourceKind,
         LinuxDisplayBackend, LinuxTrayIconState, LinuxWindowPolicy, MotionMapper,
-        PortalColorScheme, RawX11Crtc, X11_BREAK_STATE_ATOM_NAMES, X11_WM_STATE_ABOVE_ATOM,
-        X11_WM_STATE_SKIP_PAGER_ATOM, X11_WM_STATE_SKIP_TASKBAR_ATOM,
-        X11_WM_WINDOW_TYPE_NOTIFICATION_ATOM, X11MonitorInfo, autostart_dir, autostart_file_path,
-        build_background_portal_options, build_desktop_entry, decode_tray_icon_argb32,
-        escape_desktop_exec_arg, ewmh_has_fullscreen, extract_portal_autostart_result,
-        format_portal_autostart_state, intersect_screen_rect, is_flatpak_env, is_sandboxed_env,
-        map_background_portal_response, map_background_portal_results, map_dbus_signal,
-        merge_wm_state_atoms, net_wm_state_add_messages, parse_desktop_entry_enabled,
-        parse_net_workarea, parse_portal_autostart_state, parse_raw_dbus_signal, parse_xft_dpi,
+        PortalColorScheme, RawX11Crtc, X11_BREAK_STATE_ATOM_NAMES, X11_BREAK_USER_TIME,
+        X11_BREAK_WM_HINTS_INPUT, X11_WM_STATE_ABOVE_ATOM, X11_WM_STATE_SKIP_PAGER_ATOM,
+        X11_WM_STATE_SKIP_TASKBAR_ATOM, X11_WM_WINDOW_TYPE_NOTIFICATION_ATOM, X11MonitorInfo,
+        autostart_dir, autostart_file_path, build_background_portal_options, build_desktop_entry,
+        decode_tray_icon_argb32, escape_desktop_exec_arg, ewmh_has_fullscreen,
+        extract_portal_autostart_result, format_portal_autostart_state, intersect_screen_rect,
+        is_flatpak_env, is_sandboxed_env, map_background_portal_response,
+        map_background_portal_results, map_dbus_signal, merge_wm_state_atoms,
+        net_wm_state_add_messages, parse_desktop_entry_enabled, parse_net_workarea,
+        parse_portal_autostart_state, parse_raw_dbus_signal, parse_xft_dpi,
         portal_autostart_state_path, probe_idle_source, read_portal_autostart_state,
         resolve_logind_session_id, resolve_x11_monitors, rgba_to_argb32, select_active_monitor,
         select_display_backend, select_idle_source_order, write_portal_autostart_state,
+        x11_restack_above_target,
     };
     use zbus::zvariant::{OwnedValue, Value};
 
@@ -862,5 +864,19 @@ Hidden=true
         assert!(fallback[0].primary);
         assert!(!fallback[1].primary);
         assert_eq!(fallback[0].dpi, 96);
+    }
+
+    #[test]
+    fn x11_non_focus_hint_constants_and_restack_target_match_spec() {
+        const { assert!(!X11_BREAK_WM_HINTS_INPUT) };
+        assert_eq!(X11_BREAK_USER_TIME, 0);
+
+        assert_eq!(x11_restack_above_target(None, 0x600001), None);
+        assert_eq!(x11_restack_above_target(Some(0), 0x600001), None);
+        assert_eq!(x11_restack_above_target(Some(0x600001), 0x600001), None);
+        assert_eq!(
+            x11_restack_above_target(Some(0x600008), 0x600003),
+            Some(0x600008)
+        );
     }
 }

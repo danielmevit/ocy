@@ -765,6 +765,23 @@ pub const X11_BREAK_STATE_ATOM_NAMES: [&str; 3] = [
 pub const NET_WM_STATE_ADD: u32 = 1;
 /// EWMH normal-application source indication for `_NET_WM_STATE` client messages.
 pub const NET_WM_SOURCE_APPLICATION: u32 = 1;
+/// ICCCM `WM_HINTS.input` value for break and overlay windows (`false`: never accept keyboard focus).
+pub const X11_BREAK_WM_HINTS_INPUT: bool = false;
+/// EWMH `_NET_WM_USER_TIME` value for break and overlay windows (`0`: suppress initial focus on map).
+pub const X11_BREAK_USER_TIME: u32 = 0;
+
+/// Returns `Some(card_xid)` when an active break-card window ID needs to be raised above
+/// `overlay_xid`, or `None` when no card is active or the IDs are invalid/identical.
+#[must_use]
+pub const fn x11_restack_above_target(
+    active_card_xid: Option<u32>,
+    overlay_xid: u32,
+) -> Option<u32> {
+    match active_card_xid {
+        Some(card_xid) if card_xid != 0 && card_xid != overlay_xid => Some(card_xid),
+        _ => None,
+    }
+}
 
 /// Merges `required` `_NET_WM_STATE` atoms into `existing` without duplicates and skipping `0`.
 #[must_use]

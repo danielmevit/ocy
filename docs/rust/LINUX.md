@@ -160,13 +160,10 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
 
 ## 6. Break cards: never take focus, stay on top
 
-### X11 (implemented in `L2a` — pure helpers tested; live WM check pending)
+### X11 (implemented in `L2a`, pre-map focus fix in `L2f` — pure helpers tested; CI Xvfb/Openbox smoke pending)
 - `ocy_app::linux_window` (the Linux twin of `win32_window.rs`) + `damt_platform_linux::apply_x11_break_window_hints`:
-  - Before map: `WindowAttributesExtX11::with_x11_window_type(vec![WindowType::Notification])` and `.with_active(false)`.
-  - After winit window creation: extracts the X11 window ID from `raw-window-handle` (`Xlib` / `Xcb`) and uses a separate `x11rb` connection to set:
-    - `_NET_WM_WINDOW_TYPE` = `_NET_WM_WINDOW_TYPE_NOTIFICATION` (no taskbar entry, no Alt+Tab, WM keeps above);
-    - `_NET_WM_STATE` property and `_NET_WM_STATE` root `ClientMessage`s (`_NET_WM_STATE_ADD`): `_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`;
-    - ICCCM `WM_HINTS` `input = false` (never request keyboard focus) plus `_NET_WM_USER_TIME = 0` (suppress focus on initial map).
+  - Window attributes hook: `with_visible(false)`, `with_x11_window_type(vec![WindowType::Notification])`, and `.with_active(false)`. Note: `winit 0.30.13` leaves `with_active(false)` unsupported on X11 (`winit/src/window.rs`), and calling Slint `show()` before the winit window exists causes `WinitWindowAdapter::ensure_window` to map the window immediately upon creation before `install_break_window_role` can run.
+  - Pre-map hint sequence (`L2f`): on live winit X11, break cards and X11 overlays (`LinuxDimOverlay`, `LinuxEdgeFrameOverlay`) stay hidden until `Window::winit_window().await` resolves on the unmapped window; `apply_x11_break_window_hints` then writes `_NET_WM_WINDOW_TYPE` = `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), ICCCM `WM_HINTS` `input = false`, and `_NET_WM_USER_TIME = 0`, followed by `x11rb` `sync()` before `show()` maps the window. Break cards also register and `raise_x11_window_above` after overlays map so `LongBreakCard` always stacks above `LinuxDimOverlay`.
 - WM-dependent behaviour (e.g. tiling WMs like i3/sway) remains an inherent X11 caveat; needs a real X11 WM pass.
 - **Flatpak:** works through the X11 socket.
 
@@ -191,17 +188,18 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
     coordinates, no window list). Both are protocol-level, not a missing crate.
   - **Implemented in `L2a`:** `linux_window::enumerate_monitors` returns empty on Wayland; long-break and fullscreen short-break dims enumerate `winit` `available_monitors()` and open one borderless fullscreen click-through window per output. Small cards open as normal windows placed by the compositor; edge frames are dropped on Wayland.
 
-### L2a status — verified by tests vs. needs a real desktop check
+### L2a / L2f status — verified by tests vs. needs a real desktop check
 - **Verified by unit tests (`cargo test --workspace`):**
   - X11 vs. Wayland vs. Headless backend detection (`select_display_backend`, including `DISPLAY=:0` under Wayland).
-  - Window policy matrix (`LinuxWindowPolicy`), `WindowAttributePlan`, and `LinuxOverlayMode` selection.
+  - Window policy matrix (`LinuxWindowPolicy`), `WindowAttributePlan`, `should_defer_x11_show`, and `LinuxOverlayMode` selection.
   - Raw window handle X11 ID extraction (`Xlib` / `Xcb` -> `Some(u32)`, `Wayland` -> `None`).
-  - EWMH `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` atom merging (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), and `_NET_WM_STATE_ADD` `ClientMessage` packing.
+  - EWMH `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` atom merging (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), `_NET_WM_STATE_ADD` `ClientMessage` packing, non-focus hint constants (`WM_HINTS.input=false`, `_NET_WM_USER_TIME=0`), and `x11_restack_above_target`.
   - `Xft.dpi` parsing, `_NET_WORKAREA` desktop indexing + monitor intersection, RandR primary-output resolution, and `X11MonitorInfo` -> `damt_overlay::MonitorInfo` conversion.
   - Wayland per-output dim window assignment (`plan_wayland_dim_outputs`).
   - Headless soak/integration lifecycle (`SlintBreakWindows` + `OverlayBreakWindows` creating and closing overlays with 0 leaked windows).
-- **Needs a real desktop check (not run here; no GUI launched in WSLg):**
-  - **CI smoke (`L3s`, `.github/workflows/linux-smoke.yml`):** `x11-smoke` launches `--demo-break short|warning|long`, `--demo-settings`, and `--report-memory` (asserting idle `private_mb` ≤ 15 MB) under `Xvfb` + `openbox` + a focused `xterm`, checks mapped windows, no focus theft, and `long` card-above-dim stacking in `_NET_CLIENT_LIST_STACKING`, uploads screenshots/logs (`ocy-linux-smoke`), and runs a best-effort headless `weston` check for `--demo-break short`; `tarball` builds and uploads `Ocy-<version>-linux-x86_64.tar.gz` + `.sha256` (`ocy-linux-tarball`).
+- **CI smoke (`L3s` + `L2f`, `.github/workflows/linux-smoke.yml`):**
+  - `x11-smoke` launches `--demo-break short|warning|long`, `--demo-settings`, and `--report-memory` (asserting idle `private_mb` ≤ 15 MB) under `Xvfb` + `openbox` + a focused `xterm`, dumps `_NET_WM_WINDOW_TYPE`, `_NET_WM_STATE`, `WM_HINTS`, `_NET_WM_USER_TIME`, `WM_CLASS`, `_NET_WM_PID`, and `WM_NAME`, asserts no focus theft (`active_wid == xterm_wid`) and `long` card-above-dim stacking in `_NET_CLIENT_LIST_STACKING`, uploads screenshots/logs (`ocy-linux-smoke`), and runs a best-effort headless `weston` check for `--demo-break short`; `tarball` builds and uploads `Ocy-<version>-linux-x86_64.tar.gz` + `.sha256` (`ocy-linux-tarball`).
+  - Note: run `45059262177` caught X11 focus theft in `short`, `warning`, and `long` because `install_break_window_role` applied `WM_HINTS.input=false` and `_NET_WM_USER_TIME=0` after Slint had already mapped the window; `L2f` fixes this by applying and syncing the hints before the first map (CI re-run pending).
   - **Still needs a real GNOME / KDE / multi-monitor desktop pass:**
     - X11 (GNOME on X11, KDE on X11, XFCE, and a tiling WM like i3): confirm `_NET_WM_WINDOW_TYPE_NOTIFICATION` + `_NET_WM_STATE_ABOVE`/`SKIP_TASKBAR`/`SKIP_PAGER` + `WM_HINTS.input=false` keep break cards above, off the taskbar/Alt+Tab, clickable without stealing focus, placed on the active monitor's corner/centre, and XShape edge frames render transparently without capturing clicks.
     - Wayland (GNOME Mutter and KDE KWin): confirm cards never steal focus (`with_active(false)`), `LinuxDimOverlay` goes borderless fullscreen on every connected `wl_output`, `set_cursor_hittest(false)` makes dims click-through, `LongBreakCard` stacks above the dim window so "End break" is visible and clickable, and SNI tray / Mutter idle / Background portal autostart work in a real desktop session.

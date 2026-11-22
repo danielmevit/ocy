@@ -536,6 +536,8 @@ impl SlintBreakWindows {
     }
 
     fn hide_and_drop_active(&mut self) {
+        #[cfg(target_os = "linux")]
+        crate::linux_window::clear_x11_break_card();
         if let Some(active) = self.active.take() {
             match active {
                 ActiveBreakWindow::ShortBreak(s) => {
@@ -983,10 +985,70 @@ fn schedule_subclass_retry<C: ComponentHandle + 'static>(
     });
 }
 
+#[cfg(target_os = "linux")]
+fn try_defer_x11_card_show<C: ComponentHandle + 'static>(
+    card: &C,
+    ctx: &ShowWindowContext,
+    dip_size: DipSize,
+    dip_size_fn: Rc<impl Fn(&C, Option<ScreenInfo>) -> DipSize + 'static>,
+    subclassed: &Rc<Cell<bool>>,
+) -> bool {
+    use slint::winit_030::WinitWindowAccessor;
+
+    if !crate::linux_window::should_defer_x11_card_show(card.window()) {
+        return false;
+    }
+
+    let weak = card.as_weak();
+    let subclassed_ev = Rc::clone(subclassed);
+    let gen_ref = Rc::clone(&ctx.gen_cell);
+    let generation = ctx.generation;
+    let due_at = ctx.due_at;
+    let latency_out = Rc::clone(&ctx.latency_out);
+    let error_log = ctx.error_log.clone();
+    let screen = ctx.screen;
+    let centered = ctx.centered;
+
+    slint::spawn_local(async move {
+        if gen_ref.get() != generation {
+            return;
+        }
+        let Some(card) = weak.upgrade() else {
+            return;
+        };
+        let winit_res = card.window().winit_window().await;
+        drop(winit_res);
+        if gen_ref.get() != generation {
+            return;
+        }
+        if !subclassed_ev.get() && install_break_window_role_platform(card.window()) {
+            subclassed_ev.set(true);
+        }
+        if let Err(err) = card.show() {
+            error_log.log_error("break_window_show", &err);
+        }
+        let show_ms = due_at.elapsed().as_secs_f64() * 1000.0;
+        if let Some(sample) = latency_out.borrow_mut().as_mut() {
+            sample.due_to_show_ms = show_ms;
+        }
+        let updated_dip = dip_size_fn(&card, screen);
+        if (updated_dip.height - dip_size.height).abs() > 0.5
+            || (updated_dip.width - dip_size.width).abs() > 0.5
+        {
+            let (new_pos, new_w, new_h) = compute_card_rect(screen, updated_dip, centered);
+            card.window()
+                .set_position(PhysicalPosition::new(new_pos.x, new_pos.y));
+            card.window().set_size(PhysicalSize::new(new_w, new_h));
+        }
+        crate::linux_window::register_x11_break_card(card.window());
+    })
+    .is_ok()
+}
+
 fn show_card_window<C: ComponentHandle + 'static>(
     card: &C,
     ctx: ShowWindowContext,
-    dip_size_fn: impl Fn(&C, Option<ScreenInfo>) -> DipSize,
+    dip_size_fn: impl Fn(&C, Option<ScreenInfo>) -> DipSize + 'static,
 ) {
     let dip_size = dip_size_fn(card, ctx.screen);
     let (pos, phys_w, phys_h) = compute_card_rect(ctx.screen, dip_size, ctx.centered);
@@ -1064,6 +1126,21 @@ fn show_card_window<C: ComponentHandle + 'static>(
         EventResult::Propagate
     });
 
+    #[cfg(target_os = "linux")]
+    let dip_size_fn = Rc::new(dip_size_fn);
+    #[cfg(target_os = "linux")]
+    if try_defer_x11_card_show(card, &ctx, dip_size, Rc::clone(&dip_size_fn), &subclassed) {
+        return;
+    }
+
+    #[cfg(target_os = "linux")]
+    if crate::linux_window::is_winit_x11_active()
+        && !subclassed.get()
+        && install_break_window_role_platform(card.window())
+    {
+        subclassed.set(true);
+    }
+
     if let Err(err) = card.show() {
         ctx.error_log.log_error("break_window_show", &err);
     }
@@ -1082,6 +1159,9 @@ fn show_card_window<C: ComponentHandle + 'static>(
             .set_position(PhysicalPosition::new(new_pos.x, new_pos.y));
         card.window().set_size(PhysicalSize::new(new_w, new_h));
     }
+
+    #[cfg(target_os = "linux")]
+    crate::linux_window::register_x11_break_card(card.window());
 
     if install_break_window_role_platform(card.window()) {
         subclassed.set(true);
@@ -1472,6 +1552,8 @@ impl BreakWindows for SlintBreakWindows {
     }
 
     fn close_all(&mut self) {
+        #[cfg(target_os = "linux")]
+        crate::linux_window::clear_x11_break_card();
         self.break_active.set(false);
         let _ = self.next_generation();
         self.hide_and_drop_active();

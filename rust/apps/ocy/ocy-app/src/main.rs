@@ -369,8 +369,11 @@ fn main() -> ExitCode {
     }
 
     #[cfg(target_os = "linux")]
-    if let Err(err) = slint::set_xdg_app_id(ocy_app::instance::APP_ID) {
-        error_log.log_error("set_xdg_app_id", &err);
+    {
+        ocy_app::linux_window::init_winit_backend();
+        if let Err(err) = slint::set_xdg_app_id(ocy_app::instance::APP_ID) {
+            error_log.log_error("set_xdg_app_id", &err);
+        }
     }
 
     #[cfg(target_os = "macos")]

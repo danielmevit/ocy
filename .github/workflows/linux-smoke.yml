@@ -234,7 +234,7 @@ jobs:
               echo "mode=$mode pid=$OCY_PID matched_wids=${ocy_wids[*]:-(none)}"
               for wid in "${ocy_wids[@]}"; do
                 echo "=== window $wid ==="
-                xprop -id "$wid" _NET_WM_WINDOW_TYPE _NET_WM_STATE WM_CLASS _NET_WM_PID WM_NAME 2>&1 || true
+                xprop -id "$wid" _NET_WM_WINDOW_TYPE _NET_WM_STATE WM_HINTS _NET_WM_USER_TIME WM_CLASS _NET_WM_PID WM_NAME 2>&1 || true
                 xwininfo -id "$wid" 2>&1 || true
               done
             } >"smoke-artifacts/xprop-${mode}.log"
