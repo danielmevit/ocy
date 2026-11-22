@@ -1,31 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Draft metainfo for the Flatpak manifest — NOT INSTALLED YET (task L0).
-     Flathub requires AppStream metainfo with releases and screenshots:
-     https://docs.flathub.org/for-app-authors/metainfo-guidelines/
-     Release tags are placeholders until the Linux line ships (owner decides the
-     version line for Linux; the Rust line is 0.2.x per docs/rust/PLAN.md §1.3). -->
 <component type="desktop-application">
   <id>xyz.damt.ocy</id>
   <name>Ocy</name>
   <summary>Calm break reminders for your eyes</summary>
   <description>
-    <p>Ocy gives short eye exercises often and a real long break every hour.
-    It counts active screen time, stays out of the way, and never steals focus.</p>
+    <p>Ocy is a free, open-source eye break reminder that helps with eye strain the gentle way.
+    About every 25 minutes a small card shows one of twelve hand-drawn eye exercises for
+    15 seconds, and every hour it asks for a 5-minute screen break.</p>
+    <p>Between breaks Ocy stays in the tray. It counts active screen time rather than
+    wall-clock time, counts time away, screen lock, or sleep as rest, waits for a natural
+    pause in typing or mouse use before showing a break, and works completely offline with
+    no account and no telemetry.</p>
+    <p>Available in 40 languages with Gentle, Balanced, and Focused presets, adjustable
+    timings, optional strict mode, and light or dark themes.</p>
   </description>
   <metadata_license>CC0-1.0</metadata_license>
-  <!-- The app itself is AGPL-3.0 (see rust/crates LICENSES.md); confirm the
-       project license value with the owner before submission. -->
   <project_license>AGPL-3.0-only</project_license>
   <launchable type="desktop-id">xyz.damt.ocy.desktop</launchable>
-  <url type="homepage">https://ocy.app</url>
+  <developer id="xyz.damt">
+    <name>Daniel Mevit</name>
+  </developer>
+  <url type="homepage">https://danielmevit.github.io/ocy/</url>
+  <url type="vcs-browser">https://github.com/danielmevit/ocy</url>
+  <url type="bugtracker">https://github.com/danielmevit/ocy/issues</url>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="0.2.0" date="2026-01-01">
-      <description><p>First Linux release (placeholder entry).</p></description>
+    <release version="0.2.2" date="2026-11-22">
+      <description>
+        <p>Early Linux Flatpak packaging release.</p>
+      </description>
     </release>
   </releases>
   <screenshots>
-    <!-- Real screenshots are added in L5; Flathub requires at least one. -->
+    <screenshot type="default">
+      <caption>Short break card with an illustrated eye exercise and countdown</caption>
+      <image type="source" width="912" height="338">https://raw.githubusercontent.com/danielmevit/ocy/main/assets/readme/short-break-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Long break card reminding you to rest your eyes</caption>
+      <image type="source" width="1152" height="876">https://raw.githubusercontent.com/danielmevit/ocy/main/assets/readme/long-break-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Settings window with presets, timeline, and today's breaks</caption>
+      <image type="source" width="1120" height="1280">https://raw.githubusercontent.com/danielmevit/ocy/main/assets/readme/settings-light.png</image>
+    </screenshot>
   </screenshots>
   <requires>
     <display_length compare="ge">360</display_length>

@@ -1,29 +1,23 @@
-# Draft Flatpak manifest for Ocy — NOT BUILT YET (task L0).
-#
-# This is a planning artifact for docs/rust/LINUX.md §13–L5. It follows the
-# flatpak-builder schema (https://docs.flatpak.org/en/latest/manifests.html)
-# but has never been run; the spike (L1) and packaging phase (L5) will fix it.
+# Flatpak manifest for Ocy (L5a — CI bundle build; Flathub submission still pending).
 #
 # Notes:
-# - org.freedesktop.Platform is chosen over org.gnome.Platform because Ocy uses
-#   no GTK (Slint + winit + pure-Rust D-Bus). Font coverage must be checked (LINUX.md §12).
-# - Rust sources: flatpak-builder needs every crate as a `sources` entry. The
-#   standard flow is flatpak-builder-tools' cargo generator:
-#   https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo
-#   It produces a generated-sources.json from Cargo.lock which is included below
-#   as a placeholder. Do not hand-maintain crate sources.
-# - App ID: xyz.damt.ocy matches the Windows/Store identity (rust/apps/ocy/ocy-app/src/instance.rs).
-#   Flathub requires proof of control of the reverse-DNS domain; whether "xyz.damt"
-#   is acceptable is UNVERIFIED (LINUX.md §14 L5 risk).
-# - Permissions rationale is in docs/rust/LINUX.md §13. No network, no filesystem,
-#   no devices (software renderer only).
+# - Runtime: org.freedesktop.Platform 26.08 (current stable Freedesktop runtime,
+#   supported 2026-08 to 2028-09) + org.freedesktop.Sdk.Extension.rust-stable//26.08
+#   (ships Rust 1.98.0, satisfying rust/rust-toolchain.toml 1.95.0 / MSRV 1.95).
+# - Vendored crate sources (cargo-sources.json) are generated in CI from
+#   rust/Cargo.lock by flatpak-builder-tools' flatpak-cargo-generator.py and are
+#   not committed yet; Flathub submission will require committing cargo-sources.json.
+# - App ID: xyz.damt.ocy matches the Windows identity (rust/apps/ocy/ocy-app/src/instance.rs).
+#   Flathub domain ownership proof is still pending (docs/rust/LINUX.md §14 L5).
 
 app-id: xyz.damt.ocy
 branch: stable
 runtime: org.freedesktop.Platform
-runtime-version: "24.08"
+runtime-version: "26.08"
 sdk: org.freedesktop.Sdk
-command: ocy
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: Ocy
 
 finish-args:
   # UI on Wayland and X11 (X11 also needs --share=ipc).
@@ -31,35 +25,34 @@ finish-args:
   - --socket=fallback-x11
   - --share=ipc
   # Lock/unlock + suspend/resume signals from logind (system bus).
-  # If Flathub review refuses this, the engine's sleep-gap rule and the
-  # org.freedesktop.ScreenSaver session signals are the fallback (LINUX.md §3).
   - --system-talk-name=org.freedesktop.login1
-  # Tray (StatusNotifierItem) and notifications. Probably allowed on the session
-  # bus by default; listed explicitly so review sees the intent.
+  # Tray (StatusNotifierItem via ksni) and desktop notifications.
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.Notifications
-  # Idle-time fallback on GNOME < 46 via Mutter's IdleMonitor D-Bus API.
-  # Only keep if the L1 spike proves it works inside the sandbox.
-  - --talk-name=org.gnome.Mutter
-  # Autostart, color-scheme/theme and future portals need no finish-args.
+  # Idle-time fallback on GNOME Wayland used today by damt-platform-linux/src/linux/idle.rs.
+  # xdg-dbus-proxy matches exact bus names unless ".*" is specified.
+  - --talk-name=org.gnome.Mutter.IdleMonitor
+  # Settings portal (color-scheme) needs no finish-args.
 
 modules:
   - name: ocy
     buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/ocy/cargo
+        CARGO_NET_OFFLINE: "true"
     build-commands:
-      # Placeholder: the real build runs cargo with the offline sources produced
-      # by flatpak-builder-tools/cargo (see header note), then installs:
-      #   install -Dm755 target/release/ocy /app/bin/ocy
-      #   install -Dm644 packaging/linux/xyz.damt.ocy.desktop /app/share/applications/xyz.damt.ocy.desktop
-      #   install -Dm644 packaging/linux/xyz.damt.ocy.metainfo.xml /app/share/metainfo/xyz.damt.ocy.metainfo.xml
-      #   install -Dm644 packaging/linux/icons/... /app/share/icons/hicolor/.../apps/xyz.damt.ocy.png
-      - echo "draft manifest: build commands are finalized in L5"
+      - cd rust && cargo --offline build --release --locked -p ocy-app
+      - install -Dm755 rust/target/release/Ocy /app/bin/Ocy
+      - install -Dm644 packaging/linux/xyz.damt.ocy.desktop /app/share/applications/xyz.damt.ocy.desktop
+      - install -Dm644 packaging/linux/xyz.damt.ocy.metainfo.xml /app/share/metainfo/xyz.damt.ocy.metainfo.xml
+      - install -Dm644 assets/icons/app/png/ocy-app-64.png /app/share/icons/hicolor/64x64/apps/xyz.damt.ocy.png
+      - install -Dm644 assets/icons/app/png/ocy-app-128.png /app/share/icons/hicolor/128x128/apps/xyz.damt.ocy.png
+      - install -Dm644 assets/icons/app/png/ocy-app-256.png /app/share/icons/hicolor/256x256/apps/xyz.damt.ocy.png
+      - if command -v rsvg-convert >/dev/null 2>&1; then install -d /app/share/icons/hicolor/512x512/apps && rsvg-convert -w 512 -h 512 assets/icons/app/ocy-app.svg -o /app/share/icons/hicolor/512x512/apps/xyz.damt.ocy.png; fi
+      - install -Dm644 assets/icons/app/ocy-app.svg /app/share/icons/hicolor/scalable/apps/xyz.damt.ocy.svg
     sources:
-      # The app sources and the generated cargo crate list go here in L5, e.g.:
-      # - type: dir
-      #   path: ../..
-      # - generated-sources.json (flatpak-cargo output)
-      - type: file
-        path: xyz.damt.ocy.desktop
-      - type: file
-        path: xyz.damt.ocy.metainfo.xml
+      - type: dir
+        path: ../..
+      - cargo-sources.json

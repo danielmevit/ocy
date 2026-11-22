@@ -1,0 +1,1 @@
+- L5a-flatpak-ci: Finalized the Linux Flatpak manifest (`org.freedesktop.Platform` 26.08 + `rust-stable`), `.desktop`, and AppStream metainfo in `packaging/linux/`, added `.github/workflows/linux-flatpak.yml` to build and upload the `ocy-linux-flatpak` bundle artifact, and updated `docs/rust/LINUX.md` L5 status and install instructions.

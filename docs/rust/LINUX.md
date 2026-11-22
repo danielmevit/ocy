@@ -329,12 +329,21 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
 **Effort:** 2–3 days (mostly hands-on; depends on L1 findings).
 
 ### L5 — Flatpak packaging + Flathub submission
-- Finalize `packaging/linux/` (manifest, .desktop, metainfo with releases/screenshots — Flathub requires
-  metainfo: https://docs.flathub.org/for-app-authors/metainfo-guidelines/), build with `flatpak-builder`
-  locally, test `--user` install on GNOME and KDE, submit: https://docs.flathub.org/for-app-authors/submission
-- **App ID risk:** Flathub requires control of the reverse-DNS domain. `xyz.damt.ocy` is the existing app ID
-  (Windows Store); whether `xyz.damt` satisfies Flathub's ownership check is **unverified** — resolve before
-  L5, or be ready to rename the Linux app ID (settings path would change; plan a migration).
+- **Done (`L5a`):**
+  - Finalized `packaging/linux/xyz.damt.ocy.yml` targeting `org.freedesktop.Platform` / `org.freedesktop.Sdk` `26.08` with `org.freedesktop.Sdk.Extension.rust-stable` (Rust 1.98.0, satisfying `rust/rust-toolchain.toml` `1.95.0`), offline `cargo --offline build --release --locked -p ocy-app`, `/app/bin/Ocy`, `.desktop`, metainfo, and hicolor icons (`64x64`, `128x128`, `256x256`, `512x512` rendered from SVG when `rsvg-convert` is present, and `scalable` SVG).
+  - Updated `packaging/linux/xyz.damt.ocy.desktop` (`Exec=Ocy`, `Icon=xyz.damt.ocy`, `StartupWMClass=Ocy` to match the X11 `WM_CLASS` emitted from `argv[0]`).
+  - Updated `packaging/linux/xyz.damt.ocy.metainfo.xml` (release `0.2.2`, OARS `1.1`, homepage, developer `Daniel Mevit`, and screenshots pointing at `main` raw URLs).
+  - Added `.github/workflows/linux-flatpak.yml` to validate `.desktop` + metainfo, generate `cargo-sources.json` via `flatpak-cargo-generator.py`, build the bundle, and upload artifact `ocy-linux-flatpak` (`Ocy-<version>-x86_64.flatpak`).
+- **Tester install (from the `ocy-linux-flatpak` CI artifact):**
+  ```sh
+  flatpak install --user ./Ocy-<version>-x86_64.flatpak
+  flatpak run xyz.damt.ocy
+  ```
+- **Still to do before Flathub submission:**
+  - **Commit `cargo-sources.json`:** CI generates `packaging/linux/cargo-sources.json` dynamically from `rust/Cargo.lock`; Flathub builds offline from the manifest repo and will require `cargo-sources.json` to be committed alongside the manifest.
+  - **Wayland `app_id` / `StartupWMClass`:** `ocy-app` does not currently call `slint::set_xdg_app_id("xyz.damt.ocy")` (or winit `with_name`), so X11 sets `WM_CLASS=("Ocy", "Ocy")` and Wayland leaves `xdg_toplevel.app_id` unset. Add `slint::set_xdg_app_id(ocy_app::instance::APP_ID)` in Rust and update `StartupWMClass` so Wayland compositors associate windows with `xyz.damt.ocy.desktop`.
+  - **Flatpak autostart:** `LinuxAutostart` currently writes `$XDG_CONFIG_HOME/autostart/xyz.damt.ocy.desktop`, which stays inside `~/.var/app/xyz.damt.ocy/config/autostart` in Flatpak; implement the `org.freedesktop.portal.Background` path (§8) when running inside Flatpak.
+  - **Desktop testing & Flathub review:** test `--user` install and runtime behaviour on GNOME and KDE (including `org.gnome.Mutter.IdleMonitor` and `org.freedesktop.login1` sandbox permissions), run `flatpak-builder-lint`, verify screenshot `width`/`height` attributes, and resolve `xyz.damt.ocy` reverse-DNS domain proof before submitting: https://docs.flathub.org/for-app-authors/submission
 **Effort:** 2–3 days plus review wait.
 
 ## 15. Honest effort estimate
