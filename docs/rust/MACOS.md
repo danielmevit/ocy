@@ -244,11 +244,34 @@ role decision is `Normal => true`; break cards, warning cards, dim overlays, and
 frames remain `false`. On macOS 14+, `NSApplication.activate()` is used; older macOS
 runs use `activateIgnoringOtherApps:YES`.
 
-Break-card windows are transparent and use no native `NSWindow` shadow. Slint already
+Break-card windows are transparent and use no native `NSWindow` shadow (superseded by M5 below). Slint already
 draws the card shadow inside the 392 DIP window, so native shadow was disabled to
 avoid a second dark shadow/rectangle around the margins. The native window is also
 non-opaque with a clear background. CI places a pink backdrop behind short and warning
 probes and samples 3 points inside the top-left card window margin.
+
+#### M5 status (no per-pixel alpha on macOS)
+
+Slint 1.19's software renderer presents through softbuffer's CoreGraphics backend, which
+builds its `CGImage` with `kCGImageAlphaNoneSkipFirst` (`softbuffer-0.4.8/src/backends/cg.rs:328`):
+the alpha byte is ignored, so every transparent or translucent pixel shows as its premultiplied
+RGB, i.e. black. `setOpaque(false)` and a clear window background (M4) cannot fix that. So on
+macOS only:
+
+- **Cards:** `ShortBreakCard`, `WarningCard` and `LongBreakCard` take `card-inset: 0` (default
+  16 px elsewhere), drop the Slint drop shadow, and paint their window in the card surface. The
+  window is exactly the card (360 DIP short/warning, 480 DIP long). The content view's layer gets
+  `cornerRadius = 8` + `masksToBounds`, the window gets a clear background and the native shadow
+  (`hasShadow = YES`, `invalidateShadow` after the first frames). The corner position adds 16 DIP
+  so the card lands where it does on Windows.
+- **Dims:** painted in the opaque RGB of the dim colour; the alpha moves to `NSWindow.alphaValue`.
+- **Edge frames:** four opaque strip windows per monitor (top/bottom full width, left/right
+  between them), each with `alphaValue` = border alpha; same level, click-through and collection
+  behaviour as before.
+
+CI asserts the pink backdrop 1 pt inside the short/warning window corner (outside the 8 pt
+arc), the light card surface at the card's centre-left, and for the long break a darkened-pink
+dim (not black, `R > 15`, darker than the backdrop) with the card above it.
 
 ## Honest estimate
 

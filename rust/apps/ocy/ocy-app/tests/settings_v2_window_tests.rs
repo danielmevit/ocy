@@ -370,9 +370,14 @@ fn headless_v2_language_switch_updates_texts_slider_formatters_and_font_family()
         ui.get_next_break_text().as_str(),
         "Nächste kurze Pause in 25 Min."
     );
+    let expected_de_auto = if cfg!(windows) {
+        "Automatisch (Windows-Sprache)"
+    } else {
+        "Automatisch (Systemsprache)"
+    };
     assert_eq!(
         ui.get_language_model().row_data(0).as_deref(),
-        Some("Automatisch (Windows-Sprache)")
+        Some(expected_de_auto)
     );
     assert_eq!(ui.get_language_index(), de_idx);
     assert_eq!(

@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "अगला लंबा ब्रेक {clock} पर",
   "settings.v2.header.nextShort": "{time} में अगला छोटा ब्रेक",
   "settings.v2.language.automatic": "अपने आप (Windows भाषा)",
+  "settings.v2.language.automaticSystem": "अपने आप (सिस्टम भाषा)",
   "settings.v2.mode.balanced.description": "अक्सर छोटे ब्रेक, हर घंटे एक लंबा ब्रेक।",
   "settings.v2.mode.custom.description": "आपकी अपनी लय, नीचे सेट करें।",
   "settings.v2.mode.focused.description": "ध्यान लगाने के समय कम रुकावटें।",

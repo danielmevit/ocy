@@ -91,6 +91,7 @@
   "settings.v2.header.nextLong": "Następna długa przerwa o {clock}",
   "settings.v2.header.nextShort": "Następna krótka przerwa za {time}",
   "settings.v2.language.automatic": "Automatycznie (język Windows)",
+  "settings.v2.language.automaticSystem": "Automatycznie (język systemu)",
   "settings.v2.preset.balanced": "Wyważony",
   "settings.v2.preset.custom": "Własny",
   "settings.v2.preset.focused": "Skupiony",

@@ -353,7 +353,7 @@ impl SettingsTexts {
             ),
             about_tagline: strings.get("app.tagline").to_owned(),
             language_model: language_choice::dropdown_model(
-                strings.get("settings.v2.language.automatic"),
+                strings.get(language_choice::automatic_language_key()),
             ),
         }
     }

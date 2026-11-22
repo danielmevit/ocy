@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Sıradaki uzun mola saat {clock}",
   "settings.v2.header.nextShort": "Sıradaki kısa mola {time} sonra",
   "settings.v2.language.automatic": "Otomatik (Windows dili)",
+  "settings.v2.language.automaticSystem": "Otomatik (sistem dili)",
   "settings.v2.mode.balanced.description": "Sık kısa molalar, saatte bir uzun mola.",
   "settings.v2.mode.custom.description": "Aşağıda ayarlanan kendi ritmin.",
   "settings.v2.mode.focused.description": "Odaklanırken daha az kesinti.",

@@ -38,7 +38,14 @@ use crate::win32_window::{
     WindowRole, WindowRoleGuard, announce_to_screen_reader, should_allow_close,
 };
 
-const CARD_WINDOW_WIDTH_DIP: f64 = 392.0;
+/// Short-break and warning window width: 392 (card + 16 px margins), or exactly the 360 px card on
+/// macOS, whose software renderer cannot show transparent margins.
+const CARD_WINDOW_WIDTH_DIP: f64 =
+    crate::macos_window::short_card_window_width_dip(cfg!(target_os = "macos"));
+/// Extra corner margin when placing a short/warning card (16 on macOS, where the window has no
+/// transparent margin, so the card lands where it does elsewhere; 0 elsewhere).
+const CARD_CORNER_MARGIN_DIP: f64 =
+    crate::macos_window::card_corner_margin_dip(cfg!(target_os = "macos"));
 
 /// Host actions triggered by interactive buttons on the break and warning cards.
 #[derive(Clone)]
@@ -388,6 +395,8 @@ impl SlintBreakWindows {
     fn create_short_card(&self, dark: bool) -> Result<ShortBreakCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = ShortBreakCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_close_label(self.strings.get("shortbreak.skip").into());
@@ -401,6 +410,8 @@ impl SlintBreakWindows {
     fn create_warning_card(&self, dark: bool) -> Result<WarningCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = WarningCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         let buttons = warning_buttons(self.strict_mode, self.postpones_left);
@@ -424,6 +435,8 @@ impl SlintBreakWindows {
     fn create_long_card(&self, dark: bool) -> Result<LongBreakCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = LongBreakCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_dim_backdrop(false);
@@ -907,6 +920,30 @@ fn schedule_next_suggestion_frame(
     });
 }
 
+/// Logical long-break card window size: the shadowed 544 px window, or exactly the 480 px card on
+/// macOS (no per-pixel alpha there; AppKit draws the shadow).
+fn long_card_window_size(content_height_dip: f64, screen: Option<ScreenInfo>) -> DipSize {
+    #[cfg(target_os = "macos")]
+    {
+        let screen_dip = screen.map_or(DipSize::new(0.0, 0.0), |s| {
+            OverlayLayout::compute_dip_size(s.bounds.width, s.bounds.height, s.scaling)
+        });
+        let (w, h) = crate::macos_window::mac_long_card_window_size(
+            content_height_dip,
+            screen_dip.width,
+            screen_dip.height,
+        );
+        DipSize::new(w, h)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        match screen {
+            Some(s) => OverlayLayout::compute_long_break_window_size(content_height_dip, &s),
+            None => DipSize::new(544.0, content_height_dip + 80.0),
+        }
+    }
+}
+
 fn compute_card_rect(
     screen: Option<ScreenInfo>,
     dip_size: DipSize,
@@ -918,7 +955,7 @@ fn compute_card_rect(
             let pos = if centered {
                 OverlayLayout::compute_centered_position(&s, dip_size)
             } else {
-                OverlayLayout::compute_corner_position(&s, dip_size, 0.0)
+                OverlayLayout::compute_corner_position(&s, dip_size, CARD_CORNER_MARGIN_DIP)
             };
             (pos, w, h)
         }
@@ -1483,10 +1520,7 @@ impl BreakWindows for SlintBreakWindows {
             },
             |c, scr| {
                 let h = f64::from(c.get_content_height()).max(200.0);
-                match scr {
-                    Some(s) => OverlayLayout::compute_long_break_window_size(h, &s),
-                    None => DipSize::new(544.0, h + 80.0),
-                }
+                long_card_window_size(h, scr)
             },
         );
 

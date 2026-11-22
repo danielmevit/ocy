@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "次の長い休憩は {clock}",
   "settings.v2.header.nextShort": "次の短い休憩まで {time}",
   "settings.v2.language.automatic": "自動（Windows の言語）",
+  "settings.v2.language.automaticSystem": "自動（システムの言語）",
   "settings.v2.mode.balanced.description": "短い休憩をこまめに、1時間ごとに長い休憩を。",
   "settings.v2.mode.custom.description": "下で設定した、あなたのリズムで。",
   "settings.v2.mode.focused.description": "集中している間の中断を少なめに。",

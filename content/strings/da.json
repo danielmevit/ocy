@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Næste lange pause kl. {clock}",
   "settings.v2.header.nextShort": "Næste korte pause om {time}",
   "settings.v2.language.automatic": "Automatisk (Windows-sprog)",
+  "settings.v2.language.automaticSystem": "Automatisk (systemsprog)",
   "settings.v2.mode.balanced.description": "Ofte korte pauser, en længere hver time.",
   "settings.v2.mode.custom.description": "Din egen rytme, valgt nedenfor.",
   "settings.v2.mode.focused.description": "Færre afbrydelser, mens du koncentrerer dig.",

@@ -91,6 +91,7 @@
   "settings.v2.header.nextLong": "Επόμενο μεγάλο διάλειμμα στις {clock}",
   "settings.v2.header.nextShort": "Επόμενο σύντομο διάλειμμα σε {time}",
   "settings.v2.language.automatic": "Αυτόματα (γλώσσα των Windows)",
+  "settings.v2.language.automaticSystem": "Αυτόματα (γλώσσα συστήματος)",
   "settings.v2.preset.balanced": "Ισορροπημένο",
   "settings.v2.preset.custom": "Δικό σου",
   "settings.v2.preset.focused": "Συγκεντρωμένο",

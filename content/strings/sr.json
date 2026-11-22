@@ -91,6 +91,7 @@
   "settings.v2.header.nextLong": "Следећа дуга пауза у {clock}",
   "settings.v2.header.nextShort": "Следећа кратка пауза за {time}",
   "settings.v2.language.automatic": "Аутоматски (језик Windows-а)",
+  "settings.v2.language.automaticSystem": "Аутоматски (језик система)",
   "settings.v2.preset.balanced": "Умерено",
   "settings.v2.preset.custom": "По твом",
   "settings.v2.preset.focused": "Фокусирано",

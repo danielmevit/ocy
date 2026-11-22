@@ -91,6 +91,7 @@
   "settings.v2.header.nextLong": "Naslednji dolg odmor ob {clock}",
   "settings.v2.header.nextShort": "Naslednji kratek odmor čez {time}",
   "settings.v2.language.automatic": "Samodejno (jezik sistema Windows)",
+  "settings.v2.language.automaticSystem": "Samodejno (jezik sistema)",
   "settings.v2.preset.balanced": "Zmerno",
   "settings.v2.preset.custom": "Po svoje",
   "settings.v2.preset.focused": "Zbrano",

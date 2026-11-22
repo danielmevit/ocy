@@ -93,6 +93,7 @@
   "settings.v2.header.nextLong": "Következő hosszú szünet: {clock}",
   "settings.v2.header.nextShort": "Következő rövid szünet {time} múlva",
   "settings.v2.language.automatic": "Automatikus (a Windows nyelve)",
+  "settings.v2.language.automaticSystem": "Automatikus (a rendszer nyelve)",
   "settings.v2.mode.balanced.description": "Gyakori rövid szünetek, óránként egy hosszú.",
   "settings.v2.mode.custom.description": "A saját ritmusod, alább beállítva.",
   "settings.v2.mode.focused.description": "Kevesebb megszakítás, amíg összpontosítasz.",

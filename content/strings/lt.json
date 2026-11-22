@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Kita ilga pertrauka {clock}",
   "settings.v2.header.nextShort": "Kita trumpa pertrauka po {time}",
   "settings.v2.language.automatic": "Automatinė (Windows kalba)",
+  "settings.v2.language.automaticSystem": "Automatinė (sistemos kalba)",
   "settings.v2.mode.balanced.description": "Dažnos trumpos pauzės, kas valandą – ilgesnė.",
   "settings.v2.mode.custom.description": "Tavo ritmas, nustatomas žemiau.",
   "settings.v2.mode.focused.description": "Mažiau trukdžių, kol susikaupi.",

@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Volgende lange pauze om {clock}",
   "settings.v2.header.nextShort": "Volgende korte pauze over {time}",
   "settings.v2.language.automatic": "Automatisch (Windows-taal)",
+  "settings.v2.language.automaticSystem": "Automatisch (systeemtaal)",
   "settings.v2.mode.balanced.description": "Vaak korte pauzes, elk uur een lange.",
   "settings.v2.mode.custom.description": "Je eigen ritme, hieronder ingesteld.",
   "settings.v2.mode.focused.description": "Minder onderbrekingen terwijl je focust.",

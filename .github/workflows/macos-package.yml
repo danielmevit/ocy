@@ -84,17 +84,30 @@ jobs:
           assert cards, "no short card window found for margin probe"
           card = cards[0]["bounds"]
           import subprocess
-          pixel = subprocess.check_output([
-              "swift", "packaging/macos/ci/pixel_probe.swift",
-              "probe-artifacts/probe-short.png",
-              str(card["x"] + 3),
-              str(card["y"] + 3),
-          ], text=True).strip()
-          rgba = [int(v) for v in pixel.split()]
-          red, green, blue, alpha = rgba
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-short.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # On macOS the window is exactly the card, rounded to an 8 pt radius by AppKit. The
+          # pixel 1 pt inside the window corner (centre 1.5, 1.5) lies outside the arc
+          # (distance ~9.2 pt from the arc centre at 8, 8), so it must show the pink backdrop
+          # (232, 93, 154). 2 pt in (centre 2.5, 2.5) is ~7.8 pt away, i.e. inside the card.
+          # A hue test tolerates the native shadow slightly darkening the cut-out corner.
+          corner = pixel_at(card["x"] + 1, card["y"] + 1)
+          red, green, blue, alpha = corner
+          print(f"short top-left corner RGBA={corner}")
           assert alpha > 0
-          assert red > 150 and green < 180 and blue > 100, f"short margin is not pink backdrop; RGBA={rgba}"
-          print(f"short top-left margin RGBA={rgba}")
+          assert red > 120 and red > green + 60 and blue > green + 20, f"short window corner is not pink backdrop (opaque margin/corner); RGBA={corner}"
+          # Card surface: centre-left, left of the art/text column; light theme surface.
+          surface = pixel_at(card["x"] + 6, card["y"] + card["height"] // 2)
+          s_red, s_green, s_blue, _ = surface
+          print(f"short card surface RGBA={surface}")
+          assert min(s_red, s_green, s_blue) > 180, f"short card surface is not the light card (black or pink); RGBA={surface}"
+          assert abs(s_red - s_green) < 40, f"short card surface looks pink (window not painted); RGBA={surface}"
           print(json.dumps(probe, sort_keys=True))
           PY
           kill "$PID" 2>/dev/null || true
@@ -139,6 +152,30 @@ jobs:
           card_layer = max(w["layer"] for w in cards)
           dim_layer = max(w["layer"] for w in dims)
           assert card_layer > dim_layer, f"card layer {card_layer} must be above dim layer {dim_layer}"
+          card = max(cards, key=lambda w: w["layer"])["bounds"]
+          assert 400 <= card["width"] <= 500, f"macOS long card window should be the 480 pt card; bounds={card}"
+          import subprocess
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-long.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # The dim is #000000 at alphaValue 0xc7/255 over the pink backdrop (232, 93, 154): it
+          # must read as a darkened pink (about 51, 20, 34), not opaque black and not the backdrop.
+          dim = pixel_at(20, 20)
+          d_red, d_green, d_blue, _ = dim
+          print(f"long dim RGBA={dim}")
+          assert dim[:3] != [0, 0, 0], f"long dim is opaque black; RGBA={dim}"
+          assert d_red > 15, f"long dim is (near) opaque black; RGBA={dim}"
+          assert d_red < 232 - 40 and d_blue < 154, f"long dim is not darker than the backdrop; RGBA={dim}"
+          assert d_red > d_green, f"long dim does not show the pink backdrop through it; RGBA={dim}"
+          # The card itself sits above the dim: its centre-left reads as the light card surface.
+          surface = pixel_at(card["x"] + 12, card["y"] + card["height"] // 2)
+          print(f"long card surface RGBA={surface}")
+          assert min(surface[:3]) > 180, f"long card surface is not the light card; RGBA={surface}"
           print(json.dumps(probe, sort_keys=True))
           PY
           kill "$PID" 2>/dev/null || true
@@ -187,17 +224,30 @@ jobs:
           assert cards, "no warning card window found for margin probe"
           card = cards[0]["bounds"]
           import subprocess
-          pixel = subprocess.check_output([
-              "swift", "packaging/macos/ci/pixel_probe.swift",
-              "probe-artifacts/probe-warning.png",
-              str(card["x"] + 3),
-              str(card["y"] + 3),
-          ], text=True).strip()
-          rgba = [int(v) for v in pixel.split()]
-          red, green, blue, alpha = rgba
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-warning.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # On macOS the window is exactly the card, rounded to an 8 pt radius by AppKit. The
+          # pixel 1 pt inside the window corner (centre 1.5, 1.5) lies outside the arc
+          # (distance ~9.2 pt from the arc centre at 8, 8), so it must show the pink backdrop
+          # (232, 93, 154). 2 pt in (centre 2.5, 2.5) is ~7.8 pt away, i.e. inside the card.
+          # A hue test tolerates the native shadow slightly darkening the cut-out corner.
+          corner = pixel_at(card["x"] + 1, card["y"] + 1)
+          red, green, blue, alpha = corner
+          print(f"warning top-left corner RGBA={corner}")
           assert alpha > 0
-          assert red > 150 and green < 180 and blue > 100, f"warning margin is not pink backdrop; RGBA={rgba}"
-          print(f"warning top-left margin RGBA={rgba}")
+          assert red > 120 and red > green + 60 and blue > green + 20, f"warning window corner is not pink backdrop (opaque margin/corner); RGBA={corner}"
+          # Card surface: centre-left, left of the art/text column; light theme surface.
+          surface = pixel_at(card["x"] + 6, card["y"] + card["height"] // 2)
+          s_red, s_green, s_blue, _ = surface
+          print(f"warning card surface RGBA={surface}")
+          assert min(s_red, s_green, s_blue) > 180, f"warning card surface is not the light card (black or pink); RGBA={surface}"
+          assert abs(s_red - s_green) < 40, f"warning card surface looks pink (window not painted); RGBA={surface}"
           print(json.dumps(probe, sort_keys=True))
           PY
           kill "$PID" 2>/dev/null || true

@@ -103,6 +103,7 @@
   "settings.v2.header.nextLong": "Next long break at {clock}",
   "settings.v2.header.nextShort": "Next short break in {time}",
   "settings.v2.language.automatic": "Automatic (Windows language)",
+  "settings.v2.language.automaticSystem": "Automatic (system language)",
   "settings.v2.mode.balanced.description": "Short pauses often, a longer one every hour.",
   "settings.v2.mode.custom.description": "Your own rhythm, set below.",
   "settings.v2.mode.focused.description": "Fewer interruptions while you concentrate.",

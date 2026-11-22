@@ -33,18 +33,23 @@ export component ShortBreakCard inherits Window {
     callback close-clicked();
     callback hold-game-clicked();
     callback take-long-clicked();
+    // Transparent margin around the card (holds the Slint drop shadow). macOS sets 0: its software
+    // renderer has no per-pixel alpha, so the window is exactly the card and AppKit draws the
+    // rounded corners and shadow.
+    in property <length> card-inset: 16px;
     // Logical height the window needs (card + 16 px margins); the host sizes the window to it.
     out property <length> content-height: frame.preferred-height;
 
     no-frame: true;
     always-on-top: true;
-    background: root.dim-backdrop ? Theme.overlay : transparent;
-    width: 392px;
+    background: root.card-inset == 0 ? Theme.surface : root.dim-backdrop ? Theme.overlay : transparent;
+    width: 360px + 2 * root.card-inset;
     default-font-family: root.font-family;
 
     frame := VerticalLayout {
-        padding: 16px;
+        padding: root.card-inset;
         Card {
+            shadow: root.card-inset > 0;
             VerticalLayout {
                 padding-left: 14px;
                 padding-right: 14px;
@@ -125,18 +130,23 @@ export component WarningCard inherits Window {
     callback start-now();
     callback postpone();
     callback skip();
+    // Transparent margin around the card (holds the Slint drop shadow). macOS sets 0: its software
+    // renderer has no per-pixel alpha, so the window is exactly the card and AppKit draws the
+    // rounded corners and shadow.
+    in property <length> card-inset: 16px;
     // Logical height the window needs (card + 16 px margins); the host sizes the window to it.
     out property <length> content-height: frame.preferred-height;
 
     no-frame: true;
     always-on-top: true;
-    background: transparent;
-    width: 392px;
+    background: root.card-inset == 0 ? Theme.surface : transparent;
+    width: 360px + 2 * root.card-inset;
     default-font-family: root.font-family;
 
     frame := VerticalLayout {
-        padding: 16px;
+        padding: root.card-inset;
         Card {
+            shadow: root.card-inset > 0;
             VerticalLayout {
                 padding-left: 14px;
                 padding-right: 14px;
@@ -231,12 +241,15 @@ export component LongBreakCard inherits Window {
     in property <bool> can-end: true;
     in property <bool> dim-backdrop: true;
     callback end-break();
+    // 0 on macOS: the window is exactly the 480 px card (no Slint drop shadow; AppKit draws the
+    // rounded corners and shadow). Any other value keeps today's shadowed card in a larger window.
+    in property <length> card-inset: 16px;
     // Logical height of the card content; the host sizes the card window around it.
     out property <length> content-height: content.preferred-height;
 
     no-frame: true;
     always-on-top: true;
-    background: root.dim-backdrop ? Theme.overlay : transparent;
+    background: root.card-inset == 0 ? Theme.surface : root.dim-backdrop ? Theme.overlay : transparent;
     default-font-family: root.font-family;
 
     // Esc ends the break like the End break button (C#: Escape skips unless strict); keys from the
@@ -252,9 +265,9 @@ export component LongBreakCard inherits Window {
 
         Card {
             bordered: false;
-            drop-shadow-blur: 32px;
-            drop-shadow-offset-y: 8px;
-            drop-shadow-color: #00000040;
+            drop-shadow-blur: root.card-inset > 0 ? 32px : 0px;
+            drop-shadow-offset-y: root.card-inset > 0 ? 8px : 0px;
+            drop-shadow-color: root.card-inset > 0 ? #00000040 : transparent;
             width: 480px;
             height: content.preferred-height;
             x: (parent.width - self.width) / 2;

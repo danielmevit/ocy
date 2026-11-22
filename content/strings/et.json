@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Järgmine pikk paus kell {clock}",
   "settings.v2.header.nextShort": "Järgmine lühike paus {time} pärast",
   "settings.v2.language.automatic": "Automaatne (Windowsi keel)",
+  "settings.v2.language.automaticSystem": "Automaatne (süsteemi keel)",
   "settings.v2.mode.balanced.description": "Lühikesed pausid tihti, pikk iga tund.",
   "settings.v2.mode.custom.description": "Sinu enda rütm, määratud allpool.",
   "settings.v2.mode.focused.description": "Vähem katkestusi, kui keskendud.",

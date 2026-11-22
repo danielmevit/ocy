@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Nākamā garā pauze plkst. {clock}",
   "settings.v2.header.nextShort": "Nākamā īsā pauze pēc {time}",
   "settings.v2.language.automatic": "Automātiski (Windows valoda)",
+  "settings.v2.language.automaticSystem": "Automātiski (sistēmas valoda)",
   "settings.v2.mode.balanced.description": "Biežas īsas pauzes, ik stundu – garāka.",
   "settings.v2.mode.custom.description": "Tavs ritms, iestatāms zemāk.",
   "settings.v2.mode.focused.description": "Mazāk traucējumu, kamēr koncentrējies.",

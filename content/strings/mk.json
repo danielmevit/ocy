@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Следна долга пауза во {clock}",
   "settings.v2.header.nextShort": "Следна кратка пауза за {time}",
   "settings.v2.language.automatic": "Автоматски (јазикот на Windows)",
+  "settings.v2.language.automaticSystem": "Автоматски (јазикот на системот)",
   "settings.v2.mode.balanced.description": "Често кратки паузи, а секој час подолга.",
   "settings.v2.mode.custom.description": "Твојот ритам, наместен подолу.",
   "settings.v2.mode.focused.description": "Помалку прекини додека се концентрираш.",

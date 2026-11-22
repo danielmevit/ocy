@@ -7,7 +7,7 @@
 
 use std::ffi::c_void;
 
-use damt_overlay::{MonitorId, MonitorInfo};
+use damt_overlay::{MonitorId, MonitorInfo, Rgba};
 use damt_platform::ScreenRect;
 use raw_window_handle::RawWindowHandle;
 
@@ -97,7 +97,8 @@ pub const fn window_policy_for_kind(kind: MacWindowKind) -> MacWindowPolicy {
             ignores_mouse_events: false,
             order_front_regardless: true,
             never_activate: true,
-            has_shadow: false,
+            // The window is exactly the card on macOS, so AppKit draws the card shadow.
+            has_shadow: true,
         },
         MacWindowKind::Dim => MacWindowPolicy {
             level: MacWindowLevel::ScreenSaver,
@@ -159,6 +160,132 @@ pub const fn monitor_info_from_mac_parts(
     }
 }
 
+/// Transparent margin (logical px) the card components keep around the card for the Slint drop
+/// shadow on Windows and Linux (`card-inset` default in `ocy.slint`).
+pub const DEFAULT_CARD_INSET_DIP: f64 = 16.0;
+/// Width (logical px) of the short-break and warning card itself, without margins.
+pub const SHORT_CARD_WIDTH_DIP: f64 = 360.0;
+/// Width (logical px) of the long-break card itself, without margins.
+pub const LONG_CARD_WIDTH_DIP: f64 = 480.0;
+/// Corner radius (logical px) of `Card` (`Theme.radius-card`); macOS rounds the window natively.
+pub const CARD_CORNER_RADIUS_DIP: f64 = 8.0;
+
+/// Card inset for a platform. macOS gets `0`: Slint's software renderer on macOS has no per-pixel
+/// alpha (softbuffer's CoreGraphics backend uses `kCGImageAlphaNoneSkipFirst`), so a transparent
+/// margin would paint black. The window is exactly the card there.
+#[must_use]
+pub const fn card_inset_dip(macos: bool) -> f64 {
+    if macos { 0.0 } else { DEFAULT_CARD_INSET_DIP }
+}
+
+/// Logical window width for the short-break and warning cards (392 with margins, 360 without).
+#[must_use]
+pub const fn short_card_window_width_dip(macos: bool) -> f64 {
+    SHORT_CARD_WIDTH_DIP + 2.0 * card_inset_dip(macos)
+}
+
+/// Extra corner margin (logical px) the host adds when placing a short or warning card, so the
+/// card itself lands at the same spot whether or not the window carries the transparent margin.
+#[must_use]
+pub const fn card_corner_margin_dip(macos: bool) -> f64 {
+    DEFAULT_CARD_INSET_DIP - card_inset_dip(macos)
+}
+
+/// macOS long-break card window size: exactly the 480 px card, clamped to the screen (logical px).
+/// A non-positive screen extent means "unknown" and leaves that axis unclamped.
+#[must_use]
+pub fn mac_long_card_window_size(
+    content_height_dip: f64,
+    screen_width_dip: f64,
+    screen_height_dip: f64,
+) -> (f64, f64) {
+    let h = content_height_dip.max(100.0);
+    let w = if screen_width_dip > 0.0 {
+        LONG_CARD_WIDTH_DIP.min(screen_width_dip)
+    } else {
+        LONG_CARD_WIDTH_DIP
+    };
+    let h = if screen_height_dip > 0.0 {
+        h.min(screen_height_dip)
+    } else {
+        h
+    };
+    (w, h)
+}
+
+/// Splits a translucent colour into its opaque RGB and an `NSWindow.alphaValue` in `0.0..=1.0`.
+///
+/// macOS paints dims and edge strips opaque and lets the window server apply the alpha.
+#[must_use]
+pub fn split_alpha(color: Rgba) -> (Rgba, f64) {
+    (
+        Rgba {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+            a: 255,
+        },
+        f64::from(color.a) / 255.0,
+    )
+}
+
+/// Physical edge-frame thickness for a monitor DPI (96 DPI = 1x), at least 1 px.
+#[must_use]
+pub fn edge_strip_thickness_px(thickness_dip: u32, dpi: u32) -> i32 {
+    let dpi = if dpi == 0 { 96 } else { dpi };
+    let px = (f64::from(thickness_dip) * f64::from(dpi) / 96.0).round();
+    // `px` is a small positive whole number; clamp keeps the cast in range.
+    #[allow(clippy::cast_possible_truncation)]
+    let px = px.clamp(1.0, 10_000.0) as i32;
+    px
+}
+
+/// The four edge-frame strips (top, bottom, left, right) for `monitor` with `thickness` physical
+/// pixels. Top and bottom span the full width; left and right fit between them, so no pixel is
+/// covered twice (a doubled corner would look darker at partial alpha). Empty when the monitor
+/// is too small for the frame.
+#[must_use]
+pub fn edge_strip_rects(monitor: ScreenRect, thickness: i32) -> Vec<ScreenRect> {
+    if thickness <= 0 || monitor.width <= 0 || monitor.height <= 0 {
+        return Vec::new();
+    }
+    let t = thickness.min(monitor.width).min(monitor.height / 2);
+    if t <= 0 {
+        return Vec::new();
+    }
+    let mut rects = vec![
+        ScreenRect {
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: t,
+        },
+        ScreenRect {
+            x: monitor.x,
+            y: monitor.y + monitor.height - t,
+            width: monitor.width,
+            height: t,
+        },
+    ];
+    let side_h = monitor.height - 2 * t;
+    let side_w = t.min(monitor.width / 2);
+    if side_h > 0 && side_w > 0 {
+        rects.push(ScreenRect {
+            x: monitor.x,
+            y: monitor.y + t,
+            width: side_w,
+            height: side_h,
+        });
+        rects.push(ScreenRect {
+            x: monitor.x + monitor.width - side_w,
+            y: monitor.y + t,
+            width: side_w,
+            height: side_h,
+        });
+    }
+    rects
+}
+
 #[cfg(target_os = "macos")]
 mod macos_impl {
     use std::cell::Cell;
@@ -172,6 +299,9 @@ mod macos_impl {
     };
     use damt_platform_mac::{MacMonitorInfo, query_mac_monitors};
     use objc2::MainThreadMarker;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{Message, class, msg_send};
     use objc2_app_kit::{
         NSApplication, NSApplicationActivationPolicy, NSView, NSWindow, NSWindowCollectionBehavior,
     };
@@ -182,10 +312,11 @@ mod macos_impl {
     };
     use slint::winit_030::winit::window::{WindowAttributes, WindowLevel};
     use slint::winit_030::{EventLoopBuilder, EventResult, WinitWindowAccessor};
-    use slint::{ComponentHandle, PhysicalPosition, PhysicalSize};
+    use slint::{ComponentHandle, PhysicalPosition, PhysicalSize, Timer};
 
     use super::{
-        MacActivationPolicyChoice, MacWindowKind, extract_ns_view_ptr, monitor_info_from_mac_parts,
+        CARD_CORNER_RADIUS_DIP, MacActivationPolicyChoice, MacWindowKind, edge_strip_rects,
+        edge_strip_thickness_px, extract_ns_view_ptr, monitor_info_from_mac_parts, split_alpha,
         startup_activation_policy, window_policy_for_kind,
     };
     use crate::win32_window::{WindowRole, current_window_role};
@@ -200,32 +331,19 @@ mod macos_impl {
     mod overlay_ui {
         slint::slint! {
             #[edition = "1.19"]
+            // A solid, opaque window: the dim shade or one edge-frame strip. macOS's software
+            // renderer drops per-pixel alpha, so the translucency comes from
+            // `NSWindow.alphaValue` instead (see `split_alpha`).
             export component MacDimOverlay inherits Window {
-                in property <color> dim-color: #000000c7;
+                in property <color> dim-color: #000000;
                 no-frame: true;
                 always-on-top: true;
                 background: root.dim-color;
             }
-
-            export component MacEdgeFrameOverlay inherits Window {
-                in property <color> border-color: #2f7d628c;
-                in property <float> border-width-px: 3.0;
-                no-frame: true;
-                always-on-top: true;
-                background: transparent;
-
-                Rectangle {
-                    width: 100%;
-                    height: 100%;
-                    background: transparent;
-                    border-width: root.border-width-px * 1px;
-                    border-color: root.border-color;
-                }
-            }
         }
     }
 
-    use overlay_ui::{MacDimOverlay, MacEdgeFrameOverlay};
+    use overlay_ui::MacDimOverlay;
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     enum MacosOverlayRole {
@@ -324,6 +442,15 @@ mod macos_impl {
     /// Applies AppKit `NSWindow` level, collection behavior, mouse pass-through, and
     /// non-activating `orderFrontRegardless` to a Slint window.
     pub fn apply_ns_window_policy(window: &slint::Window, kind: MacWindowKind) -> bool {
+        apply_ns_window_policy_with_alpha(window, kind, None)
+    }
+
+    /// [`apply_ns_window_policy`] plus `NSWindow.alphaValue` when `alpha` is set (dims, strips).
+    fn apply_ns_window_policy_with_alpha(
+        window: &slint::Window,
+        kind: MacWindowKind,
+        alpha: Option<f64>,
+    ) -> bool {
         let Some(_mtm) = MainThreadMarker::new() else {
             return false;
         };
@@ -349,7 +476,10 @@ mod macos_impl {
                 let Some(ns_window) = ns_view.window() else {
                     return false;
                 };
-                apply_policy_to_ns_window(&ns_window, kind, policy);
+                apply_policy_to_ns_window(&ns_window, ns_view, kind, policy);
+                if let Some(alpha) = alpha {
+                    ns_window.setAlphaValue(alpha.clamp(0.0, 1.0));
+                }
                 true
             })
             .unwrap_or(false)
@@ -365,6 +495,7 @@ mod macos_impl {
 
     fn apply_policy_to_ns_window(
         ns_window: &NSWindow,
+        ns_view: &NSView,
         kind: MacWindowKind,
         policy: super::MacWindowPolicy,
     ) {
@@ -376,15 +507,59 @@ mod macos_impl {
         ));
         ns_window.setIgnoresMouseEvents(policy.ignores_mouse_events);
         ns_window.setHasShadow(policy.has_shadow);
-        if matches!(
-            kind,
-            MacWindowKind::BreakCard | MacWindowKind::Dim | MacWindowKind::EdgeFrame
-        ) {
-            ns_window.setOpaque(false);
-            ns_window.setBackgroundColor(None);
+        ns_window.setOpaque(false);
+        set_clear_background(ns_window);
+        if kind == MacWindowKind::BreakCard {
+            round_content_view_corners(ns_view);
         }
         if policy.order_front_regardless {
             ns_window.orderFrontRegardless();
+        }
+        if policy.has_shadow {
+            schedule_invalidate_shadow(ns_window);
+        }
+    }
+
+    /// Sets the window background to `[NSColor clearColor]` so the masked-off card corners show
+    /// what is behind the window (`nil` would restore the default grey window background).
+    fn set_clear_background(ns_window: &NSWindow) {
+        // SAFETY: `+[NSColor clearColor]` takes no arguments and returns a non-nil autoreleased
+        // `NSColor *`; `msg_send!` retains it into `Retained<AnyObject>`.
+        let clear: Option<Retained<AnyObject>> = unsafe { msg_send![class!(NSColor), clearColor] };
+        if let Some(clear) = clear {
+            // SAFETY: `-[NSWindow setBackgroundColor:]` takes one `NSColor *`; `clear` is a live
+            // `NSColor` and we are on the main thread.
+            let _: () = unsafe { msg_send![ns_window, setBackgroundColor: &*clear] };
+        }
+    }
+
+    /// Makes the content view layer-backed and rounds and clips its layer to the card radius.
+    ///
+    /// softbuffer draws into a sublayer of this root layer, so `masksToBounds` clips the card
+    /// pixels to the rounded shape and the window shadow follows it.
+    fn round_content_view_corners(ns_view: &NSView) {
+        // SAFETY: `-[NSView setWantsLayer:]` takes one `BOOL`; `ns_view` is a live view on the
+        // main thread (softbuffer makes the same call on this view).
+        let _: () = unsafe { msg_send![ns_view, setWantsLayer: Bool::YES] };
+        // SAFETY: `-[NSView layer]` takes no arguments and returns a nullable `CALayer *`.
+        let layer: Option<Retained<AnyObject>> = unsafe { msg_send![ns_view, layer] };
+        let Some(layer) = layer else {
+            return;
+        };
+        // SAFETY: `-[CALayer setCornerRadius:]` takes one `CGFloat` (`f64` on 64-bit macOS).
+        let _: () = unsafe { msg_send![&*layer, setCornerRadius: CARD_CORNER_RADIUS_DIP] };
+        // SAFETY: `-[CALayer setMasksToBounds:]` takes one `BOOL`.
+        let _: () = unsafe { msg_send![&*layer, setMasksToBounds: Bool::YES] };
+    }
+
+    /// Recomputes the window shadow from the painted (rounded) content once frames have been
+    /// presented; the shadow AppKit computes before the first paint has the wrong shape.
+    fn schedule_invalidate_shadow(ns_window: &NSWindow) {
+        for delay_ms in [60_u64, 400] {
+            let window: Retained<NSWindow> = ns_window.retain();
+            Timer::single_shot(std::time::Duration::from_millis(delay_ms), move || {
+                window.invalidateShadow();
+            });
         }
     }
 
@@ -479,11 +654,12 @@ mod macos_impl {
             .collect()
     }
 
-    /// Manages macOS-native break overlays (`MacDimOverlay` and click-through `MacEdgeFrameOverlay`).
+    /// Manages macOS-native break overlays: full-monitor dims, and click-through edge frames
+    /// drawn as four opaque strip windows per monitor (translucency via `NSWindow.alphaValue`).
     #[derive(Default)]
     pub struct MacosOverlays {
         dims: Vec<MacDimOverlay>,
-        edge_frames: Vec<MacEdgeFrameOverlay>,
+        edge_frames: Vec<MacDimOverlay>,
     }
 
     impl fmt::Debug for MacosOverlays {
@@ -535,9 +711,15 @@ mod macos_impl {
 
         /// Updates the accent border colour on any active edge frames.
         pub fn set_edge_frame_color(&mut self, color: Rgba) {
-            let slint_col = slint_color(color);
-            for frame in &self.edge_frames {
-                frame.set_border_color(slint_col);
+            let (opaque, alpha) = split_alpha(color);
+            let slint_col = slint_color(opaque);
+            for strip in &self.edge_frames {
+                strip.set_dim_color(slint_col);
+                let _ = apply_ns_window_policy_with_alpha(
+                    strip.window(),
+                    MacWindowKind::EdgeFrame,
+                    Some(alpha),
+                );
             }
         }
 
@@ -545,7 +727,8 @@ mod macos_impl {
         pub fn show_dims(&mut self, color: Rgba) {
             self.close();
             let monitors = enumerate_monitors();
-            let slint_col = slint_color(color);
+            let (opaque, alpha) = split_alpha(color);
+            let slint_col = slint_color(opaque);
             for monitor in monitors {
                 if monitor.rect.width <= 0 || monitor.rect.height <= 0 {
                     continue;
@@ -555,9 +738,13 @@ mod macos_impl {
                     continue;
                 };
                 dim.set_dim_color(slint_col);
-                configure_overlay_window(&dim, monitor.rect, MacWindowKind::Dim);
+                configure_overlay_window(&dim, monitor.rect, MacWindowKind::Dim, alpha);
                 if dim.show().is_ok() {
-                    apply_ns_window_policy(dim.window(), MacWindowKind::Dim);
+                    apply_ns_window_policy_with_alpha(
+                        dim.window(),
+                        MacWindowKind::Dim,
+                        Some(alpha),
+                    );
                     self.dims.push(dim);
                 }
             }
@@ -576,21 +763,25 @@ mod macos_impl {
             if monitors.is_empty() {
                 return;
             }
-            let slint_col = slint_color(color);
+            let (opaque, alpha) = split_alpha(color);
+            let slint_col = slint_color(opaque);
             for monitor in monitors {
-                if monitor.rect.width <= 0 || monitor.rect.height <= 0 {
-                    continue;
-                }
-                let _guard = MacosOverlayRoleGuard::new(MacosOverlayRole::EdgeFrame);
-                let Ok(frame) = MacEdgeFrameOverlay::new() else {
-                    continue;
-                };
-                frame.set_border_color(slint_col);
-                frame.set_border_width_px(thickness_dip as f32);
-                configure_overlay_window(&frame, monitor.rect, MacWindowKind::EdgeFrame);
-                if frame.show().is_ok() {
-                    apply_ns_window_policy(frame.window(), MacWindowKind::EdgeFrame);
-                    self.edge_frames.push(frame);
+                let thickness = edge_strip_thickness_px(thickness_dip, monitor.dpi);
+                for rect in edge_strip_rects(monitor.rect, thickness) {
+                    let _guard = MacosOverlayRoleGuard::new(MacosOverlayRole::EdgeFrame);
+                    let Ok(strip) = MacDimOverlay::new() else {
+                        continue;
+                    };
+                    strip.set_dim_color(slint_col);
+                    configure_overlay_window(&strip, rect, MacWindowKind::EdgeFrame, alpha);
+                    if strip.show().is_ok() {
+                        apply_ns_window_policy_with_alpha(
+                            strip.window(),
+                            MacWindowKind::EdgeFrame,
+                            Some(alpha),
+                        );
+                        self.edge_frames.push(strip);
+                    }
                 }
             }
         }
@@ -604,6 +795,7 @@ mod macos_impl {
         component: &C,
         rect: ScreenRect,
         kind: MacWindowKind,
+        alpha: f64,
     ) {
         let win = component.window();
         win.set_position(PhysicalPosition::new(rect.x, rect.y));
@@ -616,7 +808,7 @@ mod macos_impl {
         win.on_winit_window_event(move |w, event| {
             if (!applied.get() || matches!(event, WindowEvent::RedrawRequested))
                 && !applied.get()
-                && apply_ns_window_policy(w, kind)
+                && apply_ns_window_policy_with_alpha(w, kind, Some(alpha))
             {
                 applied.set(true);
             }
@@ -649,6 +841,134 @@ mod tests {
         NS_WINDOW_COLLECTION_BEHAVIOR_STATIONARY, extract_ns_view_ptr, monitor_info_from_mac_parts,
         overlay_collection_behavior_bits, startup_activation_policy, window_policy_for_kind,
     };
+    use super::{
+        card_corner_margin_dip, card_inset_dip, edge_strip_rects, edge_strip_thickness_px,
+        mac_long_card_window_size, short_card_window_width_dip, split_alpha,
+    };
+    use damt_overlay::Rgba;
+
+    const fn rect(x: i32, y: i32, width: i32, height: i32) -> ScreenRect {
+        ScreenRect {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn card_inset_is_zero_only_on_macos_and_keeps_the_card_in_place() {
+        assert!((card_inset_dip(false) - 16.0).abs() < f64::EPSILON);
+        assert!(card_inset_dip(true).abs() < f64::EPSILON);
+        assert!((short_card_window_width_dip(false) - 392.0).abs() < f64::EPSILON);
+        assert!((short_card_window_width_dip(true) - 360.0).abs() < f64::EPSILON);
+        assert!(card_corner_margin_dip(false).abs() < f64::EPSILON);
+        assert!((card_corner_margin_dip(true) - 16.0).abs() < f64::EPSILON);
+        // The card's right edge sits 16 px from the work-area corner either way.
+        for mac in [false, true] {
+            let card_right_gap = card_corner_margin_dip(mac) + card_inset_dip(mac);
+            assert!((card_right_gap - 16.0).abs() < f64::EPSILON);
+        }
+    }
+
+    #[test]
+    fn mac_long_card_window_is_the_card_clamped_to_the_screen() {
+        assert_eq!(
+            mac_long_card_window_size(319.0, 1024.0, 768.0),
+            (480.0, 319.0)
+        );
+        assert_eq!(mac_long_card_window_size(50.0, 0.0, 0.0), (480.0, 100.0));
+        assert_eq!(
+            mac_long_card_window_size(900.0, 400.0, 600.0),
+            (400.0, 600.0)
+        );
+    }
+
+    #[test]
+    fn split_alpha_keeps_rgb_opaque_and_moves_alpha_to_the_window() {
+        let (opaque, alpha) = split_alpha(Rgba {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0xc7,
+        });
+        assert_eq!(
+            opaque,
+            Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            }
+        );
+        assert!((alpha - 199.0 / 255.0).abs() < 1e-9);
+        let (opaque, alpha) = split_alpha(Rgba {
+            r: 0x2f,
+            g: 0x7d,
+            b: 0x62,
+            a: 0x8c,
+        });
+        assert_eq!(
+            (opaque.r, opaque.g, opaque.b, opaque.a),
+            (0x2f, 0x7d, 0x62, 255)
+        );
+        assert!((alpha - 140.0 / 255.0).abs() < 1e-9);
+        assert!(
+            (split_alpha(Rgba {
+                r: 1,
+                g: 2,
+                b: 3,
+                a: 255
+            })
+            .1 - 1.0)
+                .abs()
+                < 1e-9
+        );
+    }
+
+    #[test]
+    fn edge_strip_thickness_scales_with_dpi() {
+        assert_eq!(edge_strip_thickness_px(3, 96), 3);
+        assert_eq!(edge_strip_thickness_px(3, 192), 6);
+        assert_eq!(edge_strip_thickness_px(3, 0), 3);
+        assert_eq!(edge_strip_thickness_px(0, 96), 1);
+    }
+
+    #[test]
+    fn edge_strips_cover_the_border_once_without_overlap() {
+        let monitor = rect(1024, -100, 1920, 1080);
+        let strips = edge_strip_rects(monitor, 6);
+        assert_eq!(
+            strips,
+            vec![
+                rect(1024, -100, 1920, 6),
+                rect(1024, 974, 1920, 6),
+                rect(1024, -94, 6, 1068),
+                rect(2938, -94, 6, 1068),
+            ]
+        );
+        let area: i64 = strips
+            .iter()
+            .map(|r| i64::from(r.width) * i64::from(r.height))
+            .sum();
+        assert_eq!(area, 2 * 1920 * 6 + 2 * 6 * 1068);
+        for (i, a) in strips.iter().enumerate() {
+            for b in &strips[i + 1..] {
+                let overlap_x = a.x < b.x + b.width && b.x < a.x + a.width;
+                let overlap_y = a.y < b.y + b.height && b.y < a.y + a.height;
+                assert!(!(overlap_x && overlap_y), "{a:?} overlaps {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn edge_strips_degenerate_inputs() {
+        assert!(edge_strip_rects(rect(0, 0, 0, 100), 3).is_empty());
+        assert!(edge_strip_rects(rect(0, 0, 100, 100), 0).is_empty());
+        assert!(edge_strip_rects(rect(0, 0, 100, 1), 3).is_empty());
+        // Too short for side strips: top and bottom only.
+        assert_eq!(edge_strip_rects(rect(0, 0, 100, 6), 3).len(), 2);
+    }
 
     #[test]
     fn window_level_values_match_appkit_constants() {
@@ -679,7 +999,7 @@ mod tests {
         assert!(!card.ignores_mouse_events);
         assert!(card.order_front_regardless);
         assert!(card.never_activate);
-        assert!(!card.has_shadow);
+        assert!(card.has_shadow);
 
         let dim = window_policy_for_kind(MacWindowKind::Dim);
         assert_eq!(dim.level, MacWindowLevel::ScreenSaver);

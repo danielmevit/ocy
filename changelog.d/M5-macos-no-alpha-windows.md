@@ -1,0 +1,1 @@
+- macOS: break cards are now exactly the card with native rounded corners and shadow, the long-break dim is a real translucent shade, and edge frames are four thin strips, because the macOS renderer cannot draw transparent pixels (they came out black).

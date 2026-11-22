@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Seuraava pitkä tauko klo {clock}",
   "settings.v2.header.nextShort": "Seuraava lyhyt tauko {time} kuluttua",
   "settings.v2.language.automatic": "Automaattinen (Windowsin kieli)",
+  "settings.v2.language.automaticSystem": "Automaattinen (järjestelmän kieli)",
   "settings.v2.mode.balanced.description": "Lyhyitä taukoja usein, pitkä kerran tunnissa.",
   "settings.v2.mode.custom.description": "Oma rytmisi, säädettynä alla.",
   "settings.v2.mode.focused.description": "Vähemmän keskeytyksiä, kun keskityt.",

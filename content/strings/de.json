@@ -104,6 +104,7 @@
   "settings.v2.header.nextLong": "Nächste lange Pause um {clock}",
   "settings.v2.header.nextShort": "Nächste kurze Pause in {time}",
   "settings.v2.language.automatic": "Automatisch (Windows-Sprache)",
+  "settings.v2.language.automaticSystem": "Automatisch (Systemsprache)",
   "settings.v2.mode.balanced.description": "Oft kurze Pausen, jede Stunde eine lange.",
   "settings.v2.mode.custom.description": "Dein eigener Rhythmus, unten eingestellt.",
   "settings.v2.mode.focused.description": "Weniger Unterbrechungen beim Konzentrieren.",

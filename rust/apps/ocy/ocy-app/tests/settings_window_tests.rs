@@ -494,7 +494,12 @@ fn settings_texts_resolve_every_en_json_key_without_missing_keys() {
     assert_eq!(texts.try_short_label, "Try a short break");
     assert_eq!(texts.try_long_label, "Try a long break");
     assert!(texts.about_name_version.starts_with("Ocy "));
-    assert_eq!(texts.language_model[0], "Automatic (Windows language)");
+    let expected_en_auto = if cfg!(windows) {
+        "Automatic (Windows language)"
+    } else {
+        "Automatic (system language)"
+    };
+    assert_eq!(texts.language_model[0], expected_en_auto);
 
     let all_fields = [
         &texts.window_title,
