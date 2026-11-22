@@ -187,7 +187,7 @@ First run `cargo clippy --workspace --all-targets --locked -- -D warnings && car
    - **Edge strips (M5, not covered by CI; the runner has one display):** on the non-active display, confirm the edge frame is four thin translucent accent strips (top, bottom, left, right) at the configured thickness on both Retina and 1x displays, with no darker corners (strips must not overlap), no black or opaque full-screen window, clicks passing through every strip, and the strips disappearing when the break ends.
    - Trigger a long break: confirm dims cover **both** displays and the long-break card is centered on the active display.
 7. **Settings window & login item (`SMAppService.mainApp`):**
-   - Click `Settings` in the menu-bar menu: confirm the Settings window opens, comes to the front, receives keyboard focus, and centers on the active display's work area.
+   - **Settings activation:** open Settings from the menu-bar icon; typing goes to Settings without clicking it (confirm Ocy becomes the active menu-bar app, the Settings window comes to the front over other windows and centers on the active display's work area, and keyboard input such as `Tab`/`Esc` works immediately). Also verify re-activating an already-open Settings window from the menu-bar item, and test launching a second copy (single-instance signal).
    - On macOS 13+ (with a bundled `.app` once M3 is ready): toggle `Start with system`, confirm it appears under System Settings → General → Login Items, toggle off and confirm removal, and test reboot/re-login auto-launch. On unbundled `cargo run`, confirm any LaunchServices error is surfaced gracefully in the UI without crashing.
    - On macOS 12 or earlier (if available): confirm `Start with system` is hidden/unsupported (`AutostartService::is_supported() == false`).
 8. **Sleep, wake, and screen lock:**
@@ -215,16 +215,11 @@ CI smoke runs on `macos-latest` and proves:
 - short, warning, and long-break demo cards create on-screen Ocy windows;
 - short and warning cards do not take frontmost-app focus;
 - long-break dim and card layers follow the 1000/1001 separation;
-- settings still launch in demo mode;
-- settings is frontmost on macOS after `--demo-settings`;
+- settings launches an on-screen window in `--demo-settings` mode, and the probe records the frontmost app (emitting a `::warning::` if Ocy is not frontmost, without failing — see M5c below);
 - short and warning card margins are checked against a solid CI backdrop;
 - window probe JSON and optional screenshots are retained as artifacts.
 
-CI does not prove hardware behavior that requires a local Mac. A human tester still
-needs to verify Retina and non-Retina placement, multiple monitors and Spaces,
-Mission Control, fullscreen apps, mouse and keyboard behavior, menu-bar coexistence,
-sleep/wake, lock/unlock, and actual Gatekeeper behavior. The first macOS run may
-require an explicit trust override.
+CI does not prove hardware behavior that requires a local Mac, nor user-initiated cooperative app activation (CI launches `--demo-settings` from a shell with no user input or `yieldActivation` handoff, so macOS 14+ can refuse activation even when a menu-bar click succeeds). A human tester still needs to verify Retina and non-Retina placement, multiple monitors and Spaces, Mission Control, fullscreen apps, mouse and keyboard behavior, menu-bar-triggered Settings activation, menu-bar coexistence, sleep/wake, lock/unlock, and actual Gatekeeper behavior. The first macOS run may require an explicit trust override.
 
 For an unsigned download:
 
@@ -279,6 +274,24 @@ arc), the light card surface at the card's centre-left, and for the long break a
 dim sampled at (40, 120) pt, below the menu bar and outside the card (not black, `R > 15`,
 `R > G`, darker than the backdrop), with the card above it. Edge strips stay on the manual
 multi-display checklist above.
+
+#### M5c status (cooperative Settings activation on macOS 14–26)
+
+Since macOS 14 Sonoma, AppKit uses **cooperative app activation**: `NSApplication.activate()` is
+a request rather than a forced steal (`activateIgnoringOtherApps:` and
+`NSApplicationActivateIgnoringOtherApps` are deprecated and ignored on macOS 14+). When Ocy
+runs as an `LSUIElement` / `.accessory` app and is launched headless in CI via `--demo-settings`
+with no user interaction and no yielding active app (`yieldActivation(to:)` /
+`NSRunningApplication.activate(from:options:)`), macOS can leave Finder frontmost.
+
+`macos_window::activate_settings_window` already uses the documented user-initiated sequence
+(`NSApplication.activate()` on macOS 14+, `activateIgnoringOtherApps(true)` on macOS 11–13,
+then `makeKeyAndOrderFront` and `makeMainWindow` on the Settings `NSWindow`), so no code
+change was made there. In CI (`.github/workflows/macos-package.yml`), the Settings probe still
+asserts that Settings puts a window on screen, records the frontmost app, and emits a
+`::warning::` instead of failing when Ocy is not frontmost; break card probes remain strict
+that cards never take focus. Human Mac verification is required for menu-bar-initiated
+Settings typing/focus and second-launch activation.
 
 ## Honest estimate
 

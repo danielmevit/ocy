@@ -1,0 +1,1 @@
+- macOS CI: record frontmost app with a warning when `--demo-settings` does not activate under cooperative activation (keep card focus checks strict), and add manual Settings typing/activation check to `docs/rust/MACOS.md`.
