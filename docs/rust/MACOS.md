@@ -202,6 +202,39 @@ First run `cargo clippy --workspace --all-targets --locked -- -D warnings && car
 
 **Effort:** 1-3 engineering weeks; depends heavily on packaging and hardware coverage.
 
+#### M3 status (CI packaging implemented; hardware acceptance pending)
+
+The macOS packaging workflow builds `aarch64-apple-darwin` and `x86_64-apple-darwin`
+release binaries, merges them with `lipo`, creates `Ocy.app`, ad-hoc signs it, and
+publishes an unsigned universal zip plus SHA-256 checksum. The app uses the
+`xyz.damt.ocy` bundle identifier and the menu-bar-only `LSUIElement` setting.
+
+CI smoke runs on `macos-latest` and proves:
+
+- short, warning, and long-break demo cards create on-screen Ocy windows;
+- short and warning cards do not take frontmost-app focus;
+- long-break dim and card layers follow the 1000/1001 separation;
+- settings still launch in demo mode;
+- window probe JSON and optional screenshots are retained as artifacts.
+
+CI does not prove hardware behavior that requires a local Mac. A human tester still
+needs to verify Retina and non-Retina placement, multiple monitors and Spaces,
+Mission Control, fullscreen apps, mouse and keyboard behavior, menu-bar coexistence,
+sleep/wake, lock/unlock, and actual Gatekeeper behavior. The first macOS run may
+require an explicit trust override.
+
+For an unsigned download:
+
+1. Right-click `Ocy.app` in Finder, choose **Open**, then confirm the warning.
+2. Alternatively, remove the downloaded quarantine attribute in Terminal:
+   `xattr -dr com.apple.quarantine Ocy.app`.
+
+The build sets `LSMinimumSystemVersion` to `11.0`. This follows the universal binary
+floor: the Rust toolchain's Apple Silicon target requires macOS 11 or newer, while
+the Intel target can run on older releases; a universal binary therefore cannot
+advertise a lower floor than 11.0. The build also sets
+`MACOSX_DEPLOYMENT_TARGET=11.0`.
+
 ## Honest estimate
 
 The remaining macOS work is not a compile-only task. A developer should expect
