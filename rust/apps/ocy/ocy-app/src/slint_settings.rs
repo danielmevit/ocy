@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use damt_app::ErrorLog;
+#[cfg(not(target_os = "macos"))]
 use damt_overlay::enumerate_monitors;
 use damt_platform::{Clock, PlatformServices};
 use ocy_core::engine::EngineSnapshot;
@@ -449,6 +450,9 @@ impl SlintSettingsBackend {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
+        #[cfg(target_os = "macos")]
+        let monitors = crate::macos_window::enumerate_monitors();
+        #[cfg(not(target_os = "macos"))]
         let monitors = enumerate_monitors();
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         select_active_screen(&monitors, active_bounds)

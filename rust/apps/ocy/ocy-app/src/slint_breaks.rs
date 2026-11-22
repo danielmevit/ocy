@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use damt_app::ErrorLog;
 use damt_art::FrameSequencer;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use damt_overlay::enumerate_monitors;
 use damt_platform::{Clock, PlatformServices};
 use jiff::Timestamp;
@@ -32,7 +32,7 @@ use crate::break_logic::{
 use crate::coordinator::BreakWindows;
 use crate::layout::{DipSize, OverlayLayout, PixelPoint, ScreenInfo, select_active_screen};
 use crate::strings::{Strings, font_family_for};
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use crate::win32_window::install_break_window_subclass_and_style;
 use crate::win32_window::{
     WindowRole, WindowRoleGuard, announce_to_screen_reader, should_allow_close,
@@ -321,10 +321,12 @@ impl SlintBreakWindows {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let monitors = enumerate_monitors();
         #[cfg(target_os = "linux")]
         let monitors = crate::linux_window::enumerate_monitors();
+        #[cfg(target_os = "macos")]
+        let monitors = crate::macos_window::enumerate_monitors();
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         select_active_screen(&monitors, active_bounds)
     }
@@ -946,7 +948,11 @@ fn install_break_window_role_platform(window: &slint::Window) -> bool {
     {
         crate::linux_window::install_break_window_role(window)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        crate::macos_window::install_break_window_role(window)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         install_break_window_subclass_and_style(window)
     }

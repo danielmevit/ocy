@@ -9,12 +9,30 @@ authors.workspace = true
 
 [dependencies]
 damt-platform.workspace = true
+png = "=0.18.1"
 
 # macOS-only bindings; every version is pinned exactly (see docs/rust/LICENSES.md, all MIT).
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "=0.6.2"
 objc2 = "=0.6.5"
-objc2-app-kit = { version = "=0.3.2", features = ["NSRunningApplication", "NSWorkspace"] }
+objc2-app-kit = { version = "=0.3.2", features = [
+    "NSApplication",
+    "NSCell",
+    "NSControl",
+    "NSEvent",
+    "NSImage",
+    "NSMenu",
+    "NSMenuItem",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSScreen",
+    "NSStatusBar",
+    "NSStatusBarButton",
+    "NSStatusItem",
+    "NSView",
+    "NSWindow",
+    "NSWorkspace",
+] }
 objc2-core-graphics = { version = "=0.3.2", features = [
     "CGDirectDisplay",
     "CGError",
@@ -23,9 +41,15 @@ objc2-core-graphics = { version = "=0.3.2", features = [
     "CGGeometry",
 ] }
 objc2-foundation = { version = "=0.3.2", features = [
+    "NSArray",
+    "NSData",
     "NSDistributedNotificationCenter",
+    "NSError",
+    "NSGeometry",
     "NSNotification",
+    "NSObject",
     "NSOperation",
+    "NSProcessInfo",
     "NSString",
     "NSUserDefaults",
     "block2",

@@ -4,8 +4,10 @@
 //! names the C# 0.1 app uses. For Ocy, `app_id` is `xyz.damt.ocy`, so the C# and Rust builds exclude each
 //! other during the migration.
 //!
-//! Non-Windows targets use a lock file and Unix domain socket. The socket is placed in
-//! `$XDG_RUNTIME_DIR` when available, otherwise in the app's data directory.
+//! Non-Windows targets use a lock file as the source of truth and a Unix domain socket only as the
+//! signal channel. The socket is placed in `$XDG_RUNTIME_DIR` when available, otherwise in the app's
+//! data directory. When that path would not fit in `sockaddr_un::sun_path` (104 bytes on macOS, 108 on
+//! Linux, NUL included), it falls back to a short per-user path; a socket problem never blocks start-up.
 //!
 //! On Windows the acquiring thread owns the mutex, so drop the guard on the same thread that acquired it.
 
@@ -61,8 +63,8 @@ impl SingleInstanceGuard {
     /// Wait for signals from later launches on a background thread and call `callback` for each one.
     ///
     /// The callback runs on that background thread; the app is responsible for marshalling to its UI thread.
-    /// Calling this more than once is a no-op. On non-Windows targets the signal channel is not available
-    /// today, so this is a no-op.
+    /// Calling this more than once is a no-op. On non-Windows targets this is a no-op when the
+    /// signal socket could not be bound (the single-instance exclusion still holds).
     pub fn listen<F>(&mut self, callback: F)
     where
         F: Fn() + Send + 'static,
@@ -276,7 +278,8 @@ mod win {
 mod nix {
     use std::fs::{File, OpenOptions};
     use std::io::{Read as _, Write as _};
-    use std::os::unix::fs::PermissionsExt as _;
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
     use std::os::unix::net::{UnixListener, UnixStream};
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
@@ -286,11 +289,21 @@ mod nix {
     const SIGNAL_BYTE: u8 = 1;
     const STOP_BYTE: u8 = 0;
 
+    /// The `sockaddr_un::sun_path` capacity in bytes, NUL included: 104 on macOS, 108 on Linux
+    /// and the other Unix systems.
+    #[cfg(target_os = "macos")]
+    const SUN_PATH_LIMIT: usize = 104;
+    #[cfg(not(target_os = "macos"))]
+    const SUN_PATH_LIMIT: usize = 108;
+
     /// The owned Unix first-instance state; dropping the file releases the advisory lock.
+    ///
+    /// `socket_path` is `None` when the signal socket could not be bound: the lock file alone
+    /// decides first versus already running, so a missing channel never blocks start-up.
     #[derive(Debug)]
     pub(super) struct Guard {
         _lock_file: File,
-        socket_path: PathBuf,
+        socket_path: Option<PathBuf>,
         listener: Option<Listener>,
     }
 
@@ -306,7 +319,9 @@ mod nix {
                 return;
             }
 
-            let socket_path = self.socket_path.clone();
+            let Some(socket_path) = self.socket_path.clone() else {
+                return;
+            };
             let _ = std::fs::remove_file(&socket_path);
             let Ok(listener) = UnixListener::bind(&socket_path) else {
                 return;
@@ -353,24 +368,25 @@ mod nix {
         fn drop(&mut self) {
             if let Some(mut listener) = self.listener.take() {
                 listener.stop.store(true, Ordering::Release);
-                if let Ok(mut stream) = UnixStream::connect(&self.socket_path) {
+                if let Some(socket_path) = self.socket_path.as_ref()
+                    && let Ok(mut stream) = UnixStream::connect(socket_path)
+                {
                     let _ = stream.write_all(&[STOP_BYTE]);
                 }
                 if let Some(thread) = listener.thread.take() {
                     let _ = thread.join();
                 }
             }
-            let _ = std::fs::remove_file(&self.socket_path);
+            if let Some(socket_path) = self.socket_path.as_ref() {
+                let _ = std::fs::remove_file(socket_path);
+            }
         }
     }
 
     pub(super) fn try_acquire(app_id: &str) -> Option<Guard> {
         let app_name = app_name_from_id(app_id);
         let data_dir = crate::AppDataPaths::new(app_name).data_dir();
-        let socket_dir = std::env::var_os("XDG_RUNTIME_DIR")
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| data_dir.clone());
+        let socket_dir = xdg_runtime_dir().unwrap_or_else(|| data_dir.clone());
         try_acquire_in_dirs(&data_dir, &socket_dir, app_id)
     }
 
@@ -380,7 +396,9 @@ mod nix {
 
     fn try_acquire_in_dirs(data_dir: &Path, socket_dir: &Path, app_id: &str) -> Option<Guard> {
         std::fs::create_dir_all(data_dir).ok()?;
-        std::fs::create_dir_all(socket_dir).ok()?;
+        // The socket directory is best effort: a missing or unwritable one only disables the
+        // signal channel, it must not make the app refuse to start.
+        let _ = std::fs::create_dir_all(socket_dir);
 
         let path = data_dir.join(lock_file_name(app_id));
         let file = OpenOptions::new()
@@ -391,41 +409,118 @@ mod nix {
             .open(path)
             .ok()?;
 
+        // The lock file is the source of truth: it alone decides First versus AlreadyRunning.
+        let uid = file.metadata().map_or(0, |metadata| metadata.uid());
+
         if file.try_lock().is_err() {
-            signal_socket(socket_dir, app_id);
+            signal_socket(socket_dir, uid, app_id);
             return None;
         }
 
-        let socket_path = socket_dir.join(format!("{app_id}.sock"));
+        // We hold the lock, so no other instance is running and any socket at our path is stale:
+        // always remove it and rebind. A bind failure only disables the signal channel.
+        let socket_path = socket_path_for(socket_dir, uid, app_id);
+        ensure_socket_dir(&socket_path, uid, app_id);
+        let socket_path = bind_socket(&socket_path).then_some(socket_path);
 
-        if socket_path.exists() {
-            match UnixStream::connect(&socket_path) {
-                Ok(_) => return None,
-                Err(_) => {
-                    let _ = std::fs::remove_file(&socket_path);
-                }
-            }
-        }
+        Some(Guard {
+            _lock_file: file,
+            socket_path,
+            listener: None,
+        })
+    }
 
-        match UnixListener::bind(&socket_path) {
-            Ok(listener) => {
-                let _ =
-                    std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600));
-                drop(listener);
-                Some(Guard {
-                    _lock_file: file,
-                    socket_path,
-                    listener: None,
-                })
-            }
-            Err(_) => None,
+    fn signal_socket(socket_dir: &Path, uid: u32, app_id: &str) {
+        let socket_path = socket_path_for(socket_dir, uid, app_id);
+        if let Ok(mut stream) = UnixStream::connect(socket_path) {
+            let _ = stream.write_all(&[SIGNAL_BYTE]);
         }
     }
 
-    fn signal_socket(socket_dir: &Path, app_id: &str) {
-        let socket_path = socket_dir.join(format!("{app_id}.sock"));
-        if let Ok(mut stream) = UnixStream::connect(socket_path) {
-            let _ = stream.write_all(&[1]);
+    /// `$XDG_RUNTIME_DIR` when set and non-empty.
+    fn xdg_runtime_dir() -> Option<PathBuf> {
+        std::env::var_os("XDG_RUNTIME_DIR")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    }
+
+    /// The socket path for `app_id` in `socket_dir`.
+    ///
+    /// When the direct path would not fit in `sun_path`, a short fallback is used: `$XDG_RUNTIME_DIR`
+    /// when it is set and short enough, otherwise a per-user `/tmp/<app>-<uid>/` directory with a
+    /// socket named after the hash of the original long path, so different data dirs never collide.
+    fn socket_path_for(socket_dir: &Path, uid: u32, app_id: &str) -> PathBuf {
+        socket_path_in(socket_dir, xdg_runtime_dir().as_deref(), uid, app_id)
+    }
+
+    /// The pure socket-path rule; every instance computes the same result from the same inputs.
+    fn socket_path_in(
+        socket_dir: &Path,
+        xdg_dir: Option<&Path>,
+        uid: u32,
+        app_id: &str,
+    ) -> PathBuf {
+        let direct = socket_dir.join(socket_file_name(app_id));
+        if path_fits_sun_path(&direct) {
+            return direct;
+        }
+        if let Some(xdg_dir) = xdg_dir {
+            let candidate = xdg_dir.join(socket_file_name(app_id));
+            if path_fits_sun_path(&candidate) {
+                return candidate;
+            }
+        }
+        per_user_socket_dir(uid, app_id).join(format!("{}.sock", hash8(&direct)))
+    }
+
+    fn socket_file_name(app_id: &str) -> String {
+        format!("{app_id}.sock")
+    }
+
+    /// A path fits `sun_path` when its bytes plus the terminating NUL stay within the limit.
+    fn path_fits_sun_path(path: &Path) -> bool {
+        path.as_os_str().as_bytes().len() < SUN_PATH_LIMIT
+    }
+
+    /// The per-user 0700 fallback directory `/tmp/<app_id-prefix>-<uid>/`.
+    fn per_user_socket_dir(uid: u32, app_id: &str) -> PathBuf {
+        PathBuf::from("/tmp").join(format!("{}-{uid}", app_name_from_id(app_id)))
+    }
+
+    /// 32-bit FNV-1a over the path bytes, as eight hex characters.
+    fn hash8(path: &Path) -> String {
+        let mut hash: u32 = 0x811c_9dc5;
+        for byte in path.as_os_str().as_bytes() {
+            hash ^= u32::from(*byte);
+            hash = hash.wrapping_mul(0x0100_0193);
+        }
+        format!("{hash:08x}")
+    }
+
+    /// Create the socket's parent directory. The per-user fallback directory is created 0700 so
+    /// other users cannot place a socket there.
+    fn ensure_socket_dir(socket_path: &Path, uid: u32, app_id: &str) {
+        let Some(parent) = socket_path.parent() else {
+            return;
+        };
+        if std::fs::create_dir_all(parent).is_ok()
+            && parent == per_user_socket_dir(uid, app_id).as_path()
+        {
+            let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+
+    /// Remove any socket at `path` and bind a fresh one. `false` only means the signal channel
+    /// is disabled; start-up is never blocked.
+    fn bind_socket(path: &Path) -> bool {
+        let _ = std::fs::remove_file(path);
+        match UnixListener::bind(path) {
+            Ok(listener) => {
+                let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+                drop(listener);
+                true
+            }
+            Err(_) => false,
         }
     }
 
@@ -440,5 +535,98 @@ mod nix {
 
     fn lock_file_name(app_id: &str) -> String {
         format!(".{}.lock", app_name_from_id(app_id).to_lowercase())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn short_socket_dir_is_used_directly() {
+            let dir = PathBuf::from("/tmp/ocy-data");
+            assert_eq!(
+                socket_path_in(&dir, None, 1000, "xyz.damt.ocy"),
+                dir.join("xyz.damt.ocy.sock")
+            );
+        }
+
+        #[test]
+        fn the_last_fitting_path_is_direct_and_one_more_byte_falls_back() {
+            // "<dir>/xyz.damt.ocy.sock" fits while its byte length stays under `SUN_PATH_LIMIT`.
+            let fitting = PathBuf::from("/tmp").join("d".repeat(SUN_PATH_LIMIT - 24));
+            assert_eq!(
+                socket_path_in(&fitting, None, 1000, "xyz.damt.ocy"),
+                fitting.join("xyz.damt.ocy.sock")
+            );
+
+            let too_long = PathBuf::from("/tmp").join("d".repeat(SUN_PATH_LIMIT - 23));
+            assert_ne!(
+                socket_path_in(&too_long, None, 1000, "xyz.damt.ocy"),
+                too_long.join("xyz.damt.ocy.sock")
+            );
+        }
+
+        #[test]
+        fn long_dir_falls_back_to_xdg_runtime_dir() {
+            let dir = PathBuf::from("/tmp").join("d".repeat(200));
+            let xdg = PathBuf::from("/run/user/1000");
+            assert_eq!(
+                socket_path_in(&dir, Some(&xdg), 1000, "xyz.damt.ocy"),
+                xdg.join("xyz.damt.ocy.sock")
+            );
+        }
+
+        #[test]
+        fn long_dir_without_xdg_uses_a_per_user_hashed_socket() {
+            let dir = PathBuf::from("/tmp").join("d".repeat(200));
+            let path = socket_path_in(&dir, None, 1000, "xyz.damt.ocy");
+
+            assert_eq!(
+                path.parent(),
+                Some(per_user_socket_dir(1000, "xyz.damt.ocy").as_path())
+            );
+            let name = path
+                .file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .unwrap_or_default();
+            assert_eq!(
+                name,
+                format!("{}.sock", hash8(&dir.join("xyz.damt.ocy.sock")))
+            );
+            assert!(name.ends_with(".sock"));
+            assert!(
+                name.as_bytes()[..8]
+                    .iter()
+                    .all(|byte| byte.is_ascii_hexdigit())
+            );
+        }
+
+        #[test]
+        fn different_long_dirs_hash_to_different_sockets() {
+            let one = PathBuf::from("/tmp").join("d".repeat(200));
+            let two = PathBuf::from("/tmp").join("d".repeat(201));
+            assert_ne!(
+                socket_path_in(&one, None, 1000, "xyz.damt.ocy"),
+                socket_path_in(&two, None, 1000, "xyz.damt.ocy")
+            );
+        }
+
+        #[test]
+        fn a_long_xdg_dir_also_falls_back_to_the_per_user_socket() {
+            let dir = PathBuf::from("/tmp").join("d".repeat(200));
+            let xdg = PathBuf::from("/tmp").join("x".repeat(300));
+            assert_eq!(
+                socket_path_in(&dir, Some(&xdg), 1000, "xyz.damt.ocy"),
+                socket_path_in(&dir, None, 1000, "xyz.damt.ocy")
+            );
+        }
+
+        #[test]
+        fn per_user_dir_is_named_after_the_app_and_user() {
+            assert_eq!(
+                per_user_socket_dir(1000, "xyz.damt.ocy"),
+                PathBuf::from("/tmp/ocy-1000")
+            );
+        }
     }
 }

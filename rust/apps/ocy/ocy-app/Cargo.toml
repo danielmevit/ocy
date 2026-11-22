@@ -39,6 +39,15 @@ damt-platform-linux = { path = "../../../crates/damt-platform-linux" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 damt-platform-mac = { path = "../../../crates/damt-platform-mac" }
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", features = [
+    "NSApplication",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSView",
+    "NSWindow",
+] }
+objc2-foundation = { version = "=0.3.2", features = ["NSObject"] }
 
 [build-dependencies]
 damt-build.workspace = true

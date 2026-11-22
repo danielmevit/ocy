@@ -143,6 +143,56 @@ check on hardware:
 **Effort:** 3-6 engineering weeks for a first usable implementation, including UI
 and native integration/debugging.
 
+#### M2 status (implemented; compile-checked only — needs a Mac check)
+
+Nobody in this workspace has a Mac, so **every runtime behaviour below is compile-checked
+for `aarch64-apple-darwin` and unit-tested only in pure Rust on Linux; everything needs a
+Mac check on real hardware**.
+
+| Surface | Implementation | Compile-only vs tested | Honest limitation / check needed |
+| --- | --- | --- | --- |
+| Menu-bar icon (`NSStatusItem` + `NSMenu`) | `damt-platform-mac/src/macos/tray.rs` (`MacTrayHandle`) + `MacTraySink` in `ocy-app/src/main.rs`, behind `cfg(target_os = "macos")`. Mirrors `TrayPresenter` (`tray.rs`): all 10 items + 2 separators, visibility, enabled flags, checkmarks, tooltip, and `HoldUntilGameCloses`. Uses `menu.setAutoenablesItems(false)` and `MacTrayTarget` (`define_class!`). | Menu ordering, item visibility/enabled rules, action tags, and black+alpha `32x32` PNG template mask derivation are unit-tested on Linux (`damt-platform-mac/tests/pure.rs`). AppKit calls are **compile-checked only**. | Template icons are rendered at `16x16` pt (`32x32` px @2x) with `setTemplate(true)` — verify crispness and light/dark menu-bar tinting on Retina and 1x displays. |
+| Break cards, dims, and edge frames (`NSWindow`) | `ocy-app/src/macos_window.rs`: pre-creation winit attributes (`with_active(false)`, `AlwaysOnTop`, borderless/transparent/no-shadow for overlays) + post-creation `RawWindowHandle::AppKit` → `NSView` → `NSWindow` setup (`setLevel`, `setCollectionBehavior(CanJoinAllSpaces \| FullScreenAuxiliary \| Stationary)`, `setIgnoresMouseEvents`, `orderFrontRegardless`). | Window-level policy (`Floating` = 3 for cards/edge frames, `ScreenSaver` = 1000 for dims), collection-behavior bitmask, `AppKit` handle extraction, and `MonitorInfo` mapping are unit-tested on Linux (`macos_window::tests`). AppKit calls are **compile-checked only**. | **Verify z-order of dim + card:** AppKit orders `NSScreenSaverWindowLevel` (1000) above `NSFloatingWindowLevel` (3); verify on hardware whether `MacosOverlays` dims darken the `LongBreakCard` / fullscreen `ShortBreakCard` and adjust dimmed card level if needed. Also note Slint `card.show()` calls winit `makeKeyAndOrderFront(None)` before `orderFrontRegardless()` — verify it never steals focus. |
+| Active screen & multi-display placement | `MacActiveScreen` uses `NSEvent::mouseLocation` against `NSScreen::screens` (fallback `mainScreen` / `CGMainDisplayID`). `query_mac_monitors` reads `NSScreen::frame`, `visibleFrame` (excluding menu bar & Dock), and `backingScaleFactor` → DPI, flipping AppKit bottom-left coordinates to CG top-left physical pixels. `MacosOverlays` shows dims across all displays and edge frames on non-active displays. | AppKit-to-CG coordinate flip, Retina/mixed-DPI scaling, and point-in-screen selection are unit-tested on Linux. Live `NSScreen` queries are **compile-checked only**. | Verify mixed-DPI secondary display positioning (`winit` `set_outer_position` scales by the window's current `scale_factor`). |
+| No Dock icon | `configure_event_loop_builder` sets `ActivationPolicy::Accessory` and `with_activate_ignoring_other_apps(false)` on winit's `EventLoopBuilder`, and `ensure_accessory_activation_policy()` sets `NSApplicationActivationPolicy::Accessory` at startup. | Policy choice helper tested on Linux; AppKit/winit calls are **compile-checked only**. | `LSUIElement = true` in `Info.plist` still comes with `.app` bundling in M3. |
+| Autostart (`SMAppService.mainApp`) | `damt-platform-mac/src/macos/autostart.rs` (`MacAutostart`) links `ServiceManagement`, checks `NSProcessInfo.operatingSystemVersion().majorVersion >= 13` and `AnyClass::get(c"SMAppService")`, and calls `mainAppService` `status` / `registerAndReturnError:` / `unregisterAndReturnError:`. Reports `is_supported() == false` on macOS 12 and earlier. | Version check (`>= 13` + class presence) and `SMAppServiceStatus` mapping (`0..=3`) are unit-tested on Linux. Objective-C `msg_send!` calls are **compile-checked only**. | `SMAppService.mainApp` registration requires a bundled `.app` (M3); unbundled `cargo run` may surface a LaunchServices error in Settings. |
+| Deferred to M2 follow-up / M3 | `MacFocus` (`CGWindowListCopyWindowInfo` fullscreen heuristic), `UNUserNotificationCenter` (`STATUS_NOTIFICATIONS_SHIPPED` is still `false` everywhere, and `UNUserNotificationCenter` requires a bundled `.app`), `.app` bundle + `LSUIElement` + single-instance second-launch activation. | — | See M3 and `M1` limitation notes. |
+
+#### Manual test checklist for a Mac tester (M2 acceptance)
+
+First run `cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked` natively on macOS, then launch Ocy (`cargo run -p ocy-app` and, once M3 exists, the bundled `Ocy.app`) and verify every item:
+
+1. **No Dock icon & non-stealing startup:**
+   - Launch Ocy while Terminal/Finder is active. Confirm **no Dock icon** appears, no app switcher (`Cmd-Tab`) entry appears, and Terminal/Finder keeps keyboard focus.
+2. **Menu-bar icon & menu parity:**
+   - Confirm the Ocy sprout template icon appears in the menu bar and adapts cleanly to both Light and Dark menu bars (and wallpaper tinting) on Retina and 1x displays.
+   - Click the menu-bar icon: confirm all items match `TrayPresenter` (`Take short break now`, `Take long break now`, `Pause for 1 hour`, `Pause for 3 hours`, `Pause until resumed`, `Settings`, `Quit`, plus `Pause status` and `Resume` while paused).
+   - While paused (1h / 3h / until resumed), confirm the pause status line shows as disabled/non-clickable, the matching pause option shows a checkmark, `Resume` appears and works, and the menu-bar icon switches to the paused/on-break/attention states.
+   - With a known game running in front (not on the silent list), confirm `Hold breaks until I close this game` appears, works when clicked, and hides otherwise.
+3. **Focus never stolen (short break, warning, long break):**
+   - Type continuously in TextEdit or Terminal while triggering `--demo-break short`, `--demo-break warning`, and `--demo-break long` (or "Take short/long break now").
+   - Confirm Ocy never becomes the active menu-bar application, your cursor/typing in TextEdit/Terminal is uninterrupted, and clicking buttons on the break card (`End break`, `Postpone`, `Start now`, `Not during this game`) works without needing to click twice to focus first.
+4. **Cards over fullscreen apps, Spaces, and Mission Control:**
+   - Open a native macOS fullscreen app (e.g. Safari, Keynote, or a video player in its own fullscreen Space).
+   - Trigger a short break, warning, and long break: confirm the card (and dim/edge frames) appear **over the fullscreen app** without switching Spaces back to the desktop.
+   - Swipe between Spaces (`Ctrl-Left/Right`) and open Mission Control (`Ctrl-Up`): confirm cards stay stationary across Spaces (`canJoinAllSpaces | stationary | fullScreenAuxiliary`) and do not break Mission Control.
+5. **Dims, click-through, and z-order:**
+   - During a long break (or short break with fullscreen dim enabled), confirm the dim covers the screen(s) including menu bar/Dock area, mouse clicks pass through the dim (`ignoresMouseEvents = true`), and **check specifically whether the `LongBreakCard` renders cleanly in front of the dim** (not darkened behind the `NSScreenSaverWindowLevel` dim).
+   - Confirm `Cmd-Q` / `Cmd-W` / red close button cannot dismiss a break card while a break is active (`should_allow_close` guard).
+6. **Multiple displays:**
+   - Connect an external monitor (ideally mixed DPI, e.g. Retina built-in + 1x/1.5x external).
+   - Move the mouse cursor to the built-in display and trigger a short break: confirm the card opens in the bottom-right work area (above Dock, below menu bar) of the built-in display, and the external display shows the click-through accent edge frame (clicks pass through the frame to windows underneath).
+   - Move the mouse cursor to the external display and repeat: confirm the card opens on the external display and the edge frame moves to the built-in display.
+   - Trigger a long break: confirm dims cover **both** displays and the long-break card is centered on the active display.
+7. **Settings window & login item (`SMAppService.mainApp`):**
+   - Click `Settings` in the menu-bar menu: confirm the Settings window opens, comes to the front, receives keyboard focus, and centers on the active display's work area.
+   - On macOS 13+ (with a bundled `.app` once M3 is ready): toggle `Start with system`, confirm it appears under System Settings → General → Login Items, toggle off and confirm removal, and test reboot/re-login auto-launch. On unbundled `cargo run`, confirm any LaunchServices error is surfaced gracefully in the UI without crashing.
+   - On macOS 12 or earlier (if available): confirm `Start with system` is hidden/unsupported (`AutostartService::is_supported() == false`).
+8. **Sleep, wake, and screen lock:**
+   - Lock screen (`Ctrl-Cmd-Q`), wait > `awayThreshold`, unlock: confirm away/absence crediting behaves properly and menu-bar countdown updates.
+   - Sleep (lid close or Apple menu → Sleep) and wake: confirm `Suspending`/`Resumed` events update timers cleanly without stuck break overlays or crashes.
+   - Quit from the menu-bar `Quit` item: confirm the status item disappears cleanly with no crash on exit.
+
 ### M3: unsigned community release
 - Create `.app` bundling, zip/DMG, checksums, release instructions, and smoke scripts.
 - Add architecture-specific builds and test on Intel and Apple Silicon Macs.

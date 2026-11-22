@@ -1,10 +1,12 @@
 //! Pure macOS platform helpers: idle-time conversion, notification-name mapping,
-//! `AppleInterfaceStyle` and reduce-motion parsing, display scale maths, and
-//! frontmost-app observation mapping.
+//! `AppleInterfaceStyle` and reduce-motion parsing, display scale and AppKit-to-CG
+//! placement maths, frontmost-app mapping, `SMAppService` status/version checks,
+//! tray menu mapping, and template-icon derivation.
 //!
 //! Nothing here touches an Apple framework, so it compiles and is unit-tested on
 //! every target (the macOS OS layer in [`crate::macos`] does the framework calls).
 
+use std::io::Cursor;
 use std::time::Duration;
 
 use damt_platform::{ForegroundObservation, ScreenRect, SessionEvent};
@@ -198,4 +200,417 @@ pub fn frontmost_observation(
         exe_path: None,
         process_id: pid.and_then(|pid| u32::try_from(pid).ok()),
     }
+}
+
+// --- M2: AppKit / CG placement maths ---
+
+/// Rectangle in AppKit global screen coordinates (points, origin at bottom-left of main
+/// screen, y increasing upwards), as returned by `NSScreen::frame` / `visibleFrame`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AppKitRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Converts an [`AppKitRect`] (y-up from bottom-left of main screen, in points) into a
+/// physical-pixel [`ScreenRect`] (y-down from top-left of main screen) using
+/// `main_screen_height_points` and `backing_scale_factor`.
+#[must_use]
+pub fn appkit_rect_to_cg_physical(
+    rect: AppKitRect,
+    main_screen_height_points: f64,
+    backing_scale_factor: f64,
+) -> Option<ScreenRect> {
+    if !rect.x.is_finite()
+        || !rect.y.is_finite()
+        || !rect.width.is_finite()
+        || !rect.height.is_finite()
+        || !main_screen_height_points.is_finite()
+        || !backing_scale_factor.is_finite()
+        || rect.width <= 0.0
+        || rect.height <= 0.0
+        || main_screen_height_points <= 0.0
+        || backing_scale_factor <= 0.0
+    {
+        return None;
+    }
+
+    let cg_y_points = main_screen_height_points - (rect.y + rect.height);
+    Some(ScreenRect {
+        x: scaled_to_i32(rect.x, backing_scale_factor)?,
+        y: scaled_to_i32(cg_y_points, backing_scale_factor)?,
+        width: scaled_to_i32(rect.width, backing_scale_factor)?,
+        height: scaled_to_i32(rect.height, backing_scale_factor)?,
+    })
+}
+
+/// Converts an AppKit `backingScaleFactor` (`1.0`, `2.0`, etc.) into an effective DPI (`96` = 1x).
+#[must_use]
+pub fn scale_to_dpi(backing_scale_factor: f64) -> u32 {
+    if !backing_scale_factor.is_finite() || backing_scale_factor <= 0.0 {
+        return 96;
+    }
+    let scaled = (backing_scale_factor * 96.0).round();
+    if (48.0..=960.0).contains(&scaled) {
+        scaled as u32
+    } else {
+        96
+    }
+}
+
+/// Finds the index of the first screen in `frames` whose AppKit bounds contain `(px, py)`.
+#[must_use]
+pub fn select_screen_containing_point(frames: &[AppKitRect], px: f64, py: f64) -> Option<usize> {
+    if !px.is_finite() || !py.is_finite() {
+        return None;
+    }
+    frames
+        .iter()
+        .position(|f| px >= f.x && px < f.x + f.width && py >= f.y && py < f.y + f.height)
+}
+
+// --- M2: SMAppService autostart version & status mapping ---
+
+/// macOS operating system version tuple (`NSProcessInfo.operatingSystemVersion`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MacOsVersion {
+    pub major: isize,
+    pub minor: isize,
+    pub patch: isize,
+}
+
+/// Minimum macOS major version supporting `SMAppService.mainApp` (macOS 13 Ventura).
+pub const SM_APP_SERVICE_MIN_MAJOR: isize = 13;
+
+/// Returns `true` when `SMAppService.mainApp` is available on this OS version and runtime.
+#[must_use]
+pub const fn is_sm_app_service_supported(version: MacOsVersion, class_available: bool) -> bool {
+    version.major >= SM_APP_SERVICE_MIN_MAJOR && class_available
+}
+
+/// Typed `SMAppServiceStatus` values from `ServiceManagement/SMAppService.h`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SmAppServiceState {
+    NotRegistered,
+    Enabled,
+    RequiresApproval,
+    NotFound,
+    Unknown(isize),
+}
+
+impl SmAppServiceState {
+    /// Whether the login item is actively enabled (`SMAppServiceStatusEnabled`).
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        matches!(self, Self::Enabled)
+    }
+}
+
+/// Maps a raw `NSInteger` `SMAppServiceStatus` onto [`SmAppServiceState`].
+#[must_use]
+pub const fn map_sm_app_service_status(raw: isize) -> SmAppServiceState {
+    match raw {
+        0 => SmAppServiceState::NotRegistered,
+        1 => SmAppServiceState::Enabled,
+        2 => SmAppServiceState::RequiresApproval,
+        3 => SmAppServiceState::NotFound,
+        other => SmAppServiceState::Unknown(other),
+    }
+}
+
+// --- M2: macOS menu-bar icon & menu presentation ---
+
+const TRAY_ACTIVE_PNG: &[u8] =
+    include_bytes!("../../../../assets/icons/tray/light/png/tray-active-32.png");
+const TRAY_PAUSED_PNG: &[u8] =
+    include_bytes!("../../../../assets/icons/tray/light/png/tray-paused-32.png");
+const TRAY_ONBREAK_PNG: &[u8] =
+    include_bytes!("../../../../assets/icons/tray/light/png/tray-onbreak-32.png");
+const TRAY_ATTENTION_PNG: &[u8] =
+    include_bytes!("../../../../assets/icons/tray/light/png/tray-attention-32.png");
+
+/// Visual state of the macOS menu-bar tray icon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacTrayIconState {
+    Active,
+    Paused,
+    OnBreak,
+    Attention,
+}
+
+/// Returns the embedded 32x32 tray PNG bytes used to derive the template icon for `state`.
+#[must_use]
+pub const fn tray_icon_png_bytes(state: MacTrayIconState) -> &'static [u8] {
+    match state {
+        MacTrayIconState::Active => TRAY_ACTIVE_PNG,
+        MacTrayIconState::Paused => TRAY_PAUSED_PNG,
+        MacTrayIconState::OnBreak => TRAY_ONBREAK_PNG,
+        MacTrayIconState::Attention => TRAY_ATTENTION_PNG,
+    }
+}
+
+/// Converts packed RGBA8 pixels `[R, G, B, A, ...]` into a monochrome black+alpha template mask
+/// `[0, 0, 0, A, ...]` suitable for `NSImage::setTemplate(true)`.
+#[must_use]
+pub fn rgba_to_template_mask(rgba: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(rgba.len());
+    for px in rgba.chunks_exact(4) {
+        out.extend_from_slice(&[0, 0, 0, px[3]]);
+    }
+    out
+}
+
+/// Decodes a PNG slice into `(width, height, rgba8_bytes)`.
+pub fn decode_png_to_rgba(png_bytes: &[u8]) -> Result<(u32, u32, Vec<u8>), String> {
+    let mut decoder = png::Decoder::new(Cursor::new(png_bytes));
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
+    let mut reader = decoder
+        .read_info()
+        .map_err(|err| format!("png header decode: {err}"))?;
+    let buf_size = reader
+        .output_buffer_size()
+        .ok_or_else(|| "png output buffer size overflow".to_owned())?;
+    let mut buf = vec![0_u8; buf_size];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|err| format!("png frame decode: {err}"))?;
+    let bytes = &buf[..info.buffer_size()];
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => bytes.to_vec(),
+        png::ColorType::Rgb => {
+            let mut out = Vec::with_capacity((bytes.len() / 3) * 4);
+            for px in bytes.chunks_exact(3) {
+                out.extend_from_slice(&[px[0], px[1], px[2], 255]);
+            }
+            out
+        }
+        png::ColorType::GrayscaleAlpha => {
+            let mut out = Vec::with_capacity((bytes.len() / 2) * 4);
+            for px in bytes.chunks_exact(2) {
+                out.extend_from_slice(&[px[0], px[0], px[0], px[1]]);
+            }
+            out
+        }
+        png::ColorType::Grayscale => {
+            let mut out = Vec::with_capacity(bytes.len() * 4);
+            for &g in bytes {
+                out.extend_from_slice(&[g, g, g, 255]);
+            }
+            out
+        }
+        png::ColorType::Indexed => {
+            return Err("unexpected indexed color after EXPAND transformation".to_owned());
+        }
+    };
+    Ok((info.width, info.height, rgba))
+}
+
+/// Encodes packed RGBA8 pixels into a PNG byte buffer.
+pub fn encode_rgba_png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, String> {
+    let expected = usize::try_from(width)
+        .ok()
+        .and_then(|w| usize::try_from(height).ok().and_then(|h| w.checked_mul(h)))
+        .and_then(|px| px.checked_mul(4))
+        .ok_or_else(|| "png dimensions overflow".to_owned())?;
+    if rgba.len() != expected {
+        return Err(format!(
+            "rgba length {} does not match {}x{}x4 ({})",
+            rgba.len(),
+            width,
+            height,
+            expected
+        ));
+    }
+
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|err| format!("png header encode: {err}"))?;
+        writer
+            .write_image_data(rgba)
+            .map_err(|err| format!("png frame encode: {err}"))?;
+    }
+    Ok(out)
+}
+
+/// Derives a monochrome black+alpha template PNG from the embedded tray art for `state`.
+pub fn template_tray_icon_png(state: MacTrayIconState) -> Result<Vec<u8>, String> {
+    let (w, h, rgba) = decode_png_to_rgba(tray_icon_png_bytes(state))?;
+    let mask = rgba_to_template_mask(&rgba);
+    encode_rgba_png(w, h, &mask)
+}
+
+/// Menu slot identifiers matching `ocy-app/src/tray.rs` top-to-bottom order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacTrayMenuSlot {
+    PauseStatus,
+    TakeShortBreakNow,
+    TakeLongBreakNow,
+    HoldUntilGameCloses,
+    Pause1Hour,
+    Pause3Hours,
+    PauseUntilResumed,
+    Resume,
+    Settings,
+    Quit,
+}
+
+/// Presentation state of a single macOS tray menu item.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MacTrayMenuItem {
+    pub text: String,
+    pub is_visible: bool,
+    pub is_enabled: bool,
+    pub is_checked: bool,
+}
+
+/// Complete tray menu + tooltip presentation handed to `MacTrayHandle`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MacTrayPresentation {
+    pub tooltip: String,
+    pub pause_status: MacTrayMenuItem,
+    pub take_short_break_now: MacTrayMenuItem,
+    pub take_long_break_now: MacTrayMenuItem,
+    pub hold_until_game_closes: MacTrayMenuItem,
+    pub pause_1_hour: MacTrayMenuItem,
+    pub pause_3_hours: MacTrayMenuItem,
+    pub pause_until_resumed: MacTrayMenuItem,
+    pub resume: MacTrayMenuItem,
+    pub settings: MacTrayMenuItem,
+    pub quit: MacTrayMenuItem,
+}
+
+/// User actions triggered from the macOS menu-bar menu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacTrayAction {
+    TakeShortBreakNow,
+    TakeLongBreakNow,
+    HoldUntilGameCloses,
+    Pause1Hour,
+    Pause3Hours,
+    PauseUntilResumed,
+    Resume,
+    Settings,
+    Quit,
+}
+
+/// Maps a [`MacTrayAction`] to a stable `NSMenuItem.tag` integer (`1..=9`).
+#[must_use]
+pub const fn tag_for_action(action: MacTrayAction) -> isize {
+    match action {
+        MacTrayAction::TakeShortBreakNow => 1,
+        MacTrayAction::TakeLongBreakNow => 2,
+        MacTrayAction::HoldUntilGameCloses => 3,
+        MacTrayAction::Pause1Hour => 4,
+        MacTrayAction::Pause3Hours => 5,
+        MacTrayAction::PauseUntilResumed => 6,
+        MacTrayAction::Resume => 7,
+        MacTrayAction::Settings => 8,
+        MacTrayAction::Quit => 9,
+    }
+}
+
+/// Maps an `NSMenuItem.tag` integer back to [`MacTrayAction`].
+#[must_use]
+pub const fn action_for_tag(tag: isize) -> Option<MacTrayAction> {
+    match tag {
+        1 => Some(MacTrayAction::TakeShortBreakNow),
+        2 => Some(MacTrayAction::TakeLongBreakNow),
+        3 => Some(MacTrayAction::HoldUntilGameCloses),
+        4 => Some(MacTrayAction::Pause1Hour),
+        5 => Some(MacTrayAction::Pause3Hours),
+        6 => Some(MacTrayAction::PauseUntilResumed),
+        7 => Some(MacTrayAction::Resume),
+        8 => Some(MacTrayAction::Settings),
+        9 => Some(MacTrayAction::Quit),
+        _ => None,
+    }
+}
+
+/// One rendered entry in the macOS `NSMenu` (matching `TRAY_MENU_ORDER`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MacTrayRenderedEntry {
+    Item {
+        slot: MacTrayMenuSlot,
+        action: Option<MacTrayAction>,
+        item: MacTrayMenuItem,
+    },
+    Separator,
+}
+
+/// Maps [`MacTrayPresentation`] into the ordered `NSMenu` entries (10 items + 2 separators).
+///
+/// Mirrors `SlintTraySink` for `HoldUntilGameCloses` visibility (`is_visible && is_enabled`),
+/// keeps `PauseStatus` non-clickable (`action: None`, `is_enabled: false`), and preserves the
+/// exact slot order from `ocy-app/src/tray.rs`.
+#[must_use]
+pub fn plan_tray_menu_entries(presentation: &MacTrayPresentation) -> Vec<MacTrayRenderedEntry> {
+    let mut hold = presentation.hold_until_game_closes.clone();
+    hold.is_visible = hold.is_visible && hold.is_enabled;
+
+    vec![
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::PauseStatus,
+            action: None,
+            item: MacTrayMenuItem {
+                text: presentation.pause_status.text.clone(),
+                is_visible: presentation.pause_status.is_visible,
+                is_enabled: false,
+                is_checked: false,
+            },
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::TakeShortBreakNow,
+            action: Some(MacTrayAction::TakeShortBreakNow),
+            item: presentation.take_short_break_now.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::TakeLongBreakNow,
+            action: Some(MacTrayAction::TakeLongBreakNow),
+            item: presentation.take_long_break_now.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::HoldUntilGameCloses,
+            action: Some(MacTrayAction::HoldUntilGameCloses),
+            item: hold,
+        },
+        MacTrayRenderedEntry::Separator,
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::Pause1Hour,
+            action: Some(MacTrayAction::Pause1Hour),
+            item: presentation.pause_1_hour.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::Pause3Hours,
+            action: Some(MacTrayAction::Pause3Hours),
+            item: presentation.pause_3_hours.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::PauseUntilResumed,
+            action: Some(MacTrayAction::PauseUntilResumed),
+            item: presentation.pause_until_resumed.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::Resume,
+            action: Some(MacTrayAction::Resume),
+            item: presentation.resume.clone(),
+        },
+        MacTrayRenderedEntry::Separator,
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::Settings,
+            action: Some(MacTrayAction::Settings),
+            item: presentation.settings.clone(),
+        },
+        MacTrayRenderedEntry::Item {
+            slot: MacTrayMenuSlot::Quit,
+            action: Some(MacTrayAction::Quit),
+            item: presentation.quit.clone(),
+        },
+    ]
 }

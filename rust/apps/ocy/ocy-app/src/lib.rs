@@ -15,6 +15,7 @@ pub mod layout;
 pub mod license;
 #[cfg(target_os = "linux")]
 pub mod linux_window;
+pub mod macos_window;
 pub mod mode_art;
 pub mod notifications;
 pub mod presets;

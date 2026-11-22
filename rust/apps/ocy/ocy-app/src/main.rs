@@ -22,7 +22,7 @@ use ocy_app::slint_breaks::{
     BreakActionCallbacks, BreakLatencySample, LatencyOptions, SlintBreakWindows,
 };
 use ocy_app::slint_settings::SlintSettingsWindow;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use ocy_app::slint_tray::{OcyTray, SlintTraySink};
 use ocy_app::soak::{
     OffsetClock, SoakHooks, SoakTimings, build_soak_settings, format_soak_cycle_line,
@@ -40,7 +40,9 @@ const ERROR_LOG_PREFIX: &str = "ocy";
 
 #[cfg(target_os = "linux")]
 type LiveTraySink = LinuxTraySink;
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
+type LiveTraySink = MacTraySink;
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 type LiveTraySink = SlintTraySink;
 
 type LiveHost = AppHost<OverlayBreakWindows<SlintBreakWindows>, SlintSettingsWindow, LiveTraySink>;
@@ -331,13 +333,24 @@ fn main() -> ExitCode {
     };
     let owner_hwnd = owner_window.as_ref().and_then(OwnerWindow::raw_hwnd);
 
-    if let Err(err) = slint::BackendSelector::new()
+    let selector = slint::BackendSelector::new()
         .backend_name("winit".into())
-        .renderer_name("software".into())
+        .renderer_name("software".into());
+    #[cfg(target_os = "macos")]
+    let selector = {
+        let mut builder = slint::winit_030::winit::event_loop::EventLoop::<
+            slint::winit_030::SlintEvent,
+        >::with_user_event();
+        ocy_app::macos_window::configure_event_loop_builder(&mut builder);
+        selector.with_winit_event_loop_builder(builder)
+    };
+    if let Err(err) = selector
         .with_winit_window_attributes_hook(move |attrs| {
             let attrs = apply_window_attributes_for_role(attrs, owner_hwnd);
             #[cfg(target_os = "linux")]
             let attrs = ocy_app::linux_window::apply_window_attributes_for_role(attrs);
+            #[cfg(target_os = "macos")]
+            let attrs = ocy_app::macos_window::apply_window_attributes_for_role(attrs);
             attrs
         })
         .select()
@@ -345,6 +358,9 @@ fn main() -> ExitCode {
         error_log.log_error("slint_backend_select", &err);
         return ExitCode::FAILURE;
     }
+
+    #[cfg(target_os = "macos")]
+    let _ = ocy_app::macos_window::ensure_accessory_activation_policy();
 
     let mut settings = if is_isolated {
         default_app_settings()
@@ -410,7 +426,7 @@ fn main() -> ExitCode {
     );
     let initial_snapshot = engine.snapshot();
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     let tray_sink = {
         let tray_component = match OcyTray::new() {
             Ok(tray) => tray,
@@ -423,6 +439,8 @@ fn main() -> ExitCode {
     };
     #[cfg(target_os = "linux")]
     let tray_sink = LinuxTraySink::spawn(error_log.clone());
+    #[cfg(target_os = "macos")]
+    let tray_sink = MacTraySink::spawn(error_log.clone());
 
     let taskbar_theme: Rc<dyn damt_platform::TaskbarThemeProvider> = Rc::new(TaskbarThemeAdapter {
         platform: Arc::clone(&platform),
@@ -562,7 +580,7 @@ fn main() -> ExitCode {
         store_license::refresh();
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let host_ref = host.borrow();
         let tray = host_ref.tray().sink().component();
@@ -913,6 +931,146 @@ impl ocy_app::tray::TraySink for LinuxTraySink {
 
         if let Some(handle) = &self.handle {
             handle.set_menu(LinuxTrayPresentation {
+                tooltip: presentation.tooltip.clone(),
+                pause_status: map_item(&presentation.pause_status),
+                take_short_break_now: map_item(&presentation.take_short_break_now),
+                take_long_break_now: map_item(&presentation.take_long_break_now),
+                hold_until_game_closes: map_item(&presentation.hold_until_game_closes),
+                pause_1_hour: map_item(&presentation.pause_1_hour),
+                pause_3_hours: map_item(&presentation.pause_3_hours),
+                pause_until_resumed: map_item(&presentation.pause_until_resumed),
+                resume: map_item(&presentation.resume),
+                settings: map_item(&presentation.settings),
+                quit: map_item(&presentation.quit),
+            });
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct MacTraySink {
+    handle: Option<damt_platform_mac::MacTrayHandle>,
+    error_log: ErrorLog,
+}
+
+#[cfg(target_os = "macos")]
+impl MacTraySink {
+    fn spawn(error_log: ErrorLog) -> Self {
+        use damt_platform_mac::{
+            MacTrayConfig, MacTrayHandle, MacTrayIconState, MacTrayPresentation,
+        };
+
+        let dispatch_log = error_log.clone();
+        let config = MacTrayConfig {
+            title: ocy_app::notifications::APP_DISPLAY_NAME.to_owned(),
+        };
+        let handle = match MacTrayHandle::spawn(
+            config,
+            MacTrayPresentation::default(),
+            MacTrayIconState::Active,
+            move |action| {
+                if let Err(err) = slint::invoke_from_event_loop(move || {
+                    dispatch_mac_tray_action(action);
+                }) {
+                    dispatch_log.log_error("mac_tray_dispatch", &err);
+                }
+            },
+        ) {
+            Ok(h) => Some(h),
+            Err(err) => {
+                error_log.log_error("tray_create", &err);
+                None
+            }
+        };
+        Self { handle, error_log }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn dispatch_mac_tray_action(action: damt_platform_mac::MacTrayAction) {
+    use damt_platform_mac::MacTrayAction;
+
+    match action {
+        MacTrayAction::TakeShortBreakNow => {
+            with_ui_host(|h| {
+                let _ = h.start_short_break_now();
+            });
+            arm_next_tick();
+        }
+        MacTrayAction::TakeLongBreakNow => {
+            with_ui_host(LiveHost::start_long_break_now);
+            arm_next_tick();
+        }
+        MacTrayAction::HoldUntilGameCloses => {
+            with_ui_host(|h| {
+                let _ = h.hold_until_game_closes();
+            });
+            arm_next_tick();
+        }
+        MacTrayAction::Pause1Hour => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::OneHour));
+            arm_next_tick();
+        }
+        MacTrayAction::Pause3Hours => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::ThreeHours));
+            arm_next_tick();
+        }
+        MacTrayAction::PauseUntilResumed => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::UntilResumed));
+            arm_next_tick();
+        }
+        MacTrayAction::Resume => {
+            with_ui_host(LiveHost::resume);
+            arm_next_tick();
+        }
+        MacTrayAction::Settings => with_ui_host(LiveHost::show_settings),
+        MacTrayAction::Quit => {
+            with_ui_host(LiveHost::shutdown);
+            let _ = slint::quit_event_loop();
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl ocy_app::tray::TraySink for MacTraySink {
+    fn set_tooltip(&mut self, tooltip: &str) {
+        if let Some(handle) = &self.handle {
+            handle.set_tooltip(tooltip);
+        }
+    }
+
+    fn set_icon(&mut self, state: ocy_app::tray::TrayIconState, use_light_set: bool) {
+        use damt_platform_mac::MacTrayIconState;
+        use ocy_app::tray::TrayIconState;
+
+        let mapped = match state {
+            TrayIconState::Active => MacTrayIconState::Active,
+            TrayIconState::Paused => MacTrayIconState::Paused,
+            TrayIconState::OnBreak => MacTrayIconState::OnBreak,
+            TrayIconState::Attention => MacTrayIconState::Attention,
+        };
+        if let Some(handle) = &mut self.handle
+            && let Err(err) = handle.set_icon(mapped, use_light_set)
+        {
+            self.error_log.log_error("tray_icon", &err);
+        }
+    }
+
+    fn set_menu(&mut self, presentation: &ocy_app::tray::TrayPresentation) {
+        use damt_platform_mac::{MacTrayMenuItem, MacTrayPresentation};
+        use ocy_app::tray::TrayMenuItemState;
+
+        fn map_item(item: &TrayMenuItemState) -> MacTrayMenuItem {
+            MacTrayMenuItem {
+                text: item.text.clone(),
+                is_visible: item.is_visible,
+                is_enabled: item.is_enabled,
+                is_checked: item.is_checked,
+            }
+        }
+
+        if let Some(handle) = &self.handle {
+            handle.set_menu(&MacTrayPresentation {
                 tooltip: presentation.tooltip.clone(),
                 pause_status: map_item(&presentation.pause_status),
                 take_short_break_now: map_item(&presentation.take_short_break_now),
