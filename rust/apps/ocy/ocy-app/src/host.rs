@@ -394,6 +394,10 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         let snapshot = self.engine.snapshot();
         self.sync_coordinator_for_snapshot(&snapshot);
         self.coordinator.show_settings();
+        #[cfg(target_os = "macos")]
+        {
+            let _ = crate::macos_window::activate_macos_application();
+        }
     }
 
     /// Applies updated settings to the engine and persists them via [`AppDataStore::save_settings`].

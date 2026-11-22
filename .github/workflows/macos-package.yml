@@ -51,10 +51,13 @@ jobs:
           APP="${{ steps.package.outputs.app }}"
           PROBE="packaging/macos/ci/window_probe.swift"
           mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/short-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
           swift "$PROBE" "$$" > probe-artifacts/short-frontmost-before.json
           "$APP/Contents/MacOS/Ocy" --demo-break short >probe-artifacts/short-launch.log 2>&1 &
           PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
           sleep 3
           swift "$PROBE" "$PID" > probe-artifacts/short-probe.json
           if ! screencapture -x probe-artifacts/probe-short.png 2>probe-artifacts/short-screencapture.log; then
@@ -77,10 +80,27 @@ jobs:
           assert windows, "no on-screen Ocy window for short break"
           assert frontmost != "xyz.damt.ocy", f"short break took focus; frontmost={frontmost}"
           assert frontmost_pid != pid, f"short break took focus; frontmost_pid={frontmost_pid}, pid={pid}"
+          cards = [w for w in windows if 300 <= w["bounds"]["width"] <= 500 and w["bounds"]["height"] <= 250]
+          assert cards, "no short card window found for margin probe"
+          card = cards[0]["bounds"]
+          import subprocess
+          pixel = subprocess.check_output([
+              "swift", "packaging/macos/ci/pixel_probe.swift",
+              "probe-artifacts/probe-short.png",
+              str(card["x"] + 3),
+              str(card["y"] + 3),
+          ], text=True).strip()
+          rgba = [int(v) for v in pixel.split()]
+          red, green, blue, alpha = rgba
+          assert alpha > 0
+          assert red > 150 and green < 180 and blue > 100, f"short margin is not pink backdrop; RGBA={rgba}"
+          print(f"short top-left margin RGBA={rgba}")
           print(json.dumps(probe, sort_keys=True))
           PY
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
 
       - name: Probe long break
         timeout-minutes: 2
@@ -90,10 +110,13 @@ jobs:
           APP="${{ steps.package.outputs.app }}"
           PROBE="packaging/macos/ci/window_probe.swift"
           mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/long-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
           swift "$PROBE" "$$" > probe-artifacts/long-frontmost-before.json
           "$APP/Contents/MacOS/Ocy" --demo-break long >probe-artifacts/long-launch.log 2>&1 &
           PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
           sleep 4
           swift "$PROBE" "$PID" > probe-artifacts/long-probe.json
           if ! screencapture -x probe-artifacts/probe-long.png 2>probe-artifacts/long-screencapture.log; then
@@ -120,6 +143,8 @@ jobs:
           PY
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
 
       - name: Probe warning
         timeout-minutes: 2
@@ -129,10 +154,13 @@ jobs:
           APP="${{ steps.package.outputs.app }}"
           PROBE="packaging/macos/ci/window_probe.swift"
           mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/warning-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
           swift "$PROBE" "$$" > probe-artifacts/warning-frontmost-before.json
           "$APP/Contents/MacOS/Ocy" --demo-break warning >probe-artifacts/warning-launch.log 2>&1 &
           PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
           sleep 3
           swift "$PROBE" "$PID" > probe-artifacts/warning-probe.json
           if ! screencapture -x probe-artifacts/probe-warning.png 2>probe-artifacts/warning-screencapture.log; then
@@ -155,10 +183,27 @@ jobs:
           assert windows, "no on-screen Ocy window for warning"
           assert frontmost != "xyz.damt.ocy", f"warning took focus; frontmost={frontmost}"
           assert frontmost_pid != pid, f"warning took focus; frontmost_pid={frontmost_pid}, pid={pid}"
+          cards = [w for w in windows if 300 <= w["bounds"]["width"] <= 500 and w["bounds"]["height"] <= 250]
+          assert cards, "no warning card window found for margin probe"
+          card = cards[0]["bounds"]
+          import subprocess
+          pixel = subprocess.check_output([
+              "swift", "packaging/macos/ci/pixel_probe.swift",
+              "probe-artifacts/probe-warning.png",
+              str(card["x"] + 3),
+              str(card["y"] + 3),
+          ], text=True).strip()
+          rgba = [int(v) for v in pixel.split()]
+          red, green, blue, alpha = rgba
+          assert alpha > 0
+          assert red > 150 and green < 180 and blue > 100, f"warning margin is not pink backdrop; RGBA={rgba}"
+          print(f"warning top-left margin RGBA={rgba}")
           print(json.dumps(probe, sort_keys=True))
           PY
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
 
       - name: Probe settings
         timeout-minutes: 2
@@ -168,16 +213,33 @@ jobs:
           APP="${{ steps.package.outputs.app }}"
           PROBE="packaging/macos/ci/window_probe.swift"
           mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/settings-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
           "$APP/Contents/MacOS/Ocy" --demo-settings >probe-artifacts/settings-launch.log 2>&1 &
           PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
           sleep 3
           swift "$PROBE" "$PID" > probe-artifacts/settings-probe.json
           if ! screencapture -x probe-artifacts/probe-settings.png 2>probe-artifacts/settings-screencapture.log; then
             echo "screencapture blocked; probe JSON retained" >> probe-artifacts/settings-screencapture.log
           fi
+          PID="$PID" python3 - <<'PY'
+          import json
+          import os
+
+          with open("probe-artifacts/settings-probe.json", encoding="utf-8") as source:
+              probe = json.load(source)
+          pid = int(os.environ["PID"])
+          frontmost = probe["frontmost"]
+          print(f"settings frontmost: bundle_id={frontmost['bundle_id']} pid={frontmost['pid']} ocy_pid={pid}")
+          assert frontmost["pid"] == pid, f"settings did not activate Ocy; frontmost={frontmost}, ocy_pid={pid}"
+          assert frontmost["bundle_id"] == "xyz.damt.ocy", f"settings bundle mismatch: {frontmost}"
+          PY
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
 
       - name: Upload app artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

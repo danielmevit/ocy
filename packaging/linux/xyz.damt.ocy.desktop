@@ -1,7 +1,7 @@
 # Desktop entry for Ocy (installed to /app/share/applications/xyz.damt.ocy.desktop).
 # Spec: https://specifications.freedesktop.org/desktop-entry-spec/latest/
-# Note: ocy-app currently leaves Slint/winit xdg_app_id unset, so X11 falls back
-# to argv[0] ("Ocy") for WM_CLASS and Wayland leaves xdg_toplevel app_id unset.
+# ocy-app calls slint::set_xdg_app_id("xyz.damt.ocy"), setting xdg_toplevel.app_id
+# on Wayland and WM_CLASS = ("", "xyz.damt.ocy") on X11 via winit 0.30.
 [Desktop Entry]
 Type=Application
 Name=Ocy
@@ -12,7 +12,7 @@ Icon=xyz.damt.ocy
 Terminal=false
 Categories=Utility;Accessibility;
 Keywords=health;eyes;break;rest;reminder;stretch;
-StartupWMClass=Ocy
+StartupWMClass=xyz.damt.ocy
 X-KDE-StartupNotify=false
 # Single instance: a second launch signals the running instance to open Settings
 # (damt-app SingleInstance), so keep launching cheap and quiet.

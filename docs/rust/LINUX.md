@@ -210,15 +210,21 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
 
 - **Outside Flatpak (tarball):** write `~/.config/autostart/xyz.damt.ocy.desktop` per the autostart spec:
   https://specifications.freedesktop.org/autostart-spec/latest/ — the direct equivalent of the HKCU Run key.
-- **Inside Flatpak:** the app's `~/.config` is the sandbox's `~/.var/app/<id>/config`, which the desktop's
-  session **does not read** for autostart. The correct mechanism is the **Background portal**:
-  `org.freedesktop.portal.Background.RequestBackground` with `autostart=true` and a `reason`; `SetBackground`
-  clears it. The portal writes the autostart entry on the host side.
+- **Inside Flatpak (`L3a`, implemented; live GNOME/KDE portal pass pending):** the app's `~/.config` is the
+  sandbox's `~/.var/app/<id>/config`, which the desktop's session **does not read** for autostart. When
+  `FLATPAK_ID` is non-empty or `/.flatpak-info` exists, `LinuxAutostart` uses the **Background portal**:
+  `org.freedesktop.portal.Background.RequestBackground` over session D-Bus (`zbus` blocking API) with
+  `autostart: true/false`, `dbus-activatable: false`, `commandline: ["Ocy"]` (when enabling), and `reason`,
+  waiting up to 30 s for `org.freedesktop.portal.Request.Response` on the returned request object path and
+  mapping non-zero codes or `autostart: false` while enabling to `PlatformError`.
   Source: https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Background.html
-  Portals need no finish-args. **Unverified:** whether GNOME's and KDE's portal backends both honour
-  `autostart` (they are supposed to; the spike must toggle it on both).
-- The `AutostartService` implementation picks: portal when `FLATPAK_ID`/`container` says Flatpak, `.desktop`
-  file otherwise. `--autostart` argument handling stays as on Windows.
+  Portals need no finish-args.
+- **Limitation (`is_enabled()` in Flatpak):** `org.freedesktop.portal.Background` has no query method, so
+  `LinuxAutostart::is_enabled()` reads the last confirmed portal result cached in
+  `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (inside the sandbox) and reports `false` if none is stored.
+  External changes made in the host desktop's Settings will not be reflected in that cached file.
+  **Unverified:** whether GNOME's and KDE's portal backends both honour `autostart` in a live Flatpak session.
+- Outside Flatpak, `--autostart` argument handling stays as on Windows.
 
 ## 9. Notifications
 
@@ -338,6 +344,9 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
   - Updated `packaging/linux/xyz.damt.ocy.desktop` (`Exec=Ocy`, `Icon=xyz.damt.ocy`, `StartupWMClass=Ocy` to match the X11 `WM_CLASS` emitted from `argv[0]`).
   - Updated `packaging/linux/xyz.damt.ocy.metainfo.xml` (release `0.2.2`, OARS `1.1`, homepage, developer `Daniel Mevit`, and screenshots pointing at `main` raw URLs).
   - Added `.github/workflows/linux-flatpak.yml` to validate `.desktop` + metainfo, generate `cargo-sources.json` via `flatpak-cargo-generator.py`, build the bundle, and upload artifact `ocy-linux-flatpak` (`Ocy-<version>-x86_64.flatpak`).
+- **Done (`L3a`):**
+  - **Wayland `app_id` / `StartupWMClass`:** `ocy-app` calls `slint::set_xdg_app_id(ocy_app::instance::APP_ID)` (`"xyz.damt.ocy"`) on Linux before creating the first window, setting `xdg_toplevel.app_id` on Wayland and `WM_CLASS = ("", "xyz.damt.ocy")` on X11 via winit 0.30; updated `StartupWMClass=xyz.damt.ocy` in `packaging/linux/xyz.damt.ocy.desktop`.
+  - **Flatpak autostart:** `LinuxAutostart` detects Flatpak (`FLATPAK_ID` or `/.flatpak-info`) and uses `org.freedesktop.portal.Background.RequestBackground` via `zbus` (blocking API, 30 s `Response` wait, `autostart` + `dbus-activatable: false` + `commandline: ["Ocy"]`), caching the last confirmed state in `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (reports `false` if none stored; pure helpers unit-tested).
 - **Tester install (from the `ocy-linux-flatpak` CI artifact):**
   ```sh
   flatpak install --user ./Ocy-<version>-x86_64.flatpak
@@ -345,9 +354,7 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
   ```
 - **Still to do before Flathub submission:**
   - **Commit `cargo-sources.json`:** CI generates `packaging/linux/cargo-sources.json` dynamically from `rust/Cargo.lock`; Flathub builds offline from the manifest repo and will require `cargo-sources.json` to be committed alongside the manifest.
-  - **Wayland `app_id` / `StartupWMClass`:** `ocy-app` does not currently call `slint::set_xdg_app_id("xyz.damt.ocy")` (or winit `with_name`), so X11 sets `WM_CLASS=("Ocy", "Ocy")` and Wayland leaves `xdg_toplevel.app_id` unset. Add `slint::set_xdg_app_id(ocy_app::instance::APP_ID)` in Rust and update `StartupWMClass` so Wayland compositors associate windows with `xyz.damt.ocy.desktop`.
-  - **Flatpak autostart:** `LinuxAutostart` currently writes `$XDG_CONFIG_HOME/autostart/xyz.damt.ocy.desktop`, which stays inside `~/.var/app/xyz.damt.ocy/config/autostart` in Flatpak; implement the `org.freedesktop.portal.Background` path (§8) when running inside Flatpak.
-  - **Desktop testing & Flathub review:** test `--user` install and runtime behaviour on GNOME and KDE (including `org.gnome.Mutter.IdleMonitor` and `org.freedesktop.login1` sandbox permissions), run `flatpak-builder-lint`, verify screenshot `width`/`height` attributes, and resolve `xyz.damt.ocy` reverse-DNS domain proof before submitting: https://docs.flathub.org/for-app-authors/submission
+  - **Desktop testing & Flathub review:** test `--user` install and runtime behaviour on GNOME and KDE (including dock/taskbar matching via `xyz.damt.ocy`, Background portal autostart toggle, `org.gnome.Mutter.IdleMonitor`, and `org.freedesktop.login1` sandbox permissions), run `flatpak-builder-lint`, verify screenshot `width`/`height` attributes, and resolve `xyz.damt.ocy` reverse-DNS domain proof before submitting: https://docs.flathub.org/for-app-authors/submission
 **Effort:** 2–3 days plus review wait.
 
 ## 15. Honest effort estimate

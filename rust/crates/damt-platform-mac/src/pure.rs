@@ -650,6 +650,15 @@ pub enum MacWindowRole {
     EdgeFrame,
 }
 
+/// Pure activation decision for an AppKit window role.
+///
+/// Only normal application windows (currently Settings) activate Ocy. Break cards,
+/// warning cards, dim overlays, and edge frames deliberately remain non-activating.
+#[must_use]
+pub const fn window_role_should_activate(role: MacWindowRole) -> bool {
+    matches!(role, MacWindowRole::Normal)
+}
+
 /// Pure mapping from [`MacWindowRole`] to its target AppKit `NSWindowLevel` (`NSInteger`).
 ///
 /// Invariant: `BreakCard (1001) > Dim (1000) > EdgeFrame (3) > Normal (0)`.

@@ -2,6 +2,7 @@
 
 #[cfg(target_os = "linux")]
 mod linux_pure_tests {
+    use std::collections::HashMap;
     use std::ffi::OsStr;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -14,13 +15,17 @@ mod linux_pure_tests {
         PortalColorScheme, RawX11Crtc, X11_BREAK_STATE_ATOM_NAMES, X11_WM_STATE_ABOVE_ATOM,
         X11_WM_STATE_SKIP_PAGER_ATOM, X11_WM_STATE_SKIP_TASKBAR_ATOM,
         X11_WM_WINDOW_TYPE_NOTIFICATION_ATOM, X11MonitorInfo, autostart_dir, autostart_file_path,
-        build_desktop_entry, decode_tray_icon_argb32, escape_desktop_exec_arg, ewmh_has_fullscreen,
-        intersect_screen_rect, is_sandboxed_env, map_dbus_signal, merge_wm_state_atoms,
-        net_wm_state_add_messages, parse_desktop_entry_enabled, parse_net_workarea,
-        parse_raw_dbus_signal, parse_xft_dpi, probe_idle_source, resolve_logind_session_id,
-        resolve_x11_monitors, rgba_to_argb32, select_active_monitor, select_display_backend,
-        select_idle_source_order,
+        build_background_portal_options, build_desktop_entry, decode_tray_icon_argb32,
+        escape_desktop_exec_arg, ewmh_has_fullscreen, extract_portal_autostart_result,
+        format_portal_autostart_state, intersect_screen_rect, is_flatpak_env, is_sandboxed_env,
+        map_background_portal_response, map_background_portal_results, map_dbus_signal,
+        merge_wm_state_atoms, net_wm_state_add_messages, parse_desktop_entry_enabled,
+        parse_net_workarea, parse_portal_autostart_state, parse_raw_dbus_signal, parse_xft_dpi,
+        portal_autostart_state_path, probe_idle_source, read_portal_autostart_state,
+        resolve_logind_session_id, resolve_x11_monitors, rgba_to_argb32, select_active_monitor,
+        select_display_backend, select_idle_source_order, write_portal_autostart_state,
     };
+    use zbus::zvariant::{OwnedValue, Value};
 
     fn temp_dir(name: &str) -> PathBuf {
         let nanos = SystemTime::now()
@@ -429,6 +434,136 @@ Hidden=true
         svc.set_enabled(false).expect("disable autostart");
         assert!(!svc.is_enabled());
         assert!(!desktop_path.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn flatpak_detection_checks_injected_env_and_info_path() {
+        let dir = temp_dir("flatpak-detect");
+        let missing = dir.join("missing-flatpak-info");
+        let present = dir.join("flatpak-info");
+        std::fs::write(&present, "[Application]\nname=xyz.damt.ocy\n")
+            .expect("write mock flatpak-info");
+
+        assert!(!is_flatpak_env(None, &missing));
+        assert!(!is_flatpak_env(Some(OsStr::new("")), &missing));
+        assert!(!is_flatpak_env(Some(OsStr::new("   ")), &missing));
+        assert!(is_flatpak_env(Some(OsStr::new("xyz.damt.ocy")), &missing));
+        assert!(is_flatpak_env(None, &present));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn background_portal_option_map_builds_expected_keys_and_values() {
+        let enable_opts = build_background_portal_options(
+            true,
+            "ocy_autostart_1_1",
+            "Ocy",
+            "Start Ocy automatically",
+        );
+        assert_eq!(
+            enable_opts.get("handle_token"),
+            Some(&Value::from("ocy_autostart_1_1"))
+        );
+        assert_eq!(
+            enable_opts.get("reason"),
+            Some(&Value::from("Start Ocy automatically"))
+        );
+        assert_eq!(enable_opts.get("autostart"), Some(&Value::from(true)));
+        assert_eq!(
+            enable_opts.get("dbus-activatable"),
+            Some(&Value::from(false))
+        );
+        assert_eq!(
+            enable_opts.get("commandline"),
+            Some(&Value::from(vec!["Ocy".to_owned()]))
+        );
+
+        let disable_opts = build_background_portal_options(
+            false,
+            "ocy_autostart_1_2",
+            "Ocy",
+            "Stop Ocy autostart",
+        );
+        assert_eq!(disable_opts.get("autostart"), Some(&Value::from(false)));
+        assert_eq!(
+            disable_opts.get("dbus-activatable"),
+            Some(&Value::from(false))
+        );
+        assert!(!disable_opts.contains_key("commandline"));
+    }
+
+    #[test]
+    fn background_portal_response_mapping_handles_success_denial_cancel_and_errors() {
+        assert!(map_background_portal_response(true, 0, Some(true)).is_ok());
+        assert!(map_background_portal_response(true, 0, None).is_ok());
+        assert!(map_background_portal_response(false, 0, Some(false)).is_ok());
+
+        let denied = map_background_portal_response(true, 0, Some(false))
+            .expect_err("autostart=false while enabling must fail");
+        assert!(denied.0.contains("denied"));
+
+        let cancelled =
+            map_background_portal_response(true, 1, None).expect_err("response code 1 must fail");
+        assert!(cancelled.0.contains("cancelled"));
+
+        let failed =
+            map_background_portal_response(false, 2, None).expect_err("response code 2 must fail");
+        assert!(failed.0.contains("2"));
+
+        let mut results: HashMap<String, OwnedValue> = HashMap::new();
+        results.insert(
+            "autostart".to_owned(),
+            OwnedValue::try_from(Value::from(false)).expect("owned bool"),
+        );
+        assert_eq!(extract_portal_autostart_result(&results), Some(false));
+        assert!(map_background_portal_results(true, 0, &results).is_err());
+        assert!(map_background_portal_results(false, 0, &results).is_ok());
+    }
+
+    #[test]
+    fn portal_autostart_state_path_and_roundtrip_work() {
+        assert_eq!(
+            portal_autostart_state_path(
+                Some(OsStr::new("/xdg")),
+                Some(OsStr::new("/home/u")),
+                "Ocy"
+            ),
+            Some(PathBuf::from("/xdg/ocy/autostart-portal.state"))
+        );
+        assert_eq!(
+            portal_autostart_state_path(Some(OsStr::new("")), Some(OsStr::new("/home/u")), "Ocy"),
+            Some(PathBuf::from("/home/u/.config/ocy/autostart-portal.state"))
+        );
+        assert_eq!(portal_autostart_state_path(None, None, "Ocy"), None);
+        assert_eq!(
+            portal_autostart_state_path(Some(OsStr::new("/xdg")), None, "   "),
+            None
+        );
+
+        assert_eq!(format_portal_autostart_state(true), "true\n");
+        assert_eq!(format_portal_autostart_state(false), "false\n");
+        assert_eq!(parse_portal_autostart_state("true\n"), Some(true));
+        assert_eq!(parse_portal_autostart_state("false\n"), Some(false));
+        assert_eq!(parse_portal_autostart_state("garbage"), None);
+
+        let dir = temp_dir("portal-state");
+        let state_file = dir.join("ocy").join("autostart-portal.state");
+
+        // Missing file defaults to not enabled.
+        assert!(!read_portal_autostart_state(&state_file));
+
+        write_portal_autostart_state(&state_file, true).expect("write true state");
+        assert!(read_portal_autostart_state(&state_file));
+
+        write_portal_autostart_state(&state_file, false).expect("write false state");
+        assert!(!read_portal_autostart_state(&state_file));
+
+        // Corrupt content safely falls back to false.
+        std::fs::write(&state_file, "unexpected").expect("write corrupt state");
+        assert!(!read_portal_autostart_state(&state_file));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

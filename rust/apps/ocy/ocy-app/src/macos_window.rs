@@ -97,7 +97,7 @@ pub const fn window_policy_for_kind(kind: MacWindowKind) -> MacWindowPolicy {
             ignores_mouse_events: false,
             order_front_regardless: true,
             never_activate: true,
-            has_shadow: true,
+            has_shadow: false,
         },
         MacWindowKind::Dim => MacWindowPolicy {
             level: MacWindowLevel::ScreenSaver,
@@ -167,7 +167,9 @@ mod macos_impl {
 
     use damt_overlay::{MonitorInfo, Rgba};
     use damt_platform::ScreenRect;
-    use damt_platform_mac::pure::{MacWindowRole, window_level_for_role};
+    use damt_platform_mac::pure::{
+        MacWindowRole, window_level_for_role, window_role_should_activate,
+    };
     use damt_platform_mac::{MacMonitorInfo, query_mac_monitors};
     use objc2::MainThreadMarker;
     use objc2_app_kit::{
@@ -311,6 +313,7 @@ mod macos_impl {
                     let policy = window_policy_for_kind(MacWindowKind::BreakCard);
                     attrs
                         .with_active(!policy.never_activate)
+                        .with_transparent(true)
                         .with_has_shadow(policy.has_shadow)
                         .with_window_level(WindowLevel::AlwaysOnTop)
                 }
@@ -372,9 +375,87 @@ mod macos_impl {
             policy.collection_behavior_bits,
         ));
         ns_window.setIgnoresMouseEvents(policy.ignores_mouse_events);
+        ns_window.setHasShadow(policy.has_shadow);
+        if matches!(
+            kind,
+            MacWindowKind::BreakCard | MacWindowKind::Dim | MacWindowKind::EdgeFrame
+        ) {
+            ns_window.setOpaque(false);
+            ns_window.setBackgroundColor(None);
+        }
         if policy.order_front_regardless {
             ns_window.orderFrontRegardless();
         }
+    }
+
+    /// Activates the application and makes a Settings window key on macOS.
+    pub fn activate_settings_window(window: &slint::Window) -> bool {
+        let Some(_mtm) = MainThreadMarker::new() else {
+            return false;
+        };
+        if !window_role_should_activate(MacWindowRole::Normal) {
+            return false;
+        }
+
+        let app = NSApplication::sharedApplication(_mtm);
+        if objc2::available!(macos = 14.0) {
+            app.activate();
+        } else {
+            // SAFETY: `activateIgnoringOtherApps` is the macOS 11-13 fallback for
+            // activating this accessory app when Settings is explicitly opened.
+            #[allow(deprecated)]
+            app.activateIgnoringOtherApps(true);
+        }
+
+        window
+            .with_winit_window(|winit_win| {
+                let Ok(handle) = winit_win.window_handle() else {
+                    return false;
+                };
+                let Some(ns_view_ptr) = extract_ns_view_ptr(handle.as_raw()) else {
+                    return false;
+                };
+                if ns_view_ptr.is_null() {
+                    return false;
+                }
+                // SAFETY: `ns_view_ptr` comes from winit's live `NSView` on the main
+                // thread and belongs to the Settings window owned by `winit_win`.
+                let ns_view: &NSView = unsafe { &*ns_view_ptr.cast::<NSView>() };
+                let Some(ns_window) = ns_view.window() else {
+                    return false;
+                };
+                ns_window.makeKeyAndOrderFront(None);
+                ns_window.makeMainWindow();
+                true
+            })
+            .unwrap_or(false)
+    }
+
+    /// Activates Ocy as an explicit result of opening Settings, then promotes the
+    /// application's current key window for keyboard focus.
+    pub fn activate_macos_application() -> bool {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return false;
+        };
+        if !window_role_should_activate(MacWindowRole::Normal) {
+            return false;
+        }
+
+        let app = NSApplication::sharedApplication(mtm);
+        if objc2::available!(macos = 14.0) {
+            app.activate();
+        } else {
+            // SAFETY: `activateIgnoringOtherApps` is the macOS 11-13 fallback for
+            // activating this accessory app when Settings is explicitly opened.
+            #[allow(deprecated)]
+            app.activateIgnoringOtherApps(true);
+        }
+
+        if let Some(window) = app.keyWindow() {
+            window.makeKeyAndOrderFront(None);
+            window.makeMainWindow();
+        }
+        true
     }
 
     /// Configures a break/warning card window on macOS so it floats over fullscreen Spaces
@@ -546,9 +627,10 @@ mod macos_impl {
 
 #[cfg(target_os = "macos")]
 pub use macos_impl::{
-    MacosOverlays, apply_ns_window_policy, apply_window_attributes_for_role,
-    configure_event_loop_builder, ensure_accessory_activation_policy, enumerate_monitors,
-    install_break_window_role, monitor_info_from_mac,
+    MacosOverlays, activate_macos_application, activate_settings_window, apply_ns_window_policy,
+    apply_window_attributes_for_role, configure_event_loop_builder,
+    ensure_accessory_activation_policy, enumerate_monitors, install_break_window_role,
+    monitor_info_from_mac,
 };
 
 #[cfg(test)]
@@ -597,7 +679,7 @@ mod tests {
         assert!(!card.ignores_mouse_events);
         assert!(card.order_front_regardless);
         assert!(card.never_activate);
-        assert!(card.has_shadow);
+        assert!(!card.has_shadow);
 
         let dim = window_policy_for_kind(MacWindowKind::Dim);
         assert_eq!(dim.level, MacWindowLevel::ScreenSaver);

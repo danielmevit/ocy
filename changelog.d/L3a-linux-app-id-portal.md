@@ -1,0 +1,1 @@
+- L3a-linux-app-id-portal: Set `slint::set_xdg_app_id("xyz.damt.ocy")` on Linux and updated `StartupWMClass=xyz.damt.ocy` in `packaging/linux/xyz.damt.ocy.desktop`; added Flatpak `org.freedesktop.portal.Background` autostart support in `damt-platform-linux` with local state persistence, unit tests, and updated `docs/rust/LINUX.md`.

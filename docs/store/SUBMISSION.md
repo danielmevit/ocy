@@ -12,7 +12,7 @@ The short version of what Ocy needs to run: **a 64-bit Windows 10 (1809+) or Win
 | Field | Value |
 |-------|-------|
 | Product type | **MSIX or PWA app** (so the Store signs it — not "EXE or MSI app") |
-| Name | Reserve your chosen Store name first (for example `Ocy` or `Ocy - Eye Break Reminder`). Set `OCY_STORE_DISPLAY_NAME` to match the reserved name exactly. |
+| Name | **Ocy - Screen Break Reminder** (owner's choice, 2026-11-22; see LISTING.md). Reserve it first, then set `OCY_STORE_DISPLAY_NAME` to match the reserved name exactly. |
 
 ## 2. Where to get & paste the Partner Center identity values
 In **Partner Center → your product → Product management → Product identity**, copy these three values (plus your reserved display name) into your shell environment before running `packaging\windows\build_msix.ps1 -Store`:

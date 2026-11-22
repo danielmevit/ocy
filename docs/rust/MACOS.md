@@ -215,6 +215,8 @@ CI smoke runs on `macos-latest` and proves:
 - short and warning cards do not take frontmost-app focus;
 - long-break dim and card layers follow the 1000/1001 separation;
 - settings still launch in demo mode;
+- settings is frontmost on macOS after `--demo-settings`;
+- short and warning card margins are checked against a solid CI backdrop;
 - window probe JSON and optional screenshots are retained as artifacts.
 
 CI does not prove hardware behavior that requires a local Mac. A human tester still
@@ -234,6 +236,19 @@ floor: the Rust toolchain's Apple Silicon target requires macOS 11 or newer, whi
 the Intel target can run on older releases; a universal binary therefore cannot
 advertise a lower floor than 11.0. The build also sets
 `MACOSX_DEPLOYMENT_TARGET=11.0`.
+
+#### M4 status (Settings activation and card margins)
+
+Settings is the only macOS window role that activates the accessory app. Its pure
+role decision is `Normal => true`; break cards, warning cards, dim overlays, and edge
+frames remain `false`. On macOS 14+, `NSApplication.activate()` is used; older macOS
+runs use `activateIgnoringOtherApps:YES`.
+
+Break-card windows are transparent and use no native `NSWindow` shadow. Slint already
+draws the card shadow inside the 392 DIP window, so native shadow was disabled to
+avoid a second dark shadow/rectangle around the margins. The native window is also
+non-opaque with a clear background. CI places a pink backdrop behind short and warning
+probes and samples 3 points inside the top-left card window margin.
 
 ## Honest estimate
 

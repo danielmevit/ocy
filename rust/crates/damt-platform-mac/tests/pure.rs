@@ -15,7 +15,7 @@ use damt_platform_mac::pure::{
     map_distributed_notification, map_sm_app_service_status, map_workspace_notification,
     parse_apple_interface_style, parse_reduce_motion, plan_tray_menu_entries,
     rgba_to_template_mask, scale_to_dpi, select_screen_containing_point, tag_for_action,
-    template_tray_icon_png, window_level_for_role,
+    template_tray_icon_png, window_level_for_role, window_role_should_activate,
 };
 
 // --- Idle conversion (CGEventSourceSecondsSinceLastEventType) ---
@@ -577,6 +577,14 @@ fn window_levels_match_appkit_constants_and_keep_cards_above_dims() {
         window_level_for_role(MacWindowRole::BreakCard),
         BREAK_CARD_WINDOW_LEVEL
     );
+}
+
+#[test]
+fn window_activation_is_enabled_only_for_normal_settings_role() {
+    assert!(window_role_should_activate(MacWindowRole::Normal));
+    assert!(!window_role_should_activate(MacWindowRole::BreakCard));
+    assert!(!window_role_should_activate(MacWindowRole::Dim));
+    assert!(!window_role_should_activate(MacWindowRole::EdgeFrame));
 }
 
 #[test]

@@ -368,6 +368,11 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    #[cfg(target_os = "linux")]
+    if let Err(err) = slint::set_xdg_app_id(ocy_app::instance::APP_ID) {
+        error_log.log_error("set_xdg_app_id", &err);
+    }
+
     #[cfg(target_os = "macos")]
     let _ = ocy_app::macos_window::ensure_accessory_activation_policy();
 
