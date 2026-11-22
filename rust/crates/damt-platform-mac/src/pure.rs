@@ -614,3 +614,51 @@ pub fn plan_tray_menu_entries(presentation: &MacTrayPresentation) -> Vec<MacTray
         },
     ]
 }
+
+// --- M2b: AppKit NSWindowLevel policy for Ocy windows ---
+
+/// AppKit `NSNormalWindowLevel` (`0`): standard application windows (e.g. Settings).
+pub const NS_NORMAL_WINDOW_LEVEL: isize = 0;
+
+/// AppKit `NSFloatingWindowLevel` (`3`): floats above normal windows without covering
+/// the menu bar or Dock.
+pub const NS_FLOATING_WINDOW_LEVEL: isize = 3;
+
+/// AppKit `NSScreenSaverWindowLevel` (`1000`): covers desktop, menu bar, Dock, and
+/// fullscreen Spaces.
+pub const NS_SCREEN_SAVER_WINDOW_LEVEL: isize = 1000;
+
+/// Break card window level (`1001`, strictly above [`NS_SCREEN_SAVER_WINDOW_LEVEL`]).
+///
+/// AppKit orders windows **by level first**, then front-to-back within each level.
+/// Because dim overlays sit at [`NS_SCREEN_SAVER_WINDOW_LEVEL`] (`1000`) to cover the
+/// menu bar, Dock, and fullscreen Spaces, every break card (short, warning, and long)
+/// must use a strictly higher level (`1001`) so long-break cards and fullscreen
+/// short-break cards always render above the dim instead of being darkened behind it.
+pub const BREAK_CARD_WINDOW_LEVEL: isize = NS_SCREEN_SAVER_WINDOW_LEVEL + 1;
+
+/// AppKit window role used to select the macOS `NSWindowLevel`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacWindowRole {
+    /// Standard application window (e.g. Settings).
+    Normal,
+    /// Break or warning card (short, warning, or long).
+    BreakCard,
+    /// Full-monitor dim backdrop overlay.
+    Dim,
+    /// Click-through accent border indicator on non-active displays.
+    EdgeFrame,
+}
+
+/// Pure mapping from [`MacWindowRole`] to its target AppKit `NSWindowLevel` (`NSInteger`).
+///
+/// Invariant: `BreakCard (1001) > Dim (1000) > EdgeFrame (3) > Normal (0)`.
+#[must_use]
+pub const fn window_level_for_role(role: MacWindowRole) -> isize {
+    match role {
+        MacWindowRole::Normal => NS_NORMAL_WINDOW_LEVEL,
+        MacWindowRole::BreakCard => BREAK_CARD_WINDOW_LEVEL,
+        MacWindowRole::Dim => NS_SCREEN_SAVER_WINDOW_LEVEL,
+        MacWindowRole::EdgeFrame => NS_FLOATING_WINDOW_LEVEL,
+    }
+}

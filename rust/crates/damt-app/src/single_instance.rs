@@ -8,6 +8,8 @@
 //! signal channel. The socket is placed in `$XDG_RUNTIME_DIR` when available, otherwise in the app's
 //! data directory. When that path would not fit in `sockaddr_un::sun_path` (104 bytes on macOS, 108 on
 //! Linux, NUL included), it falls back to a short per-user path; a socket problem never blocks start-up.
+//! The per-user `/tmp` fallback directory is verified with `symlink_metadata` (a real directory we
+//! own, mode 0700) before any socket is bound or connected through it.
 //!
 //! On Windows the acquiring thread owns the mutex, so drop the guard on the same thread that acquired it.
 
@@ -395,6 +397,17 @@ mod nix {
     }
 
     fn try_acquire_in_dirs(data_dir: &Path, socket_dir: &Path, app_id: &str) -> Option<Guard> {
+        try_acquire_with_xdg(data_dir, socket_dir, xdg_runtime_dir(), app_id)
+    }
+
+    /// The acquisition flow with an explicit `$XDG_RUNTIME_DIR`, so tests can force the per-user
+    /// `/tmp` fallback without touching the process environment.
+    fn try_acquire_with_xdg(
+        data_dir: &Path,
+        socket_dir: &Path,
+        xdg_dir: Option<PathBuf>,
+        app_id: &str,
+    ) -> Option<Guard> {
         std::fs::create_dir_all(data_dir).ok()?;
         // The socket directory is best effort: a missing or unwritable one only disables the
         // signal channel, it must not make the app refuse to start.
@@ -413,15 +426,19 @@ mod nix {
         let uid = file.metadata().map_or(0, |metadata| metadata.uid());
 
         if file.try_lock().is_err() {
-            signal_socket(socket_dir, uid, app_id);
+            signal_socket(socket_dir, xdg_dir.as_deref(), uid, app_id);
             return None;
         }
 
         // We hold the lock, so no other instance is running and any socket at our path is stale:
         // always remove it and rebind. A bind failure only disables the signal channel.
-        let socket_path = socket_path_for(socket_dir, uid, app_id);
-        ensure_socket_dir(&socket_path, uid, app_id);
-        let socket_path = bind_socket(&socket_path).then_some(socket_path);
+        let socket_path = socket_path_in(socket_dir, xdg_dir.as_deref(), uid, app_id);
+        let socket_path =
+            if ensure_socket_dir(&socket_path, uid, app_id) && bind_socket(&socket_path) {
+                Some(socket_path)
+            } else {
+                None
+            };
 
         Some(Guard {
             _lock_file: file,
@@ -430,8 +447,11 @@ mod nix {
         })
     }
 
-    fn signal_socket(socket_dir: &Path, uid: u32, app_id: &str) {
-        let socket_path = socket_path_for(socket_dir, uid, app_id);
+    fn signal_socket(socket_dir: &Path, xdg_dir: Option<&Path>, uid: u32, app_id: &str) {
+        let socket_path = socket_path_in(socket_dir, xdg_dir, uid, app_id);
+        if !ensure_socket_dir(&socket_path, uid, app_id) {
+            return;
+        }
         if let Ok(mut stream) = UnixStream::connect(socket_path) {
             let _ = stream.write_all(&[SIGNAL_BYTE]);
         }
@@ -442,15 +462,6 @@ mod nix {
         std::env::var_os("XDG_RUNTIME_DIR")
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
-    }
-
-    /// The socket path for `app_id` in `socket_dir`.
-    ///
-    /// When the direct path would not fit in `sun_path`, a short fallback is used: `$XDG_RUNTIME_DIR`
-    /// when it is set and short enough, otherwise a per-user `/tmp/<app>-<uid>/` directory with a
-    /// socket named after the hash of the original long path, so different data dirs never collide.
-    fn socket_path_for(socket_dir: &Path, uid: u32, app_id: &str) -> PathBuf {
-        socket_path_in(socket_dir, xdg_runtime_dir().as_deref(), uid, app_id)
     }
 
     /// The pure socket-path rule; every instance computes the same result from the same inputs.
@@ -497,17 +508,38 @@ mod nix {
         format!("{hash:08x}")
     }
 
-    /// Create the socket's parent directory. The per-user fallback directory is created 0700 so
-    /// other users cannot place a socket there.
-    fn ensure_socket_dir(socket_path: &Path, uid: u32, app_id: &str) {
+    /// Make sure the socket's parent directory exists and is safe to bind or connect in.
+    ///
+    /// Only the per-user fallback directory is checked: it must be a real directory we own (see
+    /// [`socket_dir_is_safe`]). `false` means the caller must not use the path — the signal channel
+    /// stays off and start-up is unaffected.
+    fn ensure_socket_dir(socket_path: &Path, uid: u32, app_id: &str) -> bool {
         let Some(parent) = socket_path.parent() else {
-            return;
+            return true;
         };
-        if std::fs::create_dir_all(parent).is_ok()
-            && parent == per_user_socket_dir(uid, app_id).as_path()
-        {
-            let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+        // A failure here leaves the decision to the safety check: an existing directory is fine,
+        // anything else (missing, a symlink, a file) is rejected below.
+        let _ = std::fs::create_dir_all(parent);
+        if parent != per_user_socket_dir(uid, app_id).as_path() {
+            return true;
         }
+        socket_dir_is_safe(parent, uid)
+    }
+
+    /// The per-user fallback directory is safe when `symlink_metadata` shows a real directory —
+    /// a symlink is never accepted, even when it points somewhere plausible — owned by `uid`,
+    /// with the mode repaired to 0700 only while we own it.
+    fn socket_dir_is_safe(dir: &Path, uid: u32) -> bool {
+        let Ok(metadata) = std::fs::symlink_metadata(dir) else {
+            return false;
+        };
+        if !metadata.is_dir() || metadata.uid() != uid {
+            return false;
+        }
+        if metadata.mode() & 0o777 == 0o700 {
+            return true;
+        }
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).is_ok()
     }
 
     /// Remove any socket at `path` and bind a fresh one. `false` only means the signal channel
@@ -627,6 +659,95 @@ mod nix {
                 per_user_socket_dir(1000, "xyz.damt.ocy"),
                 PathBuf::from("/tmp/ocy-1000")
             );
+        }
+
+        /// The owner of a file we just created is our effective uid, the same trick the
+        /// acquisition flow uses with the lock file.
+        fn test_uid() -> u32 {
+            let dir = std::env::temp_dir().join(format!("damt-uid-{}", std::process::id()));
+            let _ = std::fs::create_dir_all(&dir);
+            let file = dir.join("uid");
+            let _ = std::fs::write(&file, b"");
+            let uid = std::fs::metadata(&file).map_or(0, |metadata| metadata.uid());
+            let _ = std::fs::remove_file(&file);
+            uid
+        }
+
+        /// A data dir whose socket path cannot fit in `sun_path`, forcing the per-user
+        /// `/tmp` fallback (the `None` XDG dir keeps the test independent of the environment).
+        fn long_data_dir() -> PathBuf {
+            PathBuf::from("/tmp").join("l".repeat(120))
+        }
+
+        #[test]
+        fn a_symlink_at_the_fallback_dir_is_never_bound_and_first_still_wins() {
+            let uid = test_uid();
+            let app_id = "xyz.damt.l2dsym";
+            let fallback = per_user_socket_dir(uid, app_id);
+            let target =
+                std::env::temp_dir().join(format!("damt-sym-target-{}", std::process::id()));
+            let _ = std::fs::create_dir_all(&target);
+            let _ = std::fs::remove_file(&fallback);
+            assert!(
+                std::os::unix::fs::symlink(&target, &fallback).is_ok(),
+                "the test symlink should be created"
+            );
+
+            let dir = long_data_dir();
+            let guard = match try_acquire_with_xdg(&dir, &dir, None, app_id) {
+                Some(guard) => guard,
+                None => panic!("the lock file alone decides: First must win"),
+            };
+            assert!(
+                guard.socket_path.is_none(),
+                "no socket may be bound through a symlinked fallback directory"
+            );
+            assert!(
+                try_acquire_with_xdg(&dir, &dir, None, app_id).is_none(),
+                "the second instance must not connect through the symlink either"
+            );
+            assert!(
+                std::fs::read_dir(&target).map_or(0, Iterator::count) == 0,
+                "nothing may be created through the symlink"
+            );
+
+            drop(guard);
+            let _ = std::fs::remove_file(&fallback);
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&target);
+        }
+
+        #[test]
+        fn an_owned_fallback_dir_with_mode_0755_is_repaired_to_0700() {
+            let uid = test_uid();
+            let app_id = "xyz.damt.l2dmode";
+            let fallback = per_user_socket_dir(uid, app_id);
+            let _ = std::fs::remove_dir_all(&fallback);
+            assert!(
+                std::fs::create_dir(&fallback).is_ok(),
+                "create the fallback dir"
+            );
+            assert!(
+                std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o755)).is_ok(),
+                "open the mode"
+            );
+
+            let dir = long_data_dir();
+            let guard = match try_acquire_with_xdg(&dir, &dir, None, app_id) {
+                Some(guard) => guard,
+                None => panic!("the lock file alone decides: First must win"),
+            };
+            assert!(
+                guard.socket_path.is_some(),
+                "the repaired fallback directory must be used"
+            );
+            let mode = std::fs::metadata(&fallback)
+                .map_or(0, |metadata| metadata.permissions().mode() & 0o777);
+            assert_eq!(mode, 0o700);
+
+            drop(guard);
+            let _ = std::fs::remove_dir_all(&fallback);
+            let _ = std::fs::remove_dir_all(&dir);
         }
     }
 }

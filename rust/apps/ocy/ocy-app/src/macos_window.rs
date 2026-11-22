@@ -18,6 +18,18 @@ pub const NS_WINDOW_COLLECTION_BEHAVIOR_STATIONARY: usize = 1 << 4;
 /// `NSWindowCollectionBehaviorFullScreenAuxiliary` (`1 << 8`).
 pub const NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY: usize = 1 << 8;
 
+/// `NSFloatingWindowLevel` (`3`): floats above normal windows while staying below cards/dims.
+pub const NS_FLOATING_WINDOW_LEVEL: isize = 3;
+/// `NSScreenSaverWindowLevel` (`1000`): covers desktop, menu bar, and Dock.
+pub const NS_SCREEN_SAVER_WINDOW_LEVEL: isize = 1000;
+/// Break card window level (`1001`, strictly above [`NS_SCREEN_SAVER_WINDOW_LEVEL`]).
+///
+/// AppKit orders windows **by level first**, then front-to-back within each level.
+/// Dim overlays sit at [`NS_SCREEN_SAVER_WINDOW_LEVEL`] (`1000`), so every break card
+/// (short, warning, and long) must sit strictly above them (`1001`) or the dim draws
+/// over the card.
+pub const BREAK_CARD_WINDOW_LEVEL: isize = NS_SCREEN_SAVER_WINDOW_LEVEL + 1;
+
 /// Role of a macOS break or overlay window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MacWindowKind {
@@ -32,10 +44,13 @@ pub enum MacWindowKind {
 /// Target AppKit `NSWindowLevel` bucket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MacWindowLevel {
-    /// `NSFloatingWindowLevel` (`3`): floats above normal and auxiliary fullscreen windows.
+    /// `NSFloatingWindowLevel` (`3`): floats above normal windows while staying below cards/dims.
     Floating,
     /// `NSScreenSaverWindowLevel` (`1000`): covers desktop, menu bar, and Dock.
     ScreenSaver,
+    /// `NSScreenSaverWindowLevel + 1` (`1001`): strictly above dim overlays so break cards
+    /// (short, warning, and long) always render in front of dims.
+    AboveScreenSaver,
 }
 
 impl MacWindowLevel {
@@ -43,8 +58,9 @@ impl MacWindowLevel {
     #[must_use]
     pub const fn as_raw(self) -> isize {
         match self {
-            Self::Floating => 3,
-            Self::ScreenSaver => 1000,
+            Self::Floating => NS_FLOATING_WINDOW_LEVEL,
+            Self::ScreenSaver => NS_SCREEN_SAVER_WINDOW_LEVEL,
+            Self::AboveScreenSaver => BREAK_CARD_WINDOW_LEVEL,
         }
     }
 }
@@ -76,7 +92,7 @@ pub const fn window_policy_for_kind(kind: MacWindowKind) -> MacWindowPolicy {
     let collection_behavior_bits = overlay_collection_behavior_bits();
     match kind {
         MacWindowKind::BreakCard => MacWindowPolicy {
-            level: MacWindowLevel::Floating,
+            level: MacWindowLevel::AboveScreenSaver,
             collection_behavior_bits,
             ignores_mouse_events: false,
             order_front_regardless: true,
@@ -151,6 +167,7 @@ mod macos_impl {
 
     use damt_overlay::{MonitorInfo, Rgba};
     use damt_platform::ScreenRect;
+    use damt_platform_mac::pure::{MacWindowRole, window_level_for_role};
     use damt_platform_mac::{MacMonitorInfo, query_mac_monitors};
     use objc2::MainThreadMarker;
     use objc2_app_kit::{
@@ -329,14 +346,28 @@ mod macos_impl {
                 let Some(ns_window) = ns_view.window() else {
                     return false;
                 };
-                apply_policy_to_ns_window(&ns_window, policy);
+                apply_policy_to_ns_window(&ns_window, kind, policy);
                 true
             })
             .unwrap_or(false)
     }
 
-    fn apply_policy_to_ns_window(ns_window: &NSWindow, policy: super::MacWindowPolicy) {
-        ns_window.setLevel(policy.level.as_raw());
+    const fn mac_role_for_kind(kind: MacWindowKind) -> MacWindowRole {
+        match kind {
+            MacWindowKind::BreakCard => MacWindowRole::BreakCard,
+            MacWindowKind::Dim => MacWindowRole::Dim,
+            MacWindowKind::EdgeFrame => MacWindowRole::EdgeFrame,
+        }
+    }
+
+    fn apply_policy_to_ns_window(
+        ns_window: &NSWindow,
+        kind: MacWindowKind,
+        policy: super::MacWindowPolicy,
+    ) {
+        let level = window_level_for_role(mac_role_for_kind(kind));
+        debug_assert_eq!(level, policy.level.as_raw());
+        ns_window.setLevel(level);
         ns_window.setCollectionBehavior(NSWindowCollectionBehavior::from_bits_retain(
             policy.collection_behavior_bits,
         ));
@@ -529,7 +560,8 @@ mod tests {
     use raw_window_handle::{AppKitWindowHandle, RawWindowHandle, XlibWindowHandle};
 
     use super::{
-        MacActivationPolicyChoice, MacWindowKind, MacWindowLevel,
+        BREAK_CARD_WINDOW_LEVEL, MacActivationPolicyChoice, MacWindowKind, MacWindowLevel,
+        NS_FLOATING_WINDOW_LEVEL, NS_SCREEN_SAVER_WINDOW_LEVEL,
         NS_WINDOW_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES,
         NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY,
         NS_WINDOW_COLLECTION_BEHAVIOR_STATIONARY, extract_ns_view_ptr, monitor_info_from_mac_parts,
@@ -538,19 +570,29 @@ mod tests {
 
     #[test]
     fn window_level_values_match_appkit_constants() {
-        assert_eq!(MacWindowLevel::Floating.as_raw(), 3);
-        assert_eq!(MacWindowLevel::ScreenSaver.as_raw(), 1000);
+        assert_eq!(NS_FLOATING_WINDOW_LEVEL, 3);
+        assert_eq!(NS_SCREEN_SAVER_WINDOW_LEVEL, 1000);
+        assert_eq!(BREAK_CARD_WINDOW_LEVEL, 1001);
+        assert_eq!(MacWindowLevel::Floating.as_raw(), NS_FLOATING_WINDOW_LEVEL);
+        assert_eq!(
+            MacWindowLevel::ScreenSaver.as_raw(),
+            NS_SCREEN_SAVER_WINDOW_LEVEL
+        );
+        assert_eq!(
+            MacWindowLevel::AboveScreenSaver.as_raw(),
+            BREAK_CARD_WINDOW_LEVEL
+        );
     }
 
     #[test]
-    fn window_policy_sets_floating_for_cards_and_screen_saver_for_dims() {
+    fn window_policy_keeps_break_cards_above_dims_and_edge_frames() {
         let expected_behavior = NS_WINDOW_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES
             | NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY
             | NS_WINDOW_COLLECTION_BEHAVIOR_STATIONARY;
         assert_eq!(overlay_collection_behavior_bits(), expected_behavior);
 
         let card = window_policy_for_kind(MacWindowKind::BreakCard);
-        assert_eq!(card.level, MacWindowLevel::Floating);
+        assert_eq!(card.level, MacWindowLevel::AboveScreenSaver);
         assert_eq!(card.collection_behavior_bits, expected_behavior);
         assert!(!card.ignores_mouse_events);
         assert!(card.order_front_regardless);
@@ -572,6 +614,9 @@ mod tests {
         assert!(frame.order_front_regardless);
         assert!(frame.never_activate);
         assert!(!frame.has_shadow);
+
+        assert!(card.level.as_raw() > dim.level.as_raw());
+        assert!(frame.level.as_raw() < card.level.as_raw());
     }
 
     #[test]

@@ -5,15 +5,17 @@ use std::time::Duration;
 
 use damt_platform::{FocusState, ScreenRect, SessionEvent};
 use damt_platform_mac::pure::{
-    AppKitRect, DisplayGeometry, IdleMath, K_CG_ANY_INPUT_EVENT_TYPE, MacOsVersion, MacTrayAction,
-    MacTrayIconState, MacTrayMenuItem, MacTrayMenuSlot, MacTrayPresentation, MacTrayRenderedEntry,
-    SCREEN_IS_LOCKED_NOTIFICATION, SCREEN_IS_UNLOCKED_NOTIFICATION, SmAppServiceState,
-    WORKSPACE_DID_WAKE_NOTIFICATION, WORKSPACE_WILL_SLEEP_NOTIFICATION, action_for_tag,
-    appkit_rect_to_cg_physical, decode_png_to_rgba, frontmost_observation,
-    is_sm_app_service_supported, map_distributed_notification, map_sm_app_service_status,
-    map_workspace_notification, parse_apple_interface_style, parse_reduce_motion,
-    plan_tray_menu_entries, rgba_to_template_mask, scale_to_dpi, select_screen_containing_point,
-    tag_for_action, template_tray_icon_png,
+    AppKitRect, BREAK_CARD_WINDOW_LEVEL, DisplayGeometry, IdleMath, K_CG_ANY_INPUT_EVENT_TYPE,
+    MacOsVersion, MacTrayAction, MacTrayIconState, MacTrayMenuItem, MacTrayMenuSlot,
+    MacTrayPresentation, MacTrayRenderedEntry, MacWindowRole, NS_FLOATING_WINDOW_LEVEL,
+    NS_NORMAL_WINDOW_LEVEL, NS_SCREEN_SAVER_WINDOW_LEVEL, SCREEN_IS_LOCKED_NOTIFICATION,
+    SCREEN_IS_UNLOCKED_NOTIFICATION, SmAppServiceState, WORKSPACE_DID_WAKE_NOTIFICATION,
+    WORKSPACE_WILL_SLEEP_NOTIFICATION, action_for_tag, appkit_rect_to_cg_physical,
+    decode_png_to_rgba, frontmost_observation, is_sm_app_service_supported,
+    map_distributed_notification, map_sm_app_service_status, map_workspace_notification,
+    parse_apple_interface_style, parse_reduce_motion, plan_tray_menu_entries,
+    rgba_to_template_mask, scale_to_dpi, select_screen_containing_point, tag_for_action,
+    template_tray_icon_png, window_level_for_role,
 };
 
 // --- Idle conversion (CGEventSourceSecondsSinceLastEventType) ---
@@ -548,4 +550,45 @@ fn tray_action_tags_round_trip_without_collisions() {
     }
     assert_eq!(action_for_tag(0), None);
     assert_eq!(action_for_tag(99), None);
+}
+
+// --- M2b: Window level mapping & z-order invariants ---
+
+#[test]
+fn window_levels_match_appkit_constants_and_keep_cards_above_dims() {
+    assert_eq!(NS_NORMAL_WINDOW_LEVEL, 0);
+    assert_eq!(NS_FLOATING_WINDOW_LEVEL, 3);
+    assert_eq!(NS_SCREEN_SAVER_WINDOW_LEVEL, 1000);
+    assert_eq!(BREAK_CARD_WINDOW_LEVEL, 1001);
+
+    assert_eq!(
+        window_level_for_role(MacWindowRole::Normal),
+        NS_NORMAL_WINDOW_LEVEL
+    );
+    assert_eq!(
+        window_level_for_role(MacWindowRole::EdgeFrame),
+        NS_FLOATING_WINDOW_LEVEL
+    );
+    assert_eq!(
+        window_level_for_role(MacWindowRole::Dim),
+        NS_SCREEN_SAVER_WINDOW_LEVEL
+    );
+    assert_eq!(
+        window_level_for_role(MacWindowRole::BreakCard),
+        BREAK_CARD_WINDOW_LEVEL
+    );
+}
+
+#[test]
+fn window_level_ordering_keeps_card_above_dim_above_normal_and_edge_frames_below_card() {
+    let normal = window_level_for_role(MacWindowRole::Normal);
+    let edge_frame = window_level_for_role(MacWindowRole::EdgeFrame);
+    let dim = window_level_for_role(MacWindowRole::Dim);
+    let card = window_level_for_role(MacWindowRole::BreakCard);
+
+    assert!(card > dim);
+    assert!(dim > normal);
+    assert!(edge_frame < card);
+    assert!(edge_frame > normal);
+    assert!(edge_frame < dim);
 }
