@@ -1046,7 +1046,8 @@ fn try_defer_x11_card_show<C: ComponentHandle + 'static>(
     let screen = ctx.screen;
     let centered = ctx.centered;
 
-    slint::spawn_local(async move {
+    let spawn_error_log = ctx.error_log.clone();
+    match slint::spawn_local(async move {
         if gen_ref.get() != generation {
             return;
         }
@@ -1078,8 +1079,15 @@ fn try_defer_x11_card_show<C: ComponentHandle + 'static>(
             card.window().set_size(PhysicalSize::new(new_w, new_h));
         }
         crate::linux_window::register_x11_break_card(card.window());
-    })
-    .is_ok()
+    }) {
+        Ok(_) => true,
+        Err(err) => {
+            // The deferred show never started; the caller falls back to the synchronous
+            // show path. Log so the degraded path is visible.
+            spawn_error_log.log_error("x11_defer_spawn", &err);
+            false
+        }
+    }
 }
 
 fn show_card_window<C: ComponentHandle + 'static>(

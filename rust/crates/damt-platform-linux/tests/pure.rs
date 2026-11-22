@@ -507,6 +507,11 @@ Hidden=true
             .expect_err("autostart=false while enabling must fail");
         assert!(denied.0.contains("denied"));
 
+        // A disable request the portal answers with autostart: true is also a denial.
+        let disable_denied = map_background_portal_response(false, 0, Some(true))
+            .expect_err("autostart=true while disabling must fail");
+        assert!(disable_denied.0.contains("denied"));
+
         let cancelled =
             map_background_portal_response(true, 1, None).expect_err("response code 1 must fail");
         assert!(cancelled.0.contains("cancelled"));

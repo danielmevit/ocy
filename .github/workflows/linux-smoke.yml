@@ -227,7 +227,7 @@ jobs:
 
             mapfile -t ocy_wids < <(xdotool search --onlyvisible --pid "$OCY_PID" 2>/dev/null || true)
             if [ "${#ocy_wids[@]}" -eq 0 ]; then
-              mapfile -t ocy_wids < <(xdotool search --onlyvisible --class Ocy 2>/dev/null || true)
+              mapfile -t ocy_wids < <(xdotool search --onlyvisible --class xyz.damt.ocy 2>/dev/null || true)
             fi
 
             {

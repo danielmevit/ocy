@@ -1146,8 +1146,9 @@ pub fn extract_portal_autostart_result(results: &HashMap<String, OwnedValue>) ->
 /// Maps an `org.freedesktop.portal.Request::Response` code and `autostart` boolean into
 /// `Result<(), PlatformError>`.
 ///
-/// A non-zero response code, or `autostart: false` while enabling, returns a clear
-/// [`PlatformError`].
+/// A non-zero response code, or an `autostart` value that contradicts the request
+/// (`autostart: false` while enabling, `autostart: true` while disabling), returns a
+/// clear [`PlatformError`].
 pub fn map_background_portal_response(
     requested_enabled: bool,
     response_code: u32,
@@ -1155,9 +1156,9 @@ pub fn map_background_portal_response(
 ) -> Result<(), PlatformError> {
     match response_code {
         0 => {
-            if requested_enabled && autostart_granted == Some(false) {
+            if autostart_granted == Some(!requested_enabled) {
                 Err(PlatformError(
-                    "desktop portal denied autostart permission".to_owned(),
+                    "desktop portal denied the requested autostart change".to_owned(),
                 ))
             } else {
                 Ok(())

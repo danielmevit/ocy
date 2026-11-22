@@ -50,7 +50,9 @@ modules:
       - install -Dm644 assets/icons/app/png/ocy-app-64.png /app/share/icons/hicolor/64x64/apps/xyz.damt.ocy.png
       - install -Dm644 assets/icons/app/png/ocy-app-128.png /app/share/icons/hicolor/128x128/apps/xyz.damt.ocy.png
       - install -Dm644 assets/icons/app/png/ocy-app-256.png /app/share/icons/hicolor/256x256/apps/xyz.damt.ocy.png
-      - if command -v rsvg-convert >/dev/null 2>&1; then install -d /app/share/icons/hicolor/512x512/apps && rsvg-convert -w 512 -h 512 assets/icons/app/ocy-app.svg -o /app/share/icons/hicolor/512x512/apps/xyz.damt.ocy.png; fi
+      - command -v rsvg-convert >/dev/null 2>&1 || { echo "ERROR: rsvg-convert is required to render the 512x512 icon from assets/icons/app/ocy-app.svg (install librsvg, e.g. the org.freedesktop.Sdk extension)"; exit 1; }
+      - install -d /app/share/icons/hicolor/512x512/apps
+      - rsvg-convert -w 512 -h 512 assets/icons/app/ocy-app.svg -o /app/share/icons/hicolor/512x512/apps/xyz.damt.ocy.png
       - install -Dm644 assets/icons/app/ocy-app.svg /app/share/icons/hicolor/scalable/apps/xyz.damt.ocy.svg
     sources:
       - type: dir

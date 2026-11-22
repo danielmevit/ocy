@@ -760,13 +760,16 @@ impl SettingsBackend for SlintSettingsBackend {
         Timer::single_shot(delay, on_fire);
     }
 
-    fn autostart_result_done(&self) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+    fn autostart_result_done(
+        &self,
+        request_id: u64,
+    ) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
         // The portal worker thread calls `done`; hop to the Slint event loop (the UI thread)
         // before the registered result sink touches the Rc-based settings state machine.
         let error_log = self.error_log.clone();
         Box::new(move |result| {
             if let Err(err) = slint::invoke_from_event_loop(move || {
-                invoke_registered_autostart_result_sink(result)
+                invoke_registered_autostart_result_sink(request_id, result)
             }) {
                 // The event loop is gone (the app is shutting down); the result is dropped.
                 error_log.log_error("autostart_result_dispatch", &err);
