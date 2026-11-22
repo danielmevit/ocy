@@ -4,7 +4,8 @@
 //! names the C# 0.1 app uses. For Ocy, `app_id` is `xyz.damt.ocy`, so the C# and Rust builds exclude each
 //! other during the migration.
 //!
-//! Non-Windows targets use a lock file in the app's data directory.
+//! Non-Windows targets use a lock file and Unix domain socket. The socket is placed in
+//! `$XDG_RUNTIME_DIR` when available, otherwise in the app's data directory.
 //!
 //! On Windows the acquiring thread owns the mutex, so drop the guard on the same thread that acquired it.
 
@@ -274,28 +275,112 @@ mod win {
 #[cfg(not(windows))]
 mod nix {
     use std::fs::{File, OpenOptions};
-    use std::path::Path;
+    use std::io::{Read as _, Write as _};
+    use std::os::unix::fs::PermissionsExt as _;
+    use std::os::unix::net::{UnixListener, UnixStream};
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread::{self, JoinHandle};
+
+    const SIGNAL_BYTE: u8 = 1;
+    const STOP_BYTE: u8 = 0;
 
     /// The owned Unix first-instance state; dropping the file releases the advisory lock.
     #[derive(Debug)]
     pub(super) struct Guard {
         _lock_file: File,
+        socket_path: PathBuf,
+        listener: Option<Listener>,
+    }
+
+    #[derive(Debug)]
+    struct Listener {
+        stop: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
     }
 
     impl Guard {
-        pub(super) fn listen(&mut self, _callback: Box<dyn Fn() + Send>) {
-            // The Unix signal channel is not implemented yet; single-instance exclusion still works.
+        pub(super) fn listen(&mut self, callback: Box<dyn Fn() + Send>) {
+            if self.listener.is_some() {
+                return;
+            }
+
+            let socket_path = self.socket_path.clone();
+            let _ = std::fs::remove_file(&socket_path);
+            let Ok(listener) = UnixListener::bind(&socket_path) else {
+                return;
+            };
+            let _ = std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600));
+            let stop = Arc::new(AtomicBool::new(false));
+            let thread_stop = Arc::clone(&stop);
+
+            let thread = thread::Builder::new()
+                .name(String::from("damt-single-instance"))
+                .spawn(move || {
+                    loop {
+                        if let Ok((mut stream, _)) = listener.accept() {
+                            let mut byte = [0_u8; 1];
+                            if stream.read(&mut byte).ok().is_some_and(|read| read == 1)
+                                && byte[0] == SIGNAL_BYTE
+                                && !thread_stop.load(Ordering::Acquire)
+                            {
+                                callback();
+                            }
+                        }
+
+                        if thread_stop.load(Ordering::Acquire) {
+                            break;
+                        }
+                    }
+                });
+
+            match thread {
+                Ok(thread) => {
+                    self.listener = Some(Listener {
+                        stop,
+                        thread: Some(thread),
+                    });
+                }
+                Err(_) => {
+                    let _ = std::fs::remove_file(&socket_path);
+                }
+            }
+        }
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if let Some(mut listener) = self.listener.take() {
+                listener.stop.store(true, Ordering::Release);
+                if let Ok(mut stream) = UnixStream::connect(&self.socket_path) {
+                    let _ = stream.write_all(&[STOP_BYTE]);
+                }
+                if let Some(thread) = listener.thread.take() {
+                    let _ = thread.join();
+                }
+            }
+            let _ = std::fs::remove_file(&self.socket_path);
         }
     }
 
     pub(super) fn try_acquire(app_id: &str) -> Option<Guard> {
         let app_name = app_name_from_id(app_id);
         let data_dir = crate::AppDataPaths::new(app_name).data_dir();
-        try_acquire_in_dir(&data_dir, app_id)
+        let socket_dir = std::env::var_os("XDG_RUNTIME_DIR")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| data_dir.clone());
+        try_acquire_in_dirs(&data_dir, &socket_dir, app_id)
     }
 
     pub(super) fn try_acquire_in_dir(data_dir: &Path, app_id: &str) -> Option<Guard> {
+        try_acquire_in_dirs(data_dir, data_dir, app_id)
+    }
+
+    fn try_acquire_in_dirs(data_dir: &Path, socket_dir: &Path, app_id: &str) -> Option<Guard> {
         std::fs::create_dir_all(data_dir).ok()?;
+        std::fs::create_dir_all(socket_dir).ok()?;
 
         let path = data_dir.join(lock_file_name(app_id));
         let file = OpenOptions::new()
@@ -306,10 +391,41 @@ mod nix {
             .open(path)
             .ok()?;
 
-        if file.try_lock().is_ok() {
-            Some(Guard { _lock_file: file })
-        } else {
-            None
+        if file.try_lock().is_err() {
+            signal_socket(socket_dir, app_id);
+            return None;
+        }
+
+        let socket_path = socket_dir.join(format!("{app_id}.sock"));
+
+        if socket_path.exists() {
+            match UnixStream::connect(&socket_path) {
+                Ok(_) => return None,
+                Err(_) => {
+                    let _ = std::fs::remove_file(&socket_path);
+                }
+            }
+        }
+
+        match UnixListener::bind(&socket_path) {
+            Ok(listener) => {
+                let _ =
+                    std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600));
+                drop(listener);
+                Some(Guard {
+                    _lock_file: file,
+                    socket_path,
+                    listener: None,
+                })
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn signal_socket(socket_dir: &Path, app_id: &str) {
+        let socket_path = socket_dir.join(format!("{app_id}.sock"));
+        if let Ok(mut stream) = UnixStream::connect(socket_path) {
+            let _ = stream.write_all(&[1]);
         }
     }
 

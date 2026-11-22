@@ -5,6 +5,10 @@
 //! them into the committed frames (`assets/readme/*`, `site/public/assets/screens/*`).
 //!
 //! `cargo run -p ocy-ui --example readme_screens -- <out_dir>`
+//!
+//! `cargo run -p ocy-ui --example readme_screens -- <out_dir> games` renders the gaming-mode review
+//! set instead: `<out_dir>/{light,dark}/{settings-games-empty,settings-games-list,gentle-short,
+//! gentle-long}.png`.
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
 #[path = "../tests/support/mod.rs"]
@@ -63,7 +67,13 @@ fn main() -> std::process::ExitCode {
         eprintln!("usage: readme_screens <out_dir>");
         return std::process::ExitCode::from(2);
     };
-    match run(Path::new(&out_dir)) {
+    let games = std::env::args().nth(2).is_some_and(|mode| mode == "games");
+    let result = if games {
+        run_games(Path::new(&out_dir))
+    } else {
+        run(Path::new(&out_dir))
+    };
+    match result {
         Ok(paths) => {
             for path in paths {
                 println!("{}", path.display());
@@ -77,11 +87,10 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-fn run(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+fn compile() -> Result<slint_interpreter::CompilationResult, String> {
     // Err means a platform is already set, which is fine.
     let _ = slint::platform::set_platform(Box::new(HeadlessPlatform));
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let mut written = Vec::new();
     let mut paths = HashMap::new();
     paths.insert(damt_ui::LIBRARY_NAME.to_owned(), damt_ui::ui_dir());
     paths.insert(
@@ -101,6 +110,52 @@ fn run(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
     if !errors.is_empty() {
         return Err(errors);
     }
+    Ok(result)
+}
+
+fn run_games(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let result = compile()?;
+    let get = |name: &str| {
+        result
+            .component(name)
+            .ok_or_else(|| format!("component {name} missing"))
+    };
+    let mut written = Vec::new();
+    for (theme, dark) in [("light", false), ("dark", true)] {
+        let shots = [
+            (
+                "settings-games-empty",
+                settings(&get("SettingsWindowV2")?, dark, Some(&[]))?,
+            ),
+            (
+                "settings-games-list",
+                settings(
+                    &get("SettingsWindowV2")?,
+                    dark,
+                    Some(&["eldenring.exe", "VALORANT-Win64-Shipping.exe"]),
+                )?,
+            ),
+            (
+                "gentle-short",
+                gentle_card(&get("ShortBreakCard")?, dark, false)?,
+            ),
+            (
+                "gentle-long",
+                gentle_card(&get("ShortBreakCard")?, dark, true)?,
+            ),
+        ];
+        for (screen, image) in shots {
+            let path = out_dir.join(theme).join(format!("{screen}.png"));
+            write_png(&path, &image)?;
+            written.push(path);
+        }
+    }
+    Ok(written)
+}
+
+fn run(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let result = compile()?;
+    let mut written = Vec::new();
     let get = |name: &str| {
         result
             .component(name)
@@ -108,7 +163,7 @@ fn run(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
     };
     for (theme, dark) in [("light", false), ("dark", true)] {
         let shots = [
-            ("settings", settings(&get("SettingsWindowV2")?, dark)?),
+            ("settings", settings(&get("SettingsWindowV2")?, dark, None)?),
             ("short-break", short_break(&get("ShortBreakCard")?, dark)?),
             ("long-break", long_break(&get("LongBreakCard")?, dark)?),
             ("warning", warning(&get("WarningCard")?, dark)?),
@@ -303,6 +358,33 @@ fn short_break(def: &ComponentDefinition, dark: bool) -> Result<Rgba, String> {
     Ok(render(&window, 392.0, || ui.height()))
 }
 
+/// A gentle game card: the short card with "Not during this game", plus "Take the long break" on
+/// the gentle long card.
+fn gentle_card(def: &ComponentDefinition, dark: bool, long: bool) -> Result<Rgba, String> {
+    let t = Table::load("en")?;
+    let ui = Ui::new(def, dark)?;
+    let window = take_window()?;
+    if long {
+        ui.set(
+            "art",
+            art(&format!("stand-walk-{}-f1.svg", theme(dark)), 56.0)?,
+        )?;
+        ui.text("heading", &t.get("exercise.stand-walk.title"))?;
+        ui.text("body", &t.get("exercise.stand-walk.body"))?;
+    } else {
+        ui.set("art", art(&format!("blink-{}-f1.svg", theme(dark)), 56.0)?)?;
+        ui.text("heading", &t.get("exercise.blink.title"))?;
+        ui.text("body", &t.get("exercise.blink.body"))?;
+    }
+    ui.text("close-label", &t.get("shortbreak.skip"))?;
+    ui.set("show-hold-game", true)?;
+    ui.text("hold-game-label", &t.get("games.holdThisGame"))?;
+    ui.set("show-take-long", long)?;
+    ui.text("take-long-label", &t.get("games.takeLongBreak"))?;
+    ui.num("progress", 0.7)?;
+    Ok(render(&window, 392.0, || ui.height()))
+}
+
 fn warning(def: &ComponentDefinition, dark: bool) -> Result<Rgba, String> {
     let ui = Ui::new(def, dark)?;
     let window = take_window()?;
@@ -410,6 +492,8 @@ const LABELS: &[(&str, &str)] = &[
         "settings.longBreaks.maxPostpones.label",
     ),
     ("try-long-label", "settings.tryLongBreak"),
+    ("water-nudges-label", "settings.waterNudges.label"),
+    ("water-nudges-help", "settings.waterNudges.help"),
     ("strict-label", "settings.strictMode.label"),
     ("strict-help", "settings.strictMode.help"),
     ("inactivity-label", "settings.inactivityTracking.label"),
@@ -436,7 +520,7 @@ const LABELS: &[(&str, &str)] = &[
 /// Formats an integer setting for display.
 type Formatter = fn(&Table, i64) -> String;
 
-fn settings(def: &ComponentDefinition, dark: bool) -> Result<Rgba, String> {
+fn settings(def: &ComponentDefinition, dark: bool, games: Option<&[&str]>) -> Result<Rgba, String> {
     let t = Rc::new(Table::load("en")?);
     let ui = Ui::new(def, dark)?;
     let window = take_window()?;
@@ -579,8 +663,46 @@ fn settings(def: &ComponentDefinition, dark: bool) -> Result<Rgba, String> {
         .map_err(|e| format!("{name}: {e}"))?;
     }
     ui.set("customize-open", true)?;
-    ui.num("customize-tab", 0.0)?;
     // General collapsed so Settings fits the committed 560 x 640 frame.
     ui.set("general-open", false)?;
-    Ok(render(&window, 560.0, || 640.0))
+    let Some(games) = games else {
+        ui.num("customize-tab", 0.0)?;
+        return Ok(render(&window, 560.0, || 640.0));
+    };
+    // Gaming review: the Quiet times tab with the Games group; the window grows downwards.
+    ui.num("customize-tab", 2.0)?;
+    ui.text("games-title", &t.get("settings.section.games"))?;
+    let modes: Vec<Value> = [t.get("settings.games.gentle"), t.get("settings.games.hold")]
+        .into_iter()
+        .map(|l| Value::String(l.into()))
+        .collect();
+    ui.set(
+        "games-mode-model",
+        Value::Model(slint::ModelRc::new(slint::VecModel::from(modes))),
+    )?;
+    ui.num("games-mode-index", 0.0)?;
+    ui.text("games-gentle-help", &t.get("settings.games.gentleHelp"))?;
+    ui.text("games-hold-help", &t.get("settings.games.holdHelp"))?;
+    ui.text("games-silent-title", &t.get("settings.games.silent"))?;
+    ui.text("games-silent-empty", &t.get("settings.games.silentEmpty"))?;
+    let rows: Vec<Value> = games
+        .iter()
+        .map(|name| {
+            let mut row = slint_interpreter::Struct::default();
+            row.set_field("name".into(), Value::String((*name).into()));
+            row.set_field(
+                "remove-label".into(),
+                Value::String(
+                    t.fmt("settings.games.remove", &[("name", (*name).into())])
+                        .into(),
+                ),
+            );
+            Value::Struct(row)
+        })
+        .collect();
+    ui.set(
+        "games-silent",
+        Value::Model(slint::ModelRc::new(slint::VecModel::from(rows))),
+    )?;
+    Ok(render(&window, 560.0, || ui.height().max(640.0)))
 }

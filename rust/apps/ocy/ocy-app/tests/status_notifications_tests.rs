@@ -17,7 +17,8 @@ use ocy_app::tray::{
     AppTheme, TrayController, TrayIconState, TrayPresentation, TrayPresenter, TraySink,
 };
 use ocy_core::engine::{
-    BreakEngine, BreakInfo, BreakKind, BreakOutcome, EngineEvent, EnginePhase, EngineSnapshot,
+    BreakEngine, BreakInfo, BreakKind, BreakOutcome, BreakSurface, EngineEvent, EnginePhase,
+    EngineSnapshot,
 };
 use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
@@ -165,6 +166,8 @@ fn working_snapshot(short_secs: Option<u64>, long_secs: Option<u64>) -> EngineSn
         postpones_left: 3,
         strict_mode: false,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     }
 }
 
@@ -283,6 +286,7 @@ fn presenter_absence_event_notifies_and_ignores_unrelated_events() {
             exercise_id: "blink".to_owned(),
             total_duration: Duration::from_secs(15),
             suggestion_exercise_ids: None,
+            surface: BreakSurface::Standard,
         }),
         EngineEvent::BreakEnded(
             BreakInfo {
@@ -290,6 +294,7 @@ fn presenter_absence_event_notifies_and_ignores_unrelated_events() {
                 exercise_id: "blink".to_owned(),
                 total_duration: Duration::from_secs(15),
                 suggestion_exercise_ids: None,
+                surface: BreakSurface::Standard,
             },
             BreakOutcome::Completed,
         ),

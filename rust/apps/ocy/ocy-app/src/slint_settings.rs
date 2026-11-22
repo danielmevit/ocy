@@ -12,23 +12,26 @@ use damt_platform::{Clock, PlatformServices};
 use ocy_core::engine::EngineSnapshot;
 use ocy_core::settings::OcySettings;
 use ocy_core::statistics::StatisticsData;
-use ocy_ui::{SettingsWindowV2 as UiSettingsWindow, TimelineMark as UiTimelineMark};
+use ocy_ui::{SettingsWindowV2 as UiSettingsWindow, SilentGame, TimelineMark as UiTimelineMark};
 use slint::winit_030::{
     EventResult, WinitWindowAccessor, winit::dpi::PhysicalPosition as WinitPhysicalPosition,
     winit::event::WindowEvent,
 };
 use slint::{
-    CloseRequestResponse, ComponentHandle, LogicalSize, PhysicalPosition, Timer, TimerMode,
-    VecModel,
+    CloseRequestResponse, ComponentHandle, LogicalSize, Model, ModelRc, PhysicalPosition,
+    SharedString, Timer, TimerMode, VecModel,
 };
 
-use crate::art::{OcyArt, art_theme};
+use crate::art::{OcyArt, art_theme, frame_and_next_delay};
 use crate::break_logic::AppThemeTracker;
 use crate::coordinator::SettingsWindow;
 use crate::layout::{
     DipSize, OverlayLayout, ScreenInfo, select_active_screen, settings_window_height,
     settings_window_top, settings_window_width,
 };
+#[cfg(feature = "store")]
+use crate::license::{LicenseState, StoreLicenseTexts};
+use crate::mode_art::ModeArt;
 use crate::settings_logic::{
     ManagedSettingsWindow, SettingsBackend, SettingsCallbacks, SettingsCreateParams,
     SettingsLiveView, SettingsTexts, SettingsUiHandlers, SettingsValues, format_slider_duration,
@@ -36,7 +39,7 @@ use crate::settings_logic::{
 };
 use crate::strings::Strings;
 use crate::tray::TaskbarIconTracker;
-use crate::win32_window::{WindowRole, WindowRoleGuard, apply_window_icon};
+use crate::win32_window::{WindowRole, WindowRoleGuard, apply_window_icon, raw_win32_hwnd};
 
 /// Default logical dimensions of `ocy_ui::SettingsWindowV2` (matches `preferred-width`/`height` in `settings_v2.slint`).
 const SETTINGS_WINDOW_DIP_SIZE: DipSize = DipSize::new(560.0, 640.0);
@@ -82,6 +85,8 @@ fn apply_texts(ui: &UiSettingsWindow, texts: &SettingsTexts) {
     ui.set_long_postpone_label(texts.long_postpone_label.as_str().into());
     ui.set_long_max_postpones_label(texts.long_max_postpones_label.as_str().into());
     ui.set_try_long_label(texts.try_long_label.as_str().into());
+    ui.set_water_nudges_label(texts.water_nudges_label.as_str().into());
+    ui.set_water_nudges_help(texts.water_nudges_help.as_str().into());
     ui.set_strict_label(texts.strict_label.as_str().into());
     ui.set_strict_help(texts.strict_help.as_str().into());
     ui.set_inactivity_label(texts.inactivity_label.as_str().into());
@@ -89,6 +94,17 @@ fn apply_texts(ui: &UiSettingsWindow, texts: &SettingsTexts) {
     ui.set_away_label(texts.away_label.as_str().into());
     ui.set_pause_fullscreen_label(texts.pause_fullscreen_label.as_str().into());
     ui.set_pause_fullscreen_help(texts.pause_fullscreen_help.as_str().into());
+    ui.set_games_title(texts.games_title.as_str().into());
+    let games_modes: Vec<SharedString> = texts
+        .games_mode_model
+        .iter()
+        .map(|label| SharedString::from(label.as_str()))
+        .collect();
+    ui.set_games_mode_model(ModelRc::new(VecModel::from(games_modes)));
+    ui.set_games_gentle_help(texts.games_gentle_help.as_str().into());
+    ui.set_games_hold_help(texts.games_hold_help.as_str().into());
+    ui.set_games_silent_title(texts.games_silent_title.as_str().into());
+    ui.set_games_silent_empty(texts.games_silent_empty.as_str().into());
     ui.set_window_nearby_label(texts.window_nearby_label.as_str().into());
     ui.set_window_nearby_help(texts.window_nearby_help.as_str().into());
     ui.set_language_label(texts.language_label.as_str().into());
@@ -119,10 +135,12 @@ fn apply_values(ui: &UiSettingsWindow, values: &SettingsValues) {
     ui.set_long_warning(values.long_warning);
     ui.set_long_postpone(values.long_postpone);
     ui.set_long_max_postpones(values.long_max_postpones);
+    ui.set_water_nudges(values.water_nudges);
     ui.set_strict_mode(values.strict_mode);
     ui.set_inactivity_tracking(values.inactivity_tracking);
     ui.set_away_threshold(values.away_threshold);
     ui.set_pause_fullscreen(values.pause_fullscreen);
+    ui.set_games_mode_index(i32::from(values.games_hold));
     ui.set_window_nearby(values.window_nearby);
     ui.set_status_notifications(values.status_notifications);
 }
@@ -148,13 +166,34 @@ fn read_ui_values(ui: &UiSettingsWindow) -> SettingsValues {
         long_warning: ui.get_long_warning(),
         long_postpone: ui.get_long_postpone(),
         long_max_postpones: ui.get_long_max_postpones(),
+        water_nudges: ui.get_water_nudges(),
         strict_mode: ui.get_strict_mode(),
         inactivity_tracking: ui.get_inactivity_tracking(),
         away_threshold: ui.get_away_threshold(),
         pause_fullscreen: ui.get_pause_fullscreen(),
         window_nearby: ui.get_window_nearby(),
         status_notifications: ui.get_status_notifications(),
+        games_hold: ui.get_games_mode_index() == 1,
+        games_silent: ui
+            .get_games_silent()
+            .iter()
+            .map(|game| game.name.to_string())
+            .collect(),
     }
+}
+
+/// Fills the silent-games list, each row with its "Remove {name}" accessible name.
+fn apply_games_silent(ui: &UiSettingsWindow, strings: &Strings, names: &[String]) {
+    let rows: Vec<SilentGame> = names
+        .iter()
+        .map(|name| SilentGame {
+            name: name.as_str().into(),
+            remove_label: strings
+                .format("settings.games.remove", &[("name", name)])
+                .into(),
+        })
+        .collect();
+    ui.set_games_silent(ModelRc::new(VecModel::from(rows)));
 }
 
 fn apply_live_view(ui: &UiSettingsWindow, live_view: &SettingsLiveView) {
@@ -216,7 +255,60 @@ fn refresh_slider_value_texts(ui: &UiSettingsWindow) {
     nudge(|| ui.get_away_threshold(), |v| ui.set_away_threshold(v), 30);
 }
 
+/// Mode descriptions under the header's mode name (string keys `settings.v2.mode.<mode>.description`).
+fn apply_mode_texts(ui: &UiSettingsWindow, strings: &Strings) {
+    let d = |mode: &str| -> slint::SharedString {
+        strings
+            .get(&format!("settings.v2.mode.{mode}.description"))
+            .into()
+    };
+    ui.set_mode_gentle_description(d("gentle"));
+    ui.set_mode_balanced_description(d("balanced"));
+    ui.set_mode_focused_description(d("focused"));
+    ui.set_mode_custom_description(d("custom"));
+}
+
+/// Rasterises the placeholder mode scenes (header) and glyphs (preset cards) for `dark` at `scale`.
+fn apply_mode_art(ui: &UiSettingsWindow, dark: bool, scale: f64, error_log: &ErrorLog) {
+    let Some(mode_art) = ModeArt::shared() else {
+        error_log.log_error(
+            "settings_mode_art_load",
+            &"embedded mode art failed to parse",
+        );
+        return;
+    };
+    let theme = art_theme(dark);
+    match mode_art.scenes(theme, scale) {
+        Ok(scenes) => ui.set_mode_scenes(ModelRc::new(VecModel::from(scenes))),
+        Err(err) => error_log.log_error("settings_mode_scene_render", &err),
+    }
+    match mode_art.glyphs(theme, scale) {
+        Ok(glyphs) => ui.set_mode_glyphs(ModelRc::new(VecModel::from(glyphs))),
+        Err(err) => error_log.log_error("settings_mode_glyph_render", &err),
+    }
+}
+
+/// Steps the header scene's `mode-frame` like the exercise flip-books; reduced motion holds the
+/// manifest's frozen frame and starts no timer.
+fn start_mode_animation(ui: &UiSettingsWindow, reduced_motion: bool) -> Option<Timer> {
+    let (sequencer, frozen) = ModeArt::shared()?.scene_sequencer(ui.get_preset().clamp(0, 3))?;
+    let frame_i32 = |f: u32| i32::try_from(f).unwrap_or(1);
+    let (frame, next) = frame_and_next_delay(&sequencer, Duration::ZERO, reduced_motion, frozen);
+    ui.set_mode_frame(frame_i32(frame));
+    let step = next?;
+    let started = std::time::Instant::now();
+    let weak = ui.as_weak();
+    let timer = Timer::default();
+    timer.start(TimerMode::Repeated, step, move || {
+        if let Some(ui) = weak.upgrade() {
+            ui.set_mode_frame(frame_i32(sequencer.get_frame(started.elapsed())));
+        }
+    });
+    Some(timer)
+}
+
 fn apply_mascot(ui: &UiSettingsWindow, art: &OcyArt, dark: bool, scale: f64, error_log: &ErrorLog) {
+    apply_mode_art(ui, dark, scale, error_log);
     if let Some(res) = art.render_frozen(
         MASCOT_EXERCISE_ID,
         art_theme(dark),
@@ -228,6 +320,21 @@ fn apply_mascot(ui: &UiSettingsWindow, art: &OcyArt, dark: bool, scale: f64, err
             Err(err) => error_log.log_error("settings_mascot_render", &err),
         }
     }
+}
+
+#[cfg(feature = "store")]
+fn apply_license(
+    ui: &UiSettingsWindow,
+    license_state: &'static str,
+    trial_days_left: i32,
+    texts: &StoreLicenseTexts,
+) {
+    ui.set_license_state(license_state.into());
+    ui.set_trial_days_left(trial_days_left);
+    ui.set_trial_days_left_text(texts.trial_days_left_text.as_str().into());
+    ui.set_trial_ended_title(texts.trial_ended_title.as_str().into());
+    ui.set_trial_ended_body(texts.trial_ended_body.as_str().into());
+    ui.set_buy_label(texts.buy_label.as_str().into());
 }
 
 /// Resizes the window to the height its content needs (see [`settings_window_height`]) and keeps it
@@ -299,6 +406,7 @@ pub struct SlintSettingsBackend {
     dark_theme: Rc<Cell<bool>>,
     scale: Rc<Cell<f64>>,
     refresh_timer: Rc<RefCell<Option<Timer>>>,
+    mode_timer: Rc<RefCell<Option<Timer>>>,
 }
 
 impl fmt::Debug for SlintSettingsBackend {
@@ -336,6 +444,7 @@ impl SlintSettingsBackend {
             dark_theme: Rc::new(Cell::new(false)),
             scale: Rc::new(Cell::new(1.0)),
             refresh_timer: Rc::new(RefCell::new(None)),
+            mode_timer: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -367,9 +476,30 @@ impl SettingsBackend for SlintSettingsBackend {
         ui.set_show_notifications(crate::STATUS_NOTIFICATIONS_SHIPPED);
         ui.set_save_error("".into());
         ui.set_start_with_system_error("".into());
+        #[cfg(feature = "store")]
+        {
+            // NOTE: `ocy-ui/ui/settings_v2.slint` is outside S1b's allowed scope; once the design
+            // worker adds `in property <string> license-state`, `in property <int> trial-days-left`,
+            // trial/buy strings, and `callback buy()` to `SettingsWindowV2`, bind them here:
+            //   ui.set_license_state(params.license_state.into());
+            //   ui.set_trial_days_left(params.trial_days_left);
+            //   let on_buy = Rc::clone(&handlers.on_buy);
+            //   ui.on_buy(move || on_buy());
+            ui.set_store_build(true);
+            apply_license(
+                &ui,
+                params.license_state,
+                params.trial_days_left,
+                params.store_texts,
+            );
+            ui.set_made_with_slint_label(params.strings.get("store.madeWithSlint").into());
+            let on_buy = Rc::clone(&handlers.on_buy);
+            ui.on_buy(move || on_buy());
+        }
 
         apply_texts(&ui, params.texts);
         apply_values(&ui, params.values);
+        apply_games_silent(&ui, params.strings, &params.values.games_silent);
         ui.set_preset(params.preset);
         ui.set_language_index(params.language_index);
         apply_live_view(&ui, params.live_view);
@@ -378,6 +508,9 @@ impl SettingsBackend for SlintSettingsBackend {
         let initial_scale = active_screen.map_or(1.0, |s| s.scaling);
         self.scale.set(initial_scale);
         apply_mascot(&ui, &self.art, params.dark, initial_scale, &self.error_log);
+        apply_mode_texts(&ui, params.strings);
+        *self.mode_timer.borrow_mut() =
+            start_mode_animation(&ui, self.platform.motion().prefers_reduced_motion());
 
         let on_changed = Rc::clone(&handlers.on_changed);
         ui.on_changed(move || on_changed());
@@ -387,6 +520,25 @@ impl SettingsBackend for SlintSettingsBackend {
 
         let on_language = Rc::clone(&handlers.on_language_selected);
         ui.on_language_selected(move |i| on_language(i));
+
+        // Removing a silent game drops its row, then saves through the usual debounced path.
+        let on_changed_remove = Rc::clone(&handlers.on_changed);
+        let strings_remove = Rc::clone(&self.strings);
+        let weak_remove = ui.as_weak();
+        ui.on_remove_silent_game(move |index| {
+            let Some(ui) = weak_remove.upgrade() else {
+                return;
+            };
+            let mut names = read_ui_values(&ui).games_silent;
+            let Ok(index) = usize::try_from(index) else {
+                return;
+            };
+            if index < names.len() {
+                names.remove(index);
+                apply_games_silent(&ui, &strings_remove.borrow(), &names);
+                on_changed_remove();
+            }
+        });
 
         let on_try_short = Rc::clone(&handlers.on_try_short_break);
         ui.on_try_short_break(move || on_try_short());
@@ -536,7 +688,12 @@ impl SettingsBackend for SlintSettingsBackend {
     ) {
         *self.strings.borrow_mut() = Arc::clone(strings);
         apply_texts(instance, texts);
+        apply_mode_texts(instance, strings);
+        #[cfg(feature = "store")]
+        instance.set_made_with_slint_label(strings.get("store.madeWithSlint").into());
         instance.set_language_index(language_index);
+        let silent = read_ui_values(instance).games_silent;
+        apply_games_silent(instance, strings, &silent);
         bind_formatters(instance, &self.strings);
         refresh_slider_value_texts(instance);
     }
@@ -562,6 +719,10 @@ impl SettingsBackend for SlintSettingsBackend {
 
     fn apply_preset_values(&self, instance: &Self::Instance, preset: i32, values: &SettingsValues) {
         apply_preset_sliders(instance, preset, values);
+    }
+
+    fn set_games_silent(&self, instance: &Self::Instance, names: &[String]) {
+        apply_games_silent(instance, &self.strings.borrow(), names);
     }
 
     fn set_language_index(&self, instance: &Self::Instance, index: i32) {
@@ -601,13 +762,30 @@ impl SettingsBackend for SlintSettingsBackend {
     }
 
     fn destroy_on_close(&self, instance: Self::Instance) {
+        if let Some(timer) = self.mode_timer.borrow_mut().take() {
+            timer.stop();
+        }
         // Defer dropping the component until after `on_close_requested` finishes hiding it.
         Timer::single_shot(Duration::ZERO, move || drop(instance));
     }
 
     fn hide_and_destroy(&self, instance: Self::Instance) {
+        if let Some(timer) = self.mode_timer.borrow_mut().take() {
+            timer.stop();
+        }
         let _ = instance.hide();
         drop(instance);
+    }
+
+    #[cfg(feature = "store")]
+    fn set_license_status(
+        &self,
+        instance: &Self::Instance,
+        license_state: &'static str,
+        trial_days_left: i32,
+        store_texts: &StoreLicenseTexts,
+    ) {
+        apply_license(instance, license_state, trial_days_left, store_texts);
     }
 }
 
@@ -678,6 +856,41 @@ impl SlintSettingsWindow {
             .with_active_instance(ComponentHandle::clone_strong)
     }
 
+    /// Returns the raw Win32 `HWND` of the open Settings window for modal Store dialogs
+    /// (`IInitializeWithWindow`), or `None` if closed or on non-Windows targets.
+    #[must_use]
+    pub fn active_hwnd(&self) -> Option<isize> {
+        self.inner
+            .with_active_instance(|ui| raw_win32_hwnd(ui.window()))
+            .flatten()
+    }
+
+    /// Registers the Store purchase callback invoked by `buy()`.
+    #[cfg(feature = "store")]
+    pub fn set_on_buy(&mut self, on_buy: Rc<dyn Fn()>) {
+        self.inner.set_on_buy(on_buy);
+    }
+
+    /// Current Store license state exposed to the Settings window.
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub fn license_state(&self) -> LicenseState {
+        self.inner.license_state()
+    }
+
+    /// Remaining trial days (`-1` when not in a trial with a known end date, `0` when expired).
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub fn trial_days_left(&self) -> i32 {
+        self.inner.trial_days_left()
+    }
+
+    /// Invokes the registered Store purchase callback (`buy()`).
+    #[cfg(feature = "store")]
+    pub fn buy(&self) {
+        self.inner.buy();
+    }
+
     /// Returns `true` if changes are pending debounce/save.
     #[must_use]
     pub fn has_pending_changes(&self) -> bool {
@@ -706,6 +919,11 @@ impl SettingsWindow for SlintSettingsWindow {
 
     fn sync_live_status(&mut self, snapshot: &EngineSnapshot, stats: &StatisticsData) {
         self.inner.sync_live_status(snapshot, stats);
+    }
+
+    #[cfg(feature = "store")]
+    fn sync_license(&mut self, state: LicenseState, trial_days_left: i32) {
+        self.inner.sync_license(state, trial_days_left);
     }
 
     fn show(&mut self) {

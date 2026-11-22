@@ -7,6 +7,8 @@ members = [
     "crates/damt-build",
     "crates/damt-overlay",
     "crates/damt-platform",
+    "crates/damt-platform-linux",
+    "crates/damt-platform-mac",
     "crates/damt-platform-win",
     "crates/damt-theme",
     "crates/damt-ui",
@@ -16,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 rust-version = "1.95"
 license = "AGPL-3.0-only"

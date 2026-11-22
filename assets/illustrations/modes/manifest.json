@@ -1,0 +1,88 @@
+{
+  "version": "v10-placeholder",
+  "palette": "green",
+  "viewBox": [
+    0,
+    0,
+    160,
+    110
+  ],
+  "exercises": {
+    "scene-gentle": {
+      "frames": 4,
+      "sequence": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stepMs": 450,
+      "frozen": 1
+    },
+    "glyph-gentle": {
+      "frames": 1,
+      "sequence": [
+        1
+      ],
+      "stepMs": 1000,
+      "frozen": 1
+    },
+    "scene-balanced": {
+      "frames": 4,
+      "sequence": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stepMs": 450,
+      "frozen": 1
+    },
+    "glyph-balanced": {
+      "frames": 1,
+      "sequence": [
+        1
+      ],
+      "stepMs": 1000,
+      "frozen": 1
+    },
+    "scene-focused": {
+      "frames": 4,
+      "sequence": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stepMs": 450,
+      "frozen": 1
+    },
+    "glyph-focused": {
+      "frames": 1,
+      "sequence": [
+        1
+      ],
+      "stepMs": 1000,
+      "frozen": 1
+    },
+    "scene-custom": {
+      "frames": 4,
+      "sequence": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stepMs": 450,
+      "frozen": 1
+    },
+    "glyph-custom": {
+      "frames": 1,
+      "sequence": [
+        1
+      ],
+      "stepMs": 1000,
+      "frozen": 1
+    }
+  }
+}

@@ -102,6 +102,107 @@ impl SessionEventMapper {
     }
 }
 
+/// One raw XInput gamepad sample, reduced to the values the calm-moment rule reads.
+///
+/// Rust-only (no C# counterpart): the game calm-moment rule needs to know whether the
+/// user is using a controller, without ever recording which buttons were pressed.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct GamepadSample {
+    /// `wButtons` bitfield.
+    pub buttons: u16,
+    /// `bLeftTrigger` (0–255).
+    pub trigger_left: u8,
+    /// `bRightTrigger` (0–255).
+    pub trigger_right: u8,
+    /// `sThumbLX`.
+    pub thumb_left_x: i16,
+    /// `sThumbLY`.
+    pub thumb_left_y: i16,
+    /// `sThumbRX`.
+    pub thumb_right_x: i16,
+    /// `sThumbRY`.
+    pub thumb_right_y: i16,
+}
+
+/// The significant part of a [`GamepadSample`]: buttons plus trigger values that are
+/// above the XInput trigger threshold (below it they are noise, so they collapse to `None`).
+/// Thumbsticks are not part of the signature: they count as input by dead-zone state,
+/// not by change, so a held direction never looks like calm.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct GamepadSignature {
+    /// `wButtons` bitfield.
+    pub buttons: u16,
+    /// Left trigger value above [`ControllerMath::TRIGGER_THRESHOLD`], or `None` at or below it.
+    pub trigger_left: Option<u8>,
+    /// Right trigger value above [`ControllerMath::TRIGGER_THRESHOLD`], or `None` at or below it.
+    pub trigger_right: Option<u8>,
+}
+
+/// XInput dead-zone and trigger-threshold math for controller-activity detection
+/// (Rust-only; constants from `xinput.h`).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ControllerMath;
+
+impl ControllerMath {
+    /// `XINPUT_GAMEPAD_TRIGGER_THRESHOLD` (`xinput.h`): trigger values at or below this are noise.
+    pub const TRIGGER_THRESHOLD: u8 = 30;
+    /// `XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE` (`xinput.h`).
+    pub const LEFT_THUMB_DEADZONE: i32 = 7849;
+    /// `XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE` (`xinput.h`).
+    pub const RIGHT_THUMB_DEADZONE: i32 = 8689;
+
+    /// The significant signature of a sample (buttons plus above-threshold trigger values).
+    #[must_use]
+    pub const fn signature(sample: &GamepadSample) -> GamepadSignature {
+        GamepadSignature {
+            buttons: sample.buttons,
+            trigger_left: Self::trigger_value(sample.trigger_left),
+            trigger_right: Self::trigger_value(sample.trigger_right),
+        }
+    }
+
+    /// Whether `sample` counts as controller input, given the previous poll's signature
+    /// (`None` on the first poll of this pad).
+    ///
+    /// Input is: a thumbstick outside its standard dead zone (state, so a held direction
+    /// keeps counting), or any change of buttons or of the above-threshold trigger values.
+    /// Stick noise inside the dead zone and packet-number churn alone are not input.
+    /// The first poll of a pad counts as input until one poll interval has proven it quiet.
+    #[must_use]
+    pub fn is_input(previous: Option<GamepadSignature>, sample: &GamepadSample) -> bool {
+        if Self::stick_active(
+            sample.thumb_left_x,
+            sample.thumb_left_y,
+            Self::LEFT_THUMB_DEADZONE,
+        ) || Self::stick_active(
+            sample.thumb_right_x,
+            sample.thumb_right_y,
+            Self::RIGHT_THUMB_DEADZONE,
+        ) {
+            return true;
+        }
+        previous != Some(Self::signature(sample))
+    }
+
+    /// Whether a thumbstick is outside its dead zone (squared compare, like the XInput docs).
+    #[must_use]
+    pub fn stick_active(x: i16, y: i16, deadzone: i32) -> bool {
+        let x = i64::from(x);
+        let y = i64::from(y);
+        let deadzone = i64::from(deadzone);
+        x * x + y * y > deadzone * deadzone
+    }
+
+    /// A trigger value above the threshold, or `None` at or below it.
+    const fn trigger_value(value: u8) -> Option<u8> {
+        if value > Self::TRIGGER_THRESHOLD {
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
 /// Converts Win32 `RECT` bounds to [`ScreenRect`] (C# `RectMath`).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RectMath;
@@ -225,4 +326,317 @@ pub fn notify_icon_path(
         },
     };
     Some(base.join(app_dir_name).join("notify-icon.png"))
+}
+
+/// Whether a Game Bar `Children` value name stores an executable path.
+///
+/// `MatchedExeFullPath` is the value Windows writes. Names that contain both `exe` and `path`
+/// (for example `OriginalExePath`) are treated the same way. `ExeParentDirectory` is not.
+#[must_use]
+pub fn is_game_bar_exe_value_name(name: &str) -> bool {
+    let trimmed = name.trim();
+    if trimmed.eq_ignore_ascii_case("MatchedExeFullPath") {
+        return true;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    lower.contains("exe") && lower.contains("path")
+}
+
+/// Returns the stored executable path when `name` is a game-bar exe value and `value` points at
+/// an `.exe`. Quotes and surrounding whitespace are stripped. Anything else is ignored.
+#[must_use]
+pub fn game_bar_exe_path(name: &str, value: &str) -> Option<String> {
+    if !is_game_bar_exe_value_name(name) {
+        return None;
+    }
+    let trimmed = value.trim().trim_matches('"').trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let file = trimmed.rsplit(['\\', '/']).next().unwrap_or(trimmed);
+    if file.to_ascii_lowercase().ends_with(".exe") {
+        Some(trimmed.to_owned())
+    } else {
+        None
+    }
+}
+
+/// Which Windows autostart mechanism applies to the running process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutostartKind {
+    /// Unpackaged Win32 app: per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+    RegistryRunKey,
+    /// Packaged MSIX app with a declared `desktop:StartupTask`.
+    PackagedStartupTask,
+    /// Packaged MSIX app without a configured `StartupTask` id (Run key must not be used).
+    Unsupported,
+}
+
+/// Pure startup-path selection and `GetCurrentPackageFullName` error classification.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct AutostartPathSelector;
+
+impl AutostartPathSelector {
+    /// Win32 `APPMODEL_ERROR_NO_PACKAGE` (15700).
+    pub const APPMODEL_ERROR_NO_PACKAGE: u32 = 15_700;
+    /// Win32 `ERROR_SUCCESS` (0).
+    pub const ERROR_SUCCESS: u32 = 0;
+    /// Win32 `ERROR_INSUFFICIENT_BUFFER` (122).
+    pub const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+
+    /// Returns `true` when `GetCurrentPackageFullName` indicates a packaged process
+    /// (i.e. not `APPMODEL_ERROR_NO_PACKAGE`, specifically `ERROR_SUCCESS` or
+    /// `ERROR_INSUFFICIENT_BUFFER`).
+    #[must_use]
+    pub const fn is_packaged_error_code(win32_error: u32) -> bool {
+        win32_error != Self::APPMODEL_ERROR_NO_PACKAGE
+            && (win32_error == Self::ERROR_SUCCESS
+                || win32_error == Self::ERROR_INSUFFICIENT_BUFFER)
+    }
+
+    /// Chooses the autostart backend for `(is_packaged, has_startup_task_id)`.
+    #[must_use]
+    pub const fn select(is_packaged: bool, has_startup_task_id: bool) -> AutostartKind {
+        if !is_packaged {
+            AutostartKind::RegistryRunKey
+        } else if has_startup_task_id {
+            AutostartKind::PackagedStartupTask
+        } else {
+            AutostartKind::Unsupported
+        }
+    }
+}
+
+/// Pure mirror of `Windows.ApplicationModel.StartupTaskState`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartupTaskToggleState {
+    /// `StartupTaskState::Disabled` (0).
+    Disabled,
+    /// `StartupTaskState::DisabledByUser` (1).
+    DisabledByUser,
+    /// `StartupTaskState::Enabled` (2).
+    Enabled,
+    /// `StartupTaskState::DisabledByPolicy` (3).
+    DisabledByPolicy,
+    /// `StartupTaskState::EnabledByPolicy` (4).
+    EnabledByPolicy,
+    /// Any unrecognized WinRT enum discriminant.
+    Unknown(i32),
+}
+
+impl StartupTaskToggleState {
+    /// Converts the raw WinRT `StartupTaskState` integer discriminant.
+    #[must_use]
+    pub const fn from_raw(raw: i32) -> Self {
+        match raw {
+            0 => Self::Disabled,
+            1 => Self::DisabledByUser,
+            2 => Self::Enabled,
+            3 => Self::DisabledByPolicy,
+            4 => Self::EnabledByPolicy,
+            other => Self::Unknown(other),
+        }
+    }
+
+    /// Maps the startup task state to the UI toggle ("Start with system").
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        matches!(self, Self::Enabled | Self::EnabledByPolicy)
+    }
+
+    /// Validates the state returned by `StartupTask::RequestEnableAsync`.
+    pub fn check_after_enable(self) -> Result<(), String> {
+        match self {
+            Self::Enabled | Self::EnabledByPolicy => Ok(()),
+            Self::DisabledByUser => {
+                Err("startup task is disabled by user in Windows Startup settings".to_owned())
+            }
+            Self::DisabledByPolicy => Err("startup task is disabled by group policy".to_owned()),
+            Self::Disabled => Err("startup task remained disabled".to_owned()),
+            Self::Unknown(code) => Err(format!("startup task returned unexpected state ({code})")),
+        }
+    }
+
+    /// Validates the state observed after `StartupTask::Disable`.
+    pub fn check_after_disable(self) -> Result<(), String> {
+        match self {
+            Self::Disabled | Self::DisabledByUser | Self::DisabledByPolicy => Ok(()),
+            Self::EnabledByPolicy => {
+                Err("startup task is enabled by group policy and cannot be disabled".to_owned())
+            }
+            Self::Enabled => Err("startup task remained enabled".to_owned()),
+            Self::Unknown(code) => Err(format!("startup task returned unexpected state ({code})")),
+        }
+    }
+}
+
+/// Why a Cargo version string could not be formatted as a four-part MSIX version.
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum MsixVersionError {
+    /// Input was empty or contained non-numeric parts.
+    #[error("invalid MSIX version '{0}': expected major.minor.patch[.revision]")]
+    InvalidFormat(String),
+    /// A version component exceeded `u16::MAX` (65535), which MSIX forbids.
+    #[error("invalid MSIX version '{0}': components must be <= 65535")]
+    ComponentOutOfRange(String),
+}
+
+/// Formats a Cargo SemVer string (e.g. `"0.2.2-dev"`) as a four-part MSIX version (`"0.2.2.0"`).
+pub fn format_msix_version(cargo_version: &str) -> Result<String, MsixVersionError> {
+    let trimmed = cargo_version.trim();
+    let core = trimmed.split(['-', '+']).next().unwrap_or("");
+    let parts: Vec<&str> = core.split('.').collect();
+    if parts.len() != 3 && parts.len() != 4 {
+        return Err(MsixVersionError::InvalidFormat(cargo_version.to_owned()));
+    }
+
+    let mut nums = [0u16; 4];
+    for (idx, part) in parts.iter().enumerate() {
+        if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(MsixVersionError::InvalidFormat(cargo_version.to_owned()));
+        }
+        nums[idx] = part
+            .parse::<u16>()
+            .map_err(|_| MsixVersionError::ComponentOutOfRange(cargo_version.to_owned()))?;
+    }
+
+    Ok(format!("{}.{}.{}.{}", nums[0], nums[1], nums[2], nums[3]))
+}
+
+/// Pure mirror of `Windows.Services.Store.StoreAppLicense` fields used for cross-platform
+/// license-mapping unit tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawStoreLicense {
+    /// `StoreAppLicense::IsActive`.
+    pub is_active: bool,
+    /// `StoreAppLicense::IsTrial`.
+    pub is_trial: bool,
+    /// `StoreAppLicense::ExpirationDate.UniversalTime` (100-ns ticks since 1601-01-01 UTC).
+    pub expiration_universal_time: i64,
+    /// `StoreAppLicense::TrialTimeRemaining.Duration` (100-ns ticks).
+    pub trial_time_remaining_100ns: i64,
+}
+
+/// Pure target-agnostic license classification mapped from [`RawStoreLicense`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreLicenseKind {
+    /// Active paid license (`IsActive == true && IsTrial == false`).
+    Full,
+    /// Active trial license ending at `ends_at_unix_secs` (UTC Unix seconds).
+    Trial { ends_at_unix_secs: i64 },
+    /// Expired trial license.
+    TrialExpired,
+    /// Indeterminate / no license information yet.
+    Unknown,
+}
+
+/// Pure WinRT `StoreAppLicense` → [`StoreLicenseKind`] mapper.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct StoreLicenseMapper;
+
+impl StoreLicenseMapper {
+    /// 100-ns ticks between Windows FILETIME epoch (1601-01-01) and Unix epoch (1970-01-01).
+    pub const WINRT_UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;
+    /// Number of 100-ns ticks in one second.
+    pub const TICKS_PER_SECOND: i64 = 10_000_000;
+    /// Upper bound for finite license dates (year 9999), filtering out WinRT far-future sentinels.
+    pub const MAX_FINITE_UNIX_SECS: i64 = 253_402_300_800;
+
+    /// Converts a WinRT `DateTime.UniversalTime` to finite post-1970 Unix seconds.
+    #[must_use]
+    pub const fn winrt_datetime_to_unix_secs(universal_time: i64) -> Option<i64> {
+        if universal_time <= Self::WINRT_UNIX_EPOCH_TICKS {
+            return None;
+        }
+        let secs = (universal_time - Self::WINRT_UNIX_EPOCH_TICKS) / Self::TICKS_PER_SECOND;
+        if secs >= Self::MAX_FINITE_UNIX_SECS {
+            return None;
+        }
+        Some(secs)
+    }
+
+    /// Converts a WinRT `TimeSpan.Duration` (100-ns ticks) to non-negative whole seconds.
+    #[must_use]
+    pub const fn winrt_timespan_to_secs(duration_100ns: i64) -> i64 {
+        if duration_100ns <= 0 {
+            0
+        } else {
+            duration_100ns / Self::TICKS_PER_SECOND
+        }
+    }
+
+    /// Maps `raw` at `now_unix_secs` to [`StoreLicenseKind`].
+    #[must_use]
+    pub const fn map(raw: RawStoreLicense, now_unix_secs: i64) -> StoreLicenseKind {
+        match (raw.is_active, raw.is_trial) {
+            (true, false) => StoreLicenseKind::Full,
+            (true, true) => {
+                let exp_secs = Self::winrt_datetime_to_unix_secs(raw.expiration_universal_time);
+                let rem_secs = Self::winrt_timespan_to_secs(raw.trial_time_remaining_100ns);
+                if rem_secs > 0 {
+                    let ends_at_unix_secs = match exp_secs {
+                        Some(exp) if exp > now_unix_secs => exp,
+                        _ => now_unix_secs.saturating_add(rem_secs),
+                    };
+                    StoreLicenseKind::Trial { ends_at_unix_secs }
+                } else if let Some(exp) = exp_secs
+                    && exp > now_unix_secs
+                {
+                    StoreLicenseKind::Trial {
+                        ends_at_unix_secs: exp,
+                    }
+                } else {
+                    StoreLicenseKind::TrialExpired
+                }
+            }
+            (false, true) => StoreLicenseKind::TrialExpired,
+            (false, false) => {
+                if let Some(exp) = Self::winrt_datetime_to_unix_secs(raw.expiration_universal_time)
+                    && exp <= now_unix_secs
+                {
+                    StoreLicenseKind::TrialExpired
+                } else {
+                    StoreLicenseKind::Unknown
+                }
+            }
+        }
+    }
+}
+
+/// Pure mirror of `Windows.Services.Store.StorePurchaseStatus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorePurchaseOutcome {
+    /// `StorePurchaseStatus::Succeeded` (0).
+    Succeeded,
+    /// `StorePurchaseStatus::AlreadyPurchased` (1).
+    AlreadyPurchased,
+    /// `StorePurchaseStatus::NotPurchased` (2) — user cancelled or declined.
+    NotPurchased,
+    /// `StorePurchaseStatus::NetworkError` (3).
+    NetworkError,
+    /// `StorePurchaseStatus::ServerError` (4).
+    ServerError,
+    /// Unrecognized WinRT enum discriminant.
+    Unknown(i32),
+}
+
+impl StorePurchaseOutcome {
+    /// Converts the raw WinRT `StorePurchaseStatus` discriminant.
+    #[must_use]
+    pub const fn from_raw(raw: i32) -> Self {
+        match raw {
+            0 => Self::Succeeded,
+            1 => Self::AlreadyPurchased,
+            2 => Self::NotPurchased,
+            3 => Self::NetworkError,
+            4 => Self::ServerError,
+            other => Self::Unknown(other),
+        }
+    }
+
+    /// Returns `true` when the outcome means the user now holds a full license.
+    #[must_use]
+    pub const fn is_owned(self) -> bool {
+        matches!(self, Self::Succeeded | Self::AlreadyPurchased)
+    }
 }

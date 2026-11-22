@@ -4,7 +4,7 @@ import { Theme } from "@app-theme/theme.slint";
 import { Button, ButtonKind, CloseButton, Card, ProgressLine } from "@damt-ui/kit.slint";
 
 export { Theme }
-export { SettingsWindowV2, TimelineMark, TimelineMarkKind } from "settings_v2.slint";
+export { SettingsWindowV2, TimelineMark, TimelineMarkKind, SilentGame } from "settings_v2.slint";
 
 // Exercise illustration slot: the host renders and animates the frames.
 component Art inherits Image {
@@ -25,7 +25,14 @@ export component ShortBreakCard inherits Window {
     in property <float> progress;
     in property <string> close-label;
     in property <bool> dim-backdrop: false;
+    // Gentle game card: "Not during this game", and on the gentle long card "Take the long break".
+    in property <bool> show-hold-game: false;
+    in property <string> hold-game-label;
+    in property <bool> show-take-long: false;
+    in property <string> take-long-label;
     callback close-clicked();
+    callback hold-game-clicked();
+    callback take-long-clicked();
     // Logical height the window needs (card + 16 px margins); the host sizes the window to it.
     out property <length> content-height: frame.preferred-height;
 
@@ -78,6 +85,25 @@ export component ShortBreakCard inherits Window {
                             color: Theme.text-muted;
                             wrap: word-wrap;
                         }
+                    }
+                }
+                // Quiet game actions. A lone text button lines its label up with the body text
+                // (56 px art + 10 px gap - 8 px button padding); two buttons use the full width.
+                if root.show-hold-game || root.show-take-long : HorizontalLayout {
+                    padding-left: root.show-take-long ? 0px : 58px;
+                    spacing: Theme.space-8;
+                    alignment: start;
+                    if root.show-take-long : Button {
+                        kind: ButtonKind.outline;
+                        text: root.take-long-label;
+                        padding-y: 4px;
+                        clicked => { root.take-long-clicked(); }
+                    }
+                    if root.show-hold-game : Button {
+                        kind: ButtonKind.text;
+                        text: root.hold-game-label;
+                        padding-y: 4px;
+                        clicked => { root.hold-game-clicked(); }
                     }
                 }
                 ProgressLine { progress: root.progress; accessible-name: root.heading; }

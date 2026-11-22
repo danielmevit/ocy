@@ -16,13 +16,15 @@ use damt_platform::{
 use jiff::SignedDuration;
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::OcySettings;
+use ocy_core::settings::{GamesMode, OcySettings};
 use ocy_core::statistics::StatisticsData;
 use ocy_core::time::Paused;
 
 use crate::break_logic::app_theme_is_dark;
 use crate::coordinator::SettingsWindow;
 use crate::language_choice;
+#[cfg(feature = "store")]
+use crate::license::{LicenseState, StoreLicenseTexts};
 use crate::presets::{self, Preset};
 use crate::strings::{Strings, font_family_for};
 use crate::timeline::{self, TICK_LABEL_COUNT, TimelineMark};
@@ -64,7 +66,7 @@ pub fn app_version() -> &'static str {
 }
 
 /// All UI-backed field values of the Settings window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsValues {
     pub start_with_system: bool,
     pub short_enabled: bool,
@@ -77,12 +79,17 @@ pub struct SettingsValues {
     pub long_warning: i32,
     pub long_postpone: i32,
     pub long_max_postpones: i32,
+    pub water_nudges: bool,
     pub strict_mode: bool,
     pub inactivity_tracking: bool,
     pub away_threshold: i32,
     pub pause_fullscreen: bool,
     pub window_nearby: bool,
     pub status_notifications: bool,
+    /// Games: `false` gentle cards (default), `true` hold breaks.
+    pub games_hold: bool,
+    /// Exe names that always hold breaks, in stored order.
+    pub games_silent: Vec<String>,
 }
 
 impl SettingsValues {
@@ -109,17 +116,21 @@ impl SettingsValues {
             long_warning: settings.long_breaks.warning_seconds,
             long_postpone: settings.long_breaks.postpone_minutes,
             long_max_postpones: settings.long_breaks.max_postpones,
+            water_nudges: settings.water_nudges,
             strict_mode: settings.strict_mode,
             inactivity_tracking: settings.inactivity_tracking,
             away_threshold: settings.away_threshold_seconds,
             pause_fullscreen: settings.pause_during_fullscreen,
             window_nearby: settings.has_window_nearby,
             status_notifications: settings.status_notifications,
+            games_hold: settings.games_mode == GamesMode::Hold,
+            games_silent: settings.games_silent.clone(),
         }
     }
 
     /// Clones `current` and overwrites only the UI-backed fields, preserving non-UI fields
-    /// (`schema_version`, `sounds`, `language`, and `status_notifications` while hidden) unchanged.
+    /// (`schema_version`, `sounds`, `language`, and `status_notifications` while hidden)
+    /// unchanged.
     #[must_use]
     pub fn apply_to(&self, current: &OcySettings, autostart_supported: bool) -> OcySettings {
         let mut updated = current.clone();
@@ -136,10 +147,17 @@ impl SettingsValues {
         updated.long_breaks.max_postpones = self.long_max_postpones;
 
         updated.strict_mode = self.strict_mode;
+        updated.water_nudges = self.water_nudges;
         updated.inactivity_tracking = self.inactivity_tracking;
         updated.away_threshold_seconds = self.away_threshold;
         updated.pause_during_fullscreen = self.pause_fullscreen;
         updated.has_window_nearby = self.window_nearby;
+        updated.games_mode = if self.games_hold {
+            GamesMode::Hold
+        } else {
+            GamesMode::Gentle
+        };
+        updated.games_silent.clone_from(&self.games_silent);
 
         if autostart_supported {
             updated.start_with_system = self.start_with_system;
@@ -211,6 +229,8 @@ pub struct SettingsTexts {
     pub long_postpone_label: String,
     pub long_max_postpones_label: String,
     pub try_long_label: String,
+    pub water_nudges_label: String,
+    pub water_nudges_help: String,
     pub strict_label: String,
     pub strict_help: String,
     pub inactivity_label: String,
@@ -218,6 +238,12 @@ pub struct SettingsTexts {
     pub away_label: String,
     pub pause_fullscreen_label: String,
     pub pause_fullscreen_help: String,
+    pub games_title: String,
+    pub games_mode_model: Vec<String>,
+    pub games_gentle_help: String,
+    pub games_hold_help: String,
+    pub games_silent_title: String,
+    pub games_silent_empty: String,
     pub window_nearby_label: String,
     pub window_nearby_help: String,
     pub language_label: String,
@@ -290,6 +316,8 @@ impl SettingsTexts {
                 .get("settings.longBreaks.maxPostpones.label")
                 .to_owned(),
             try_long_label: strings.get("settings.tryLongBreak").to_owned(),
+            water_nudges_label: strings.get("settings.waterNudges.label").to_owned(),
+            water_nudges_help: strings.get("settings.waterNudges.help").to_owned(),
             strict_label: strings.get("settings.strictMode.label").to_owned(),
             strict_help: strings.get("settings.strictMode.help").to_owned(),
             inactivity_label: strings.get("settings.inactivityTracking.label").to_owned(),
@@ -303,6 +331,15 @@ impl SettingsTexts {
             pause_fullscreen_help: strings
                 .get("settings.pauseDuringFullscreen.help")
                 .to_owned(),
+            games_title: strings.get("settings.section.games").to_owned(),
+            games_mode_model: vec![
+                strings.get("settings.games.gentle").to_owned(),
+                strings.get("settings.games.hold").to_owned(),
+            ],
+            games_gentle_help: strings.get("settings.games.gentleHelp").to_owned(),
+            games_hold_help: strings.get("settings.games.holdHelp").to_owned(),
+            games_silent_title: strings.get("settings.games.silent").to_owned(),
+            games_silent_empty: strings.get("settings.games.silentEmpty").to_owned(),
             window_nearby_label: strings.get("settings.hasWindowNearby.label").to_owned(),
             window_nearby_help: strings.get("settings.hasWindowNearby.help").to_owned(),
             language_label: strings.get("settings.language.label").to_owned(),
@@ -484,6 +521,8 @@ fn fallback_snapshot(settings: &OcySettings) -> EngineSnapshot {
         postpones_left: u32::try_from(clamped.long_breaks.max_postpones.max(0)).unwrap_or(0),
         strict_mode: clamped.strict_mode,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     }
 }
 
@@ -750,6 +789,8 @@ pub struct SettingsUiHandlers {
     pub on_try_short_break: Rc<dyn Fn()>,
     pub on_try_long_break: Rc<dyn Fn()>,
     pub on_close_requested: Rc<dyn Fn()>,
+    #[cfg(feature = "store")]
+    pub on_buy: Rc<dyn Fn()>,
 }
 
 impl fmt::Debug for SettingsUiHandlers {
@@ -769,6 +810,12 @@ pub struct SettingsCreateParams<'a> {
     pub strings: &'a Arc<Strings>,
     pub show_start_with_system: bool,
     pub dark: bool,
+    #[cfg(feature = "store")]
+    pub license_state: &'static str,
+    #[cfg(feature = "store")]
+    pub trial_days_left: i32,
+    #[cfg(feature = "store")]
+    pub store_texts: &'a StoreLicenseTexts,
 }
 
 /// Windowing/UI backend abstraction so Settings lifecycle, debounce, and error paths are unit-testable.
@@ -816,6 +863,9 @@ pub trait SettingsBackend {
     ) {
     }
 
+    /// Replaces the silent-games list on an open instance (a game was added from a break card).
+    fn set_games_silent(&self, _instance: &Self::Instance, _names: &[String]) {}
+
     /// Updates the selected `language-index` on an open instance.
     fn set_language_index(&self, _instance: &Self::Instance, _index: i32) {}
 
@@ -845,6 +895,18 @@ pub trait SettingsBackend {
 
     /// Immediately hides and drops `instance` (during shutdown/drop).
     fn hide_and_destroy(&self, instance: Self::Instance);
+
+    /// Updates Store license status (`license-state`, `trial-days-left`, and localized texts)
+    /// on an open instance.
+    #[cfg(feature = "store")]
+    fn set_license_status(
+        &self,
+        _instance: &Self::Instance,
+        _license_state: &'static str,
+        _trial_days_left: i32,
+        _store_texts: &StoreLicenseTexts,
+    ) {
+    }
 }
 
 struct ManagedSettingsInner<B: SettingsBackend> {
@@ -861,6 +923,10 @@ struct ManagedSettingsInner<B: SettingsBackend> {
     state: RefCell<SettingsDebounceState>,
     active: RefCell<Option<B::Instance>>,
     dark_theme: Cell<bool>,
+    #[cfg(feature = "store")]
+    license_state: Cell<LicenseState>,
+    #[cfg(feature = "store")]
+    on_buy: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
 impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
@@ -871,6 +937,18 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
     }
 
     fn compute_live_view(&self, preview_settings: &OcySettings) -> SettingsLiveView {
+        #[cfg(feature = "store")]
+        if self.license_state.get().is_trial_expired() {
+            let stats = self.last_stats.borrow();
+            let strings = self.strings.borrow();
+            return SettingsLiveView {
+                next_break_text: strings.get("store.trialEnded.title").to_owned(),
+                timeline_marks: Vec::new(),
+                timeline_labels: timeline::time_labels(self.clock.as_ref()),
+                today: TodaySummary::from_statistics(&stats, self.clock.now().date()),
+            };
+        }
+
         let snapshot_guard = self.last_snapshot.borrow();
         let owned_fallback;
         let snapshot = match snapshot_guard.as_ref() {
@@ -927,6 +1005,21 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             if let Some(inst) = self.active.borrow().as_ref() {
                 self.backend
                     .set_texts(inst, &texts, language_index, &updated_strings);
+                #[cfg(feature = "store")]
+                {
+                    let state = self.license_state.get();
+                    let days_left = state.trial_days_left_i32(self.clock.now().timestamp());
+                    let store_texts = StoreLicenseTexts::from_strings(
+                        &updated_strings,
+                        (days_left >= 0).then_some(days_left),
+                    );
+                    self.backend.set_license_status(
+                        inst,
+                        state.ui_state_tag(),
+                        days_left,
+                        &store_texts,
+                    );
+                }
             }
             self.refresh_open_live_view();
         }
@@ -1115,6 +1208,14 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
         }
     }
 
+    #[cfg(feature = "store")]
+    fn handle_buy(&self) {
+        let cb = self.on_buy.borrow().clone();
+        if let Some(cb) = cb {
+            cb();
+        }
+    }
+
     fn build_handlers(self: &Rc<Self>) -> SettingsUiHandlers {
         let weak_changed: Weak<Self> = Rc::downgrade(self);
         let weak_preset: Weak<Self> = Rc::downgrade(self);
@@ -1122,6 +1223,8 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
         let weak_short: Weak<Self> = Rc::downgrade(self);
         let weak_long: Weak<Self> = Rc::downgrade(self);
         let weak_close: Weak<Self> = Rc::downgrade(self);
+        #[cfg(feature = "store")]
+        let weak_buy: Weak<Self> = Rc::downgrade(self);
         SettingsUiHandlers {
             on_changed: Rc::new(move || {
                 if let Some(inner) = weak_changed.upgrade() {
@@ -1151,6 +1254,12 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             on_close_requested: Rc::new(move || {
                 if let Some(inner) = weak_close.upgrade() {
                     inner.handle_close_requested();
+                }
+            }),
+            #[cfg(feature = "store")]
+            on_buy: Rc::new(move || {
+                if let Some(inner) = weak_buy.upgrade() {
+                    inner.handle_buy();
                 }
             }),
         }
@@ -1232,8 +1341,41 @@ impl<B: SettingsBackend + 'static> ManagedSettingsWindow<B> {
                 state: RefCell::new(SettingsDebounceState::new()),
                 active: RefCell::new(None),
                 dark_theme: Cell::new(dark),
+                #[cfg(feature = "store")]
+                license_state: Cell::new(LicenseState::Unknown),
+                #[cfg(feature = "store")]
+                on_buy: RefCell::new(None),
             }),
         }
+    }
+
+    /// Registers the Store purchase callback invoked by `buy()`.
+    #[cfg(feature = "store")]
+    pub fn set_on_buy(&mut self, on_buy: Rc<dyn Fn()>) {
+        *self.inner.on_buy.borrow_mut() = Some(on_buy);
+    }
+
+    /// Current Store license state exposed to the UI.
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub fn license_state(&self) -> LicenseState {
+        self.inner.license_state.get()
+    }
+
+    /// Current trial days left (`-1` when not in a trial with a known end date, `0` when expired).
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub fn trial_days_left(&self) -> i32 {
+        self.inner
+            .license_state
+            .get()
+            .trial_days_left_i32(self.inner.clock.now().timestamp())
+    }
+
+    /// Triggers the Store purchase flow (`buy()` UI callback).
+    #[cfg(feature = "store")]
+    pub fn buy(&self) {
+        self.inner.handle_buy();
     }
 
     /// Returns `true` if a Settings window instance is currently open.
@@ -1277,7 +1419,14 @@ impl<B: SettingsBackend + 'static> ManagedSettingsWindow<B> {
 
 impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
     fn sync_settings(&mut self, settings: &OcySettings) {
+        let silent_changed =
+            self.inner.current_settings.borrow().games_silent != settings.games_silent;
         *self.inner.current_settings.borrow_mut() = settings.clone();
+        if silent_changed && let Some(inst) = self.inner.active.borrow().as_ref() {
+            self.inner
+                .backend
+                .set_games_silent(inst, &settings.games_silent);
+        }
         let lang_changed = settings.language != *self.inner.current_language.borrow();
         if lang_changed {
             self.inner.apply_language_change(&settings.language, true);
@@ -1287,6 +1436,25 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
     fn sync_live_status(&mut self, snapshot: &EngineSnapshot, stats: &StatisticsData) {
         *self.inner.last_snapshot.borrow_mut() = Some(snapshot.clone());
         *self.inner.last_stats.borrow_mut() = stats.clone();
+        self.inner.refresh_open_live_view();
+    }
+
+    #[cfg(feature = "store")]
+    fn sync_license(&mut self, state: LicenseState, trial_days_left: i32) {
+        self.inner.license_state.set(state);
+        if let Some(inst) = self.inner.active.borrow().as_ref() {
+            let strings = self.inner.strings.borrow();
+            let store_texts = StoreLicenseTexts::from_strings(
+                &strings,
+                (trial_days_left >= 0).then_some(trial_days_left),
+            );
+            self.inner.backend.set_license_status(
+                inst,
+                state.ui_state_tag(),
+                trial_days_left,
+                &store_texts,
+            );
+        }
         self.inner.refresh_open_live_view();
     }
 
@@ -1316,6 +1484,13 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
         let strings = Arc::clone(&self.inner.strings.borrow());
         let texts = SettingsTexts::from_strings(&strings, app_version());
         let handlers = self.inner.build_handlers();
+        #[cfg(feature = "store")]
+        let (license_state, trial_days_left, store_texts) = {
+            let state = self.inner.license_state.get();
+            let days = state.trial_days_left_i32(self.inner.clock.now().timestamp());
+            let texts = StoreLicenseTexts::from_strings(&strings, (days >= 0).then_some(days));
+            (state.ui_state_tag(), days, texts)
+        };
 
         self.inner.state.borrow_mut().begin_load();
         let created = self.inner.backend.create(
@@ -1328,6 +1503,12 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
                 strings: &strings,
                 show_start_with_system: autostart_supported,
                 dark,
+                #[cfg(feature = "store")]
+                license_state,
+                #[cfg(feature = "store")]
+                trial_days_left,
+                #[cfg(feature = "store")]
+                store_texts: &store_texts,
             },
             handlers,
         );

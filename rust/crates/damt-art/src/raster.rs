@@ -34,4 +34,26 @@ impl Raster {
             pixels,
         })
     }
+
+    /// Renders `svg` at its own aspect ratio, `width_px` wide (height follows the view box).
+    pub fn render_width(svg: &[u8], width_px: u32) -> Result<Image, ArtError> {
+        if width_px == 0 {
+            return Err(ArtError::InvalidSize(width_px));
+        }
+        let options = resvg::usvg::Options::default();
+        let tree = resvg::usvg::Tree::from_data(svg, &options)
+            .map_err(|error| ArtError::Svg(error.to_string()))?;
+        let size = tree.size();
+        let scale = width_px as f32 / size.width();
+        let height_px = (size.height() * scale).round().max(1.0) as u32;
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(width_px, height_px)
+            .ok_or(ArtError::InvalidSize(width_px))?;
+        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
+        Ok(Image {
+            width: width_px,
+            height: height_px,
+            pixels: pixmap.data().to_vec(),
+        })
+    }
 }

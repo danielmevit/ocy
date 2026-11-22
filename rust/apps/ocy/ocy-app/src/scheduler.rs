@@ -8,10 +8,10 @@
 //!   created hidden before it becomes due (at most one extra wake per break),
 //! - [`ACTIVE_WAKE_INTERVAL`] while a break or warning window is visible or a
 //!   natural-moment hold is active (their countdowns and lull checks need 1 s),
-//! - [`IDLE_PHASE_WAKE_INTERVAL`] while `Away` or `Deferred` (the long idle phases:
-//!   nothing but an external state change can happen, and its return is accepted up to
-//!   5 s late — a negligible cost for a break schedule measured in minutes, traded for
-//!   a 5x reduction in idle wake-ups),
+//! - [`IDLE_PHASE_WAKE_INTERVAL`] while `Away` or `Deferred`, and while `Working` with
+//!   `poll_external` (a game hold whose end the OS does not notify). The return is
+//!   accepted up to 5 s late. A post-game break can then wait one more natural moment
+//!   (at most 60 s), so it arrives within about a minute,
 //! - [`MAX_WAKE_DELAY`] otherwise, which keeps every tick gap far below the engine's
 //!   15 s sleep-gap threshold (rule 1: gap = sleep) without changing that rule,
 //! - and never less than [`MIN_WAKE_DELAY`], to avoid busy loops.
@@ -27,6 +27,7 @@ use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::time::Paused;
 
 use crate::break_logic::PREWARM_LEAD_TIME;
+use crate::license::LicenseState;
 
 /// Shortest wake delay; used when a due moment is now (the tick resolves it immediately).
 pub const MIN_WAKE_DELAY: Duration = Duration::from_millis(50);
@@ -81,6 +82,10 @@ pub fn next_wake_delay(snapshot: &EngineSnapshot, now: Timestamp) -> Duration {
             if snapshot.natural_hold.is_some() {
                 // A scheduled start is due and waiting for a lull: re-check every second.
                 ACTIVE_WAKE_INTERVAL
+            } else if snapshot.poll_external {
+                // A game hold is active before the long break is due. Poll so leaving
+                // the game is noticed within 5 s (then a natural moment may hold 60 s).
+                IDLE_PHASE_WAKE_INTERVAL
             } else {
                 let mut delay = MAX_WAKE_DELAY;
                 if let Some(until_short) = snapshot.time_until_short_break {
@@ -111,4 +116,19 @@ pub fn next_wake_delay(snapshot: &EngineSnapshot, now: Timestamp) -> Duration {
         EnginePhase::Deferred | EnginePhase::Away => IDLE_PHASE_WAKE_INTERVAL,
     };
     delay.max(MIN_WAKE_DELAY)
+}
+
+/// Computes the next wake delay while respecting Store [`LicenseState`].
+///
+/// When reminders are disallowed (`TrialExpired`), no break or pre-warm wakes are scheduled.
+#[must_use]
+pub fn next_wake_delay_for_license(
+    snapshot: &EngineSnapshot,
+    now: Timestamp,
+    license: LicenseState,
+) -> Duration {
+    if !license.allows_reminders() {
+        return MAX_WAKE_DELAY;
+    }
+    next_wake_delay(snapshot, now)
 }

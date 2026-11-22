@@ -1,11 +1,12 @@
 use damt_platform::{
-    ActiveScreenProvider, AppThemeProvider, AutostartService, FocusStateProvider, IdleProvider,
-    MotionPreference, Notifier, PlatformServices, TaskbarThemeProvider, Unsupported,
+    ActiveScreenProvider, AppThemeProvider, AutostartService, ControllerIdleProvider,
+    FocusStateProvider, ForegroundProbe, IdleProvider, MotionPreference, Notifier,
+    PlatformServices, TaskbarThemeProvider, Unsupported,
 };
 
 use super::{
-    WinActiveScreen, WinAppTheme, WinAutostart, WinFocus, WinIdle, WinMotion, WinNotifier,
-    WinSessionEvents, WinTaskbarTheme,
+    WinActiveScreen, WinAppTheme, WinAutostart, WinControllerIdle, WinFocus, WinForeground,
+    WinIdle, WinMotion, WinNotifier, WinSessionEvents, WinTaskbarTheme,
 };
 
 /// All Windows platform services, composed once at startup (C# `WindowsPlatformServices`).
@@ -13,6 +14,8 @@ use super::{
 pub struct WinPlatform {
     idle: WinIdle,
     focus: WinFocus,
+    foreground: WinForeground,
+    controller: WinControllerIdle,
     autostart: WinAutostart,
     session: WinSessionEvents,
     active_screen: WinActiveScreen,
@@ -28,6 +31,8 @@ impl WinPlatform {
         Self {
             idle: WinIdle,
             focus: WinFocus,
+            foreground: WinForeground,
+            controller: WinControllerIdle::default(),
             autostart: WinAutostart::new(autostart_value_name),
             session: WinSessionEvents::new(),
             active_screen: WinActiveScreen,
@@ -45,6 +50,13 @@ impl WinPlatform {
         self
     }
 
+    /// Configures the `desktop:StartupTask` `TaskId` used for autostart when packaged as MSIX.
+    #[must_use]
+    pub fn with_startup_task_id(mut self, task_id: impl Into<String>) -> Self {
+        self.autostart = self.autostart.with_startup_task_id(task_id);
+        self
+    }
+
     /// The session event source, which is not part of the [`PlatformServices`] trait.
     pub fn session(&mut self) -> &mut WinSessionEvents {
         &mut self.session
@@ -58,6 +70,14 @@ impl PlatformServices for WinPlatform {
 
     fn focus(&self) -> &dyn FocusStateProvider {
         &self.focus
+    }
+
+    fn foreground(&self) -> &dyn ForegroundProbe {
+        &self.foreground
+    }
+
+    fn controller(&self) -> &dyn ControllerIdleProvider {
+        &self.controller
     }
 
     fn autostart(&self) -> &dyn AutostartService {

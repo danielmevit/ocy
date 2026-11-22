@@ -11,6 +11,8 @@ use jiff::{SignedDuration, Timestamp};
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::time::Paused;
 
+#[cfg(feature = "store")]
+use crate::license::LicenseState;
 use crate::strings::Strings;
 
 const LIGHT_ACTIVE_PNG: &[u8] =
@@ -156,6 +158,7 @@ pub enum TrayMenuSlot {
     PauseStatus,
     TakeShortBreakNow,
     TakeLongBreakNow,
+    HoldUntilGameCloses,
     Separator1,
     Pause1Hour,
     Pause3Hours,
@@ -167,10 +170,11 @@ pub enum TrayMenuSlot {
 }
 
 /// Canonical top-to-bottom order of entries in the tray context menu.
-pub const TRAY_MENU_ORDER: [TrayMenuSlot; 11] = [
+pub const TRAY_MENU_ORDER: [TrayMenuSlot; 12] = [
     TrayMenuSlot::PauseStatus,
     TrayMenuSlot::TakeShortBreakNow,
     TrayMenuSlot::TakeLongBreakNow,
+    TrayMenuSlot::HoldUntilGameCloses,
     TrayMenuSlot::Separator1,
     TrayMenuSlot::Pause1Hour,
     TrayMenuSlot::Pause3Hours,
@@ -205,6 +209,13 @@ pub const fn can_take_long_break_now(snapshot: &EngineSnapshot) -> bool {
     )
 }
 
+/// Returns `true` when the tray offers "Hold breaks until I close this game": a game that is not
+/// on the silent list is in front, no hold-until-close is active, and Ocy is working or deferred.
+#[must_use]
+pub const fn can_hold_until_game_closes(snapshot: &EngineSnapshot) -> bool {
+    snapshot.game_in_front && matches!(snapshot.phase, EnginePhase::Working | EnginePhase::Deferred)
+}
+
 /// Complete tray icon + tooltip + menu presentation derived from an [`EngineSnapshot`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrayPresentation {
@@ -213,6 +224,7 @@ pub struct TrayPresentation {
     pub pause_status: TrayMenuItemState,
     pub take_short_break_now: TrayMenuItemState,
     pub take_long_break_now: TrayMenuItemState,
+    pub hold_until_game_closes: TrayMenuItemState,
     pub pause_1_hour: TrayMenuItemState,
     pub pause_3_hours: TrayMenuItemState,
     pub pause_until_resumed: TrayMenuItemState,
@@ -235,6 +247,9 @@ impl TrayPresentation {
                 TrayMenuSlot::TakeLongBreakNow => {
                     TrayMenuEntry::Item(slot, &self.take_long_break_now)
                 }
+                TrayMenuSlot::HoldUntilGameCloses => {
+                    TrayMenuEntry::Item(slot, &self.hold_until_game_closes)
+                }
                 TrayMenuSlot::Separator1 | TrayMenuSlot::Separator2 => TrayMenuEntry::Separator,
                 TrayMenuSlot::Pause1Hour => TrayMenuEntry::Item(slot, &self.pause_1_hour),
                 TrayMenuSlot::Pause3Hours => TrayMenuEntry::Item(slot, &self.pause_3_hours),
@@ -254,6 +269,7 @@ struct TrayMenuSnapshot {
     pause_status: TrayMenuItemState,
     take_short_break_now: TrayMenuItemState,
     take_long_break_now: TrayMenuItemState,
+    hold_until_game_closes: TrayMenuItemState,
     pause_1_hour: TrayMenuItemState,
     pause_3_hours: TrayMenuItemState,
     pause_until_resumed: TrayMenuItemState,
@@ -268,6 +284,7 @@ impl From<&TrayPresentation> for TrayMenuSnapshot {
             pause_status: p.pause_status.clone(),
             take_short_break_now: p.take_short_break_now.clone(),
             take_long_break_now: p.take_long_break_now.clone(),
+            hold_until_game_closes: p.hold_until_game_closes.clone(),
             pause_1_hour: p.pause_1_hour.clone(),
             pause_3_hours: p.pause_3_hours.clone(),
             pause_until_resumed: p.pause_until_resumed.clone(),
@@ -283,6 +300,8 @@ pub struct TrayPresenter {
     strings: Arc<Strings>,
     clock: Arc<dyn Clock>,
     active_pause_source: Cell<Option<PauseSource>>,
+    #[cfg(feature = "store")]
+    license_state: LicenseState,
 }
 
 impl fmt::Debug for TrayPresenter {
@@ -301,7 +320,15 @@ impl TrayPresenter {
             strings,
             clock,
             active_pause_source: Cell::new(None),
+            #[cfg(feature = "store")]
+            license_state: LicenseState::Unknown,
         }
+    }
+
+    /// Updates the active Store license state used for tray tooltips and menu enablement.
+    #[cfg(feature = "store")]
+    pub fn set_license_state(&mut self, state: LicenseState) {
+        self.license_state = state;
     }
 
     /// Replaces the active [`Strings`] table (used for live language switching).
@@ -365,6 +392,7 @@ impl TrayPresenter {
 
         let take_short_break_text = self.strings.get("tray.menu.takeShortBreak");
         let take_long_break_text = self.strings.get("tray.menu.takeLongBreak");
+        let hold_game_text = self.strings.get("games.holdUntilClosed");
         let pause_1h_text = self.strings.get("tray.menu.pause1h");
         let pause_3h_text = self.strings.get("tray.menu.pause3h");
         let pause_until_resumed_text = self.strings.get("tray.menu.pauseUntilResumed");
@@ -379,6 +407,7 @@ impl TrayPresenter {
                 pause_status,
                 take_short_break_now: TrayMenuItemState::new(take_short_break_text, true, false),
                 take_long_break_now: TrayMenuItemState::new(take_long_break_text, true, false),
+                hold_until_game_closes: TrayMenuItemState::new(hold_game_text, false, false),
                 pause_1_hour: TrayMenuItemState::new(pause_1h_text, true, false),
                 pause_3_hours: TrayMenuItemState::new(pause_3h_text, true, false),
                 pause_until_resumed: TrayMenuItemState::new(pause_until_resumed_text, true, false),
@@ -388,8 +417,13 @@ impl TrayPresenter {
             };
         }
 
-        let can_start_short_break = can_take_short_break_now(snapshot);
-        let can_start_long_break = can_take_long_break_now(snapshot);
+        #[cfg(feature = "store")]
+        let trial_expired = self.license_state.is_trial_expired();
+        #[cfg(not(feature = "store"))]
+        let trial_expired = false;
+
+        let can_start_short_break = !trial_expired && can_take_short_break_now(snapshot);
+        let can_start_long_break = !trial_expired && can_take_long_break_now(snapshot);
 
         TrayPresentation {
             tooltip,
@@ -405,6 +439,10 @@ impl TrayPresenter {
                 true,
                 can_start_long_break,
             ),
+            hold_until_game_closes: {
+                let shown = !trial_expired && can_hold_until_game_closes(snapshot);
+                TrayMenuItemState::new(hold_game_text, shown, shown)
+            },
             pause_1_hour: TrayMenuItemState::checkable(
                 pause_1h_text,
                 true,
@@ -466,6 +504,11 @@ impl TrayPresenter {
     }
 
     fn compute_tooltip(&self, snapshot: &EngineSnapshot, now: Timestamp) -> String {
+        #[cfg(feature = "store")]
+        if self.license_state.is_trial_expired() {
+            return self.strings.get("store.trialEnded.title").to_owned();
+        }
+
         if matches!(
             snapshot.phase,
             EnginePhase::ShortBreak | EnginePhase::LongBreak
@@ -663,6 +706,15 @@ impl<S: TraySink> TrayController<S> {
     /// `"en"`, `"de"`, ...) and invalidates cached tooltip/menu snapshots.
     pub fn set_language(&mut self, language_setting: &str) {
         self.set_strings(Arc::new(Strings::from_language(language_setting)));
+    }
+
+    /// Updates the Store license state on the tray presenter and forces the next `update` to
+    /// refresh the tooltip and menu items.
+    #[cfg(feature = "store")]
+    pub fn set_license_state(&mut self, state: LicenseState) {
+        self.presenter.set_license_state(state);
+        self.last_tooltip = None;
+        self.last_menu = None;
     }
 
     /// Returns the resolved BCP-47 language tag currently active in the presenter.

@@ -460,6 +460,8 @@ mod tests {
             postpones_left: 3,
             strict_mode: false,
             natural_hold: None,
+            poll_external: false,
+            game_in_front: false,
         };
         let out = project(&snap, &OcySettings::default(), &clock);
         assert!(out.marks.is_empty());
@@ -490,6 +492,8 @@ mod tests {
             postpones_left: 3,
             strict_mode: false,
             natural_hold: None,
+            poll_external: false,
+            game_in_front: false,
         };
         let out = project(&snap, &neither, &clock);
         assert!(out.marks.is_empty());

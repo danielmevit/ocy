@@ -110,7 +110,10 @@ fn gallery_renders_pass_pixel_checks() {
         Ok(shots) => shots,
         Err(e) => panic!("render failed: {e}"),
     };
-    assert_eq!(shots.len(), 2 * (5 + support::V2_STATES.len()));
+    assert_eq!(
+        shots.len(),
+        2 * (5 + support::V2_STATES.len() + support::MODE_STATES.len())
+    );
 
     // PNG round-trip, then every image is non-blank.
     let dir = std::env::temp_dir().join(format!("ocy-ui-test-{}", std::process::id()));

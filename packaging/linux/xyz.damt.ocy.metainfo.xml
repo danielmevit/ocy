@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Draft metainfo for the Flatpak manifest — NOT INSTALLED YET (task L0).
+     Flathub requires AppStream metainfo with releases and screenshots:
+     https://docs.flathub.org/for-app-authors/metainfo-guidelines/
+     Release tags are placeholders until the Linux line ships (owner decides the
+     version line for Linux; the Rust line is 0.2.x per docs/rust/PLAN.md §1.3). -->
+<component type="desktop-application">
+  <id>xyz.damt.ocy</id>
+  <name>Ocy</name>
+  <summary>Calm break reminders for your eyes</summary>
+  <description>
+    <p>Ocy gives short eye exercises often and a real long break every hour.
+    It counts active screen time, stays out of the way, and never steals focus.</p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <!-- The app itself is AGPL-3.0 (see rust/crates LICENSES.md); confirm the
+       project license value with the owner before submission. -->
+  <project_license>AGPL-3.0-only</project_license>
+  <launchable type="desktop-id">xyz.damt.ocy.desktop</launchable>
+  <url type="homepage">https://ocy.app</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.2.0" date="2026-01-01">
+      <description><p>First Linux release (placeholder entry).</p></description>
+    </release>
+  </releases>
+  <screenshots>
+    <!-- Real screenshots are added in L5; Flathub requires at least one. -->
+  </screenshots>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+</component>

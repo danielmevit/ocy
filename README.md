@@ -46,7 +46,10 @@ the tray. It is one 12 MB file that uses about 3.7 MB of memory while it waits.
   working on. The other monitors get a soft coloured frame, so the reminder never pops up on a screen you can't see.
 - **It waits for a natural moment.** When a break is due, Ocy waits up to a minute for a short pause in your typing
   or mouse use, so it never interrupts mid-sentence. Breaks never steal focus or add a taskbar button.
-- **It knows when to stay quiet.** Fullscreen apps, games and presentations put breaks on hold until you are done.
+- **It knows when to stay quiet.** Presentations and fullscreen videos put breaks on hold until you are done. In
+  games, a break comes as a small card in a calm moment, never mid-fight, and **Not during this game** keeps any game
+  silent.
+- **A glass of water, now and then.** Some long breaks suggest a few calm sips. No tracking, and you can turn it off.
 - **Time away counts as rest.** Step away from the keyboard, lock the PC or put it to sleep, and Ocy counts it as a
   break. You won't come back to a "time for a break!" message.
 - **Hand-drawn exercises, gently animated.** Twelve original exercises drawn in a few frames each, like a flip book.
@@ -143,8 +146,10 @@ looking at the screen.
 - The clock counts **active screen time**, not wall-clock time. Idle time, a locked screen and sleep don't count
   towards your next break.
 - An absence at least as long as a break **counts as that break**. A long absence counts as a long break.
-- With **Pause in fullscreen** on (the default), breaks that fall due during a fullscreen app or presentation wait
-  until you leave it.
+- With **Pause in fullscreen** on (the default), breaks that fall due during a presentation or a fullscreen video
+  wait until you leave it.
+- **Games** get gentle breaks by default: the small card, never the dimmed screen, only after a few seconds without
+  keyboard, mouse or controller input. Choose **Hold breaks in games** in Settings to hold them instead.
 - When a break is due, Ocy waits up to 60 s for a **natural moment**: a short pause in your typing or mouse use.
 - From the tray you can **pause** for 1 hour, for 3 hours or until you resume, **take a short break now** or
   **take a long break now**. The pause menu shows your choice and the time left, for example
@@ -178,8 +183,9 @@ about six times a minute. The whole app is one 12 MB file.
 
 **Can I use a screen reader?** Yes. Ocy supports Windows UI Automation, so Narrator can read it.
 
-**Will it interrupt my game, video call or presentation?** Fullscreen apps and presentations hold breaks until you
-are done. Detecting calls in windowed apps is on the roadmap.
+**Will it interrupt my game, video call or presentation?** Presentations and fullscreen videos hold breaks until you
+are done. In games, breaks come as a small card in a calm moment, never mid-fight, and **Not during this game** keeps
+any game silent. Detecting calls in windowed apps is on the roadmap.
 
 **Can I make it stricter or gentler?** Yes. Change how often breaks come and how long they last, or turn off
 postponing and skipping with strict mode.

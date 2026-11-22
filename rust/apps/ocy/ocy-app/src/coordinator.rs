@@ -4,14 +4,20 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use damt_overlay::{Dims, EdgeFrames, enumerate_monitors};
+#[cfg(not(target_os = "linux"))]
+use damt_overlay::enumerate_monitors;
+use damt_overlay::{Dims, EdgeFrames};
 use damt_platform::{Clock, PlatformServices, SystemClock};
-use ocy_core::engine::{BreakInfo, BreakKind, EngineEvent, EnginePhase, EngineSnapshot};
+use ocy_core::engine::{
+    BreakInfo, BreakKind, BreakSurface, EngineEvent, EnginePhase, EngineSnapshot,
+};
 use ocy_core::settings::OcySettings;
 use ocy_core::statistics::StatisticsData;
 
-use crate::break_logic::AppThemeTracker;
+use crate::break_logic::{AppThemeTracker, short_break_dims};
 use crate::layout::non_active_monitors;
+#[cfg(feature = "store")]
+use crate::license::LicenseState;
 use crate::tokens::{
     EDGE_FRAME_THICKNESS_DIP, attention_frame_color, edge_frame_color, overlay_dim_color,
 };
@@ -47,6 +53,10 @@ pub trait SettingsWindow {
 
     /// Synchronizes live engine snapshot and break statistics for status/timeline display.
     fn sync_live_status(&mut self, _snapshot: &EngineSnapshot, _stats: &StatisticsData) {}
+
+    /// Synchronizes Microsoft Store license status (`license-state` and `trial-days-left`).
+    #[cfg(feature = "store")]
+    fn sync_license(&mut self, _state: LicenseState, _trial_days_left: i32) {}
 
     /// Opens or focuses the Settings window.
     fn show(&mut self);
@@ -111,6 +121,8 @@ pub struct OverlayBreakWindows<W: BreakWindows> {
     edge_frames: Option<EdgeFrames>,
     edge_frame_kind: Option<EdgeFrameKind>,
     dims: Option<Dims>,
+    #[cfg(target_os = "linux")]
+    linux_overlays: crate::linux_window::LinuxOverlays,
     theme_tracker: AppThemeTracker,
     short_break_fullscreen: bool,
 }
@@ -148,6 +160,8 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
             edge_frames: None,
             edge_frame_kind: None,
             dims: None,
+            #[cfg(target_os = "linux")]
+            linux_overlays: crate::linux_window::LinuxOverlays::new(),
             theme_tracker,
             short_break_fullscreen: false,
         }
@@ -169,52 +183,88 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
     pub fn live_overlay_count(&self) -> usize {
         let edge_frames = self.edge_frames.as_ref().map_or(0, EdgeFrames::len);
         let dims = self.dims.as_ref().map_or(0, Dims::len);
-        edge_frames + dims
+        #[cfg(target_os = "linux")]
+        let linux = self.linux_overlays.len();
+        #[cfg(not(target_os = "linux"))]
+        let linux = 0;
+        edge_frames + dims + linux
     }
 
     fn close_overlays(&mut self) {
         self.edge_frames = None;
         self.edge_frame_kind = None;
         self.dims = None;
+        #[cfg(target_os = "linux")]
+        self.linux_overlays.close();
     }
 
     fn refresh_theme(&mut self) {
-        if self.theme_tracker.refresh(self.platform.app_theme(), false)
-            && let (Some(frames), Some(kind)) = (&mut self.edge_frames, self.edge_frame_kind)
-        {
+        if self.theme_tracker.refresh(self.platform.app_theme(), false) {
             let dark = self.theme_tracker.is_dark();
-            let color = match kind {
-                EdgeFrameKind::ShortBreak => edge_frame_color(dark),
-                EdgeFrameKind::Warning => attention_frame_color(dark),
-            };
-            frames.set_color(color);
+            if let (Some(frames), Some(kind)) = (&mut self.edge_frames, self.edge_frame_kind) {
+                let color = match kind {
+                    EdgeFrameKind::ShortBreak => edge_frame_color(dark),
+                    EdgeFrameKind::Warning => attention_frame_color(dark),
+                };
+                frames.set_color(color);
+            }
+            #[cfg(target_os = "linux")]
+            if let Some(kind) = self.edge_frame_kind {
+                let color = match kind {
+                    EdgeFrameKind::ShortBreak => edge_frame_color(dark),
+                    EdgeFrameKind::Warning => attention_frame_color(dark),
+                };
+                self.linux_overlays.set_edge_frame_color(color);
+            }
         }
     }
 
     fn show_edge_frames(&mut self, color: damt_overlay::Rgba, kind: EdgeFrameKind) {
+        #[cfg(not(target_os = "linux"))]
         let monitors = enumerate_monitors();
+        #[cfg(target_os = "linux")]
+        let monitors = crate::linux_window::enumerate_monitors();
         if monitors.is_empty() {
             return;
         }
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         let other_monitors = non_active_monitors(&monitors, active_bounds);
         if !other_monitors.is_empty() {
-            self.edge_frames = Some(EdgeFrames::show(
-                &other_monitors,
-                color,
-                EDGE_FRAME_THICKNESS_DIP,
-            ));
+            #[cfg(not(target_os = "linux"))]
+            {
+                self.edge_frames = Some(EdgeFrames::show(
+                    &other_monitors,
+                    color,
+                    EDGE_FRAME_THICKNESS_DIP,
+                ));
+            }
+            #[cfg(target_os = "linux")]
+            {
+                self.linux_overlays.show_edge_frames(
+                    &other_monitors,
+                    color,
+                    EDGE_FRAME_THICKNESS_DIP,
+                );
+            }
             self.edge_frame_kind = Some(kind);
         }
     }
 
     fn show_dims_all_monitors(&mut self) {
-        let monitors = enumerate_monitors();
-        if !monitors.is_empty() {
-            self.dims = Some(Dims::show(
-                &monitors,
-                overlay_dim_color(self.theme_tracker.is_dark()),
-            ));
+        #[cfg(not(target_os = "linux"))]
+        {
+            let monitors = enumerate_monitors();
+            if !monitors.is_empty() {
+                self.dims = Some(Dims::show(
+                    &monitors,
+                    overlay_dim_color(self.theme_tracker.is_dark()),
+                ));
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            self.linux_overlays
+                .show_dims(overlay_dim_color(self.theme_tracker.is_dark()));
         }
     }
 }
@@ -233,7 +283,8 @@ impl<W: BreakWindows> BreakWindows for OverlayBreakWindows<W> {
     fn show_short_break(&mut self, info: &BreakInfo) {
         self.close_all();
         self.refresh_theme();
-        if self.short_break_fullscreen {
+        // Gentle game cards stay small even when short breaks are set to dim the screen.
+        if short_break_dims(self.short_break_fullscreen, info.surface) {
             self.show_dims_all_monitors();
         } else {
             self.show_edge_frames(
@@ -294,6 +345,10 @@ impl<W: BreakWindows, S: SettingsWindow> BreakUiCoordinator<W, S> {
             match event {
                 EngineEvent::BreakStarted(info) => match info.kind {
                     BreakKind::Short => self.break_windows.show_short_break(info),
+                    // A gentle long break is the small card, not the dimmed full-screen break.
+                    BreakKind::Long if info.surface == BreakSurface::GentleCard => {
+                        self.break_windows.show_short_break(info);
+                    }
                     BreakKind::Long => self.break_windows.show_long_break(info),
                 },
                 EngineEvent::LongBreakWarningStarted(countdown) => {
@@ -305,8 +360,13 @@ impl<W: BreakWindows, S: SettingsWindow> BreakUiCoordinator<W, S> {
                 EngineEvent::PhaseChanged(snapshot) => {
                     if matches!(
                         snapshot.phase,
-                        EnginePhase::Working | EnginePhase::Paused | EnginePhase::Away
+                        EnginePhase::Working
+                            | EnginePhase::Paused
+                            | EnginePhase::Away
+                            | EnginePhase::Deferred
                     ) {
+                        // Deferred includes a game hold that began during the warning.
+                        // Nothing should stay on screen.
                         self.break_windows.close_all();
                     }
                 }
@@ -347,6 +407,12 @@ impl<W: BreakWindows, S: SettingsWindow> BreakUiCoordinator<W, S> {
     /// Opens or focuses the Settings window.
     pub fn show_settings(&mut self) {
         self.settings_window.show();
+    }
+
+    /// Synchronizes Microsoft Store license status to the Settings window.
+    #[cfg(feature = "store")]
+    pub fn sync_license(&mut self, state: LicenseState, trial_days_left: i32) {
+        self.settings_window.sync_license(state, trial_days_left);
     }
 
     /// Closes all break and warning windows/overlays.

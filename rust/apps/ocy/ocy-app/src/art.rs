@@ -26,6 +26,22 @@ macro_rules! svg_entry {
     };
 }
 
+/// Placeholder art mapping: exercises listed here render with another exercise's illustration
+/// until their own art arrives. `water` reuses the stand-walk illustration.
+///
+/// This mapping lives here instead of the illustration manifest because the shared
+/// `damt-art` manifest test requires an on-disk `water-*.svg` per manifest entry.
+const PLACEHOLDER_ART: &[(&str, &str)] = &[("water", "stand-walk")];
+
+/// Resolves an exercise id to the id whose manifest entry and SVG frames provide its art.
+#[must_use]
+fn art_id(exercise_id: &str) -> &str {
+    PLACEHOLDER_ART
+        .iter()
+        .find(|(id, _)| *id == exercise_id)
+        .map_or(exercise_id, |(_, source)| *source)
+}
+
 const EMBEDDED_SVGS: &[(&str, &[u8])] = &[
     svg_entry!("blink-light-f1.svg"),
     svg_entry!("blink-dark-f1.svg"),
@@ -314,10 +330,11 @@ impl OcyArt {
         }
     }
 
-    /// Returns the manifest entry for `exercise_id`, if present.
+    /// Returns the manifest entry for `exercise_id`, if present (placeholder art resolves
+    /// through [`art_id`]).
     #[must_use]
     pub fn exercise_info(&self, exercise_id: &str) -> Option<&damt_art::ExerciseInfo> {
-        self.manifest.get(exercise_id)
+        self.manifest.get(art_id(exercise_id))
     }
 
     /// Builds a [`FrameSequencer`] for `exercise_id`, freezing to `frozen` when `reduced_motion` is true.
@@ -326,7 +343,7 @@ impl OcyArt {
         exercise_id: &str,
         reduced_motion: bool,
     ) -> Option<(FrameSequencer, u32)> {
-        let info = self.manifest.get(exercise_id)?;
+        let info = self.manifest.get(art_id(exercise_id))?;
         let step = Duration::from_millis(u64::from(info.step_ms));
         let mut seq = FrameSequencer::new(&info.sequence, step).ok()?;
         if reduced_motion {
@@ -375,7 +392,7 @@ impl OcyArt {
         frame: u32,
         size_px: u32,
     ) -> Option<Result<Image, ArtError>> {
-        let raster = self.get_cached_raster(exercise_id, theme, frame, size_px)?;
+        let raster = self.get_cached_raster(art_id(exercise_id), theme, frame, size_px)?;
         Some(raster.map(|img| {
             let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(
                 &img.pixels,
@@ -394,7 +411,7 @@ impl OcyArt {
         logical_px: f64,
         scale: f64,
     ) -> Option<Result<Image, ArtError>> {
-        let info = self.manifest.get(exercise_id)?;
+        let info = self.manifest.get(art_id(exercise_id))?;
         let size_px = scaled_art_px(logical_px, scale);
         self.render_frame(exercise_id, theme, info.frozen, size_px)
     }
@@ -423,14 +440,14 @@ impl OcyArt {
             if !has_window_nearby && exercise.requires_window {
                 continue;
             }
-            let Some(info) = self.manifest.get(exercise.id) else {
+            let Some(info) = self.manifest.get(art_id(exercise.id)) else {
                 continue;
             };
             if reduced_motion {
-                let _ = self.get_cached_raster(exercise.id, theme, info.frozen, size_px);
+                let _ = self.get_cached_raster(art_id(exercise.id), theme, info.frozen, size_px);
             } else {
                 for frame in 1..=info.frames {
-                    let _ = self.get_cached_raster(exercise.id, theme, frame, size_px);
+                    let _ = self.get_cached_raster(art_id(exercise.id), theme, frame, size_px);
                 }
             }
         }
@@ -451,12 +468,13 @@ impl OcyArt {
     ) {
         let size_px = scaled_art_px(logical_px, scale);
         for exercise in ocy_core::exercises::ExerciseCatalogue::ALL {
-            if let Some(info) = self.manifest.get(exercise.id) {
+            if let Some(info) = self.manifest.get(art_id(exercise.id)) {
                 if reduced_motion {
-                    let _ = self.get_cached_raster(exercise.id, theme, info.frozen, size_px);
+                    let _ =
+                        self.get_cached_raster(art_id(exercise.id), theme, info.frozen, size_px);
                 } else {
                     for frame in 1..=info.frames {
-                        let _ = self.get_cached_raster(exercise.id, theme, frame, size_px);
+                        let _ = self.get_cached_raster(art_id(exercise.id), theme, frame, size_px);
                     }
                 }
             }

@@ -34,6 +34,32 @@ pub trait IdleProvider {
     fn idle_time(&self) -> Duration;
 }
 
+/// Time since the user's last game controller (gamepad) input.
+///
+/// Added for the game calm-moment rule. The contract is poll-based, like [`IdleProvider`]:
+/// the implementation samples the OS on each [`ControllerIdleProvider::idle_time`] call and
+/// compares against its previous sample, so the engine drives the polling rate (its tick
+/// cadence) and an idle desktop pays nothing. Only the *fact* of input is reported —
+/// implementations must not expose which buttons were pressed, and must not store or log
+/// input. No keyboard or mouse hooks: those stay on [`IdleProvider`].
+pub trait ControllerIdleProvider {
+    /// False when this platform cannot see controller input (the engine then ignores
+    /// controllers when deciding calm moments).
+    fn is_supported(&self) -> bool {
+        false
+    }
+
+    /// Time since the last significant controller input seen between polls; zero when
+    /// unsupported. Significant input is a change of buttons or triggers beyond the
+    /// platform's standard thresholds, or a thumbstick outside its standard dead zone.
+    /// A very large duration means "no controller input is possible" (for example no
+    /// controller has ever been seen connected); zero on the first poll of a newly
+    /// connected controller, until one poll interval has proven it quiet.
+    fn idle_time(&self) -> std::time::Duration {
+        std::time::Duration::ZERO
+    }
+}
+
 /// What the user is doing on screen, as far as breaks are concerned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum FocusState {
@@ -44,6 +70,79 @@ pub enum FocusState {
     Presentation,
     QuietTime,
     NotPresent,
+}
+
+/// `QUNS_BUSY` from `SHQueryUserNotificationState` (full-screen app, including many videos).
+pub const QUNS_BUSY: i32 = 2;
+/// `QUNS_RUNNING_D3D_FULL_SCREEN` (exclusive Direct3D full screen).
+pub const QUNS_RUNNING_D3D_FULL_SCREEN: i32 = 3;
+/// `QUNS_PRESENTATION_MODE`.
+pub const QUNS_PRESENTATION_MODE: i32 = 4;
+/// `QUNS_APP` (full-screen Store app).
+pub const QUNS_APP: i32 = 7;
+
+/// One read of the foreground full-screen app. Unsupported platforms return [`ForegroundObservation::unknown`].
+///
+/// Added for game detection. Existing focus/idle contracts are unchanged; this trait has defaults so
+/// older `PlatformServices` impls keep compiling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForegroundObservation {
+    /// Raw `SHQueryUserNotificationState` value, or `None` when the query failed or this platform
+    /// cannot make it. See the `QUNS_*` constants.
+    pub notification_state: Option<i32>,
+    /// File name of the foreground process image (`"Game.exe"`), when it could be read.
+    pub exe_name: Option<String>,
+    /// Full path of the foreground process image, when it could be read.
+    pub exe_path: Option<String>,
+    /// Process id of the foreground window, when known.
+    pub process_id: Option<u32>,
+}
+
+impl Default for ForegroundObservation {
+    fn default() -> Self {
+        Self::unknown()
+    }
+}
+
+impl ForegroundObservation {
+    /// Nothing known: not a game, not an exclusive full-screen app.
+    #[must_use]
+    pub const fn unknown() -> Self {
+        Self {
+            notification_state: None,
+            exe_name: None,
+            exe_path: None,
+            process_id: None,
+        }
+    }
+}
+
+/// Reads the foreground app and the Windows Game Bar game list. Read-only: implementations must
+/// not write the registry or any store they do not own.
+pub trait ForegroundProbe {
+    /// False when this platform cannot classify the foreground app.
+    fn is_supported(&self) -> bool {
+        false
+    }
+
+    /// Current foreground observation. [`ForegroundObservation::unknown`] when unsupported or on error.
+    fn observe(&self) -> ForegroundObservation {
+        ForegroundObservation::unknown()
+    }
+
+    /// Full paths from the Game Bar game store (`MatchedExeFullPath` and similar). Empty when
+    /// unsupported or unreadable. Never writes.
+    fn game_bar_exe_paths(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Whether `process_id` has not exited.
+    ///
+    /// False when the id is unknown or the process is gone. An implementation that cannot tell
+    /// (access denied on a live elevated process) should return true so a hold is not ended early.
+    fn process_alive(&self, _process_id: u32) -> bool {
+        false
+    }
 }
 
 pub trait FocusStateProvider {
@@ -129,6 +228,14 @@ pub trait PlatformServices {
     fn focus(&self) -> &dyn FocusStateProvider {
         &Unsupported
     }
+    /// Foreground game probe. The default is unsupported (no game detection).
+    fn foreground(&self) -> &dyn ForegroundProbe {
+        &Unsupported
+    }
+    /// Game controller input. The default is unsupported (no controller detection).
+    fn controller(&self) -> &dyn ControllerIdleProvider {
+        &Unsupported
+    }
     fn autostart(&self) -> &dyn AutostartService {
         &Unsupported
     }
@@ -169,6 +276,8 @@ impl FocusStateProvider for Unsupported {
         FocusState::Unknown
     }
 }
+impl ForegroundProbe for Unsupported {}
+impl ControllerIdleProvider for Unsupported {}
 impl AutostartService for Unsupported {
     fn is_supported(&self) -> bool {
         false

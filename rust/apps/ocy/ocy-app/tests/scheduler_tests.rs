@@ -116,7 +116,30 @@ fn snapshot(
         postpones_left: 3,
         strict_mode: false,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     }
+}
+
+#[test]
+fn working_game_hold_polls_every_five_seconds_unless_a_natural_moment_is_waiting() {
+    let mut snap = snapshot(
+        EnginePhase::Working,
+        Some(Duration::from_secs(600)),
+        Some(Duration::from_secs(3600)),
+        Some(Duration::from_secs(3540)),
+    );
+    snap.poll_external = true;
+    assert_eq!(
+        scheduler::next_wake_delay(&snap, ts(0)),
+        IDLE_PHASE_WAKE_INTERVAL
+    );
+
+    snap.natural_hold = Some(NaturalHoldKind::ShortBreak);
+    assert_eq!(
+        scheduler::next_wake_delay(&snap, ts(0)),
+        ACTIVE_WAKE_INTERVAL
+    );
 }
 
 #[test]
@@ -314,6 +337,8 @@ fn visible_windows_and_holds_tick_every_second() {
         postpones_left: 3,
         strict_mode: false,
         natural_hold: Some(NaturalHoldKind::ShortBreak),
+        poll_external: false,
+        game_in_front: false,
     };
     assert_eq!(
         scheduler::next_wake_delay(&snap, ts(0)),

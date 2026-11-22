@@ -9,10 +9,11 @@ use jiff::civil::Date;
 use jiff::{SignedDuration, Timestamp};
 use serde::{Deserialize, Serialize};
 
-use crate::exercises::{DefaultExercisePicker, ExercisePicker};
+use crate::exercises::{DefaultExercisePicker, ExerciseCatalogue, ExercisePicker};
+use crate::games::{self, FullscreenClass, GameDecision, MIN_PLAY_FOR_PROMPT, PromptPull};
 use crate::persistence::{AppDataStore, PersistenceError};
 use crate::schedule::ScheduleCalculator;
-use crate::settings::OcySettings;
+use crate::settings::{OcySettings, exe_names_equal};
 use crate::statistics::StatisticsData;
 use crate::time::{DateTimeOffset, Paused};
 
@@ -24,6 +25,13 @@ pub const NATURAL_LULL: Duration = Duration::from_secs(2);
 
 /// Maximum time a scheduled start is held while waiting for a natural moment.
 pub const NATURAL_MAX_HOLD: Duration = Duration::from_secs(60);
+
+/// Quiet time from the keyboard, the mouse, and the game controller required before a
+/// gentle game card starts. In a game a calm moment is always required (whatever
+/// `natural_moments` says) and there is no [`NATURAL_MAX_HOLD`] cap: a fight can last
+/// longer than any cap. Loading screens, menus, respawns and cut-scenes are the moments
+/// this catches.
+pub const GAME_CALM_LULL: Duration = Duration::from_secs(3);
 
 /// Kind of break.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,6 +51,21 @@ pub enum BreakOutcome {
     Skipped,
     /// Break was interrupted (e.g. by pausing).
     Interrupted,
+    /// A gentle long-break card ran out. It is not a completed or skipped long break.
+    Passed,
+    /// A held start was dropped in a game because no calm moment came before the next
+    /// break of its kind was due. Not a user skip and not a postpone.
+    MissedInGame,
+}
+
+/// How a break is shown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum BreakSurface {
+    /// The usual break: a short card, or a dimmed long break, per settings.
+    #[default]
+    Standard,
+    /// Small card during a game. Never full-screen dimming and never takes focus.
+    GentleCard,
 }
 
 /// Current phase of [`BreakEngine`].
@@ -75,6 +98,8 @@ pub struct BreakInfo {
     pub total_duration: Duration,
     /// Optional suggestion list (e.g. body + eyes for a long break).
     pub suggestion_exercise_ids: Option<Vec<String>>,
+    /// Whether this break is the usual surface or a gentle game card.
+    pub surface: BreakSurface,
 }
 
 /// Live state of an in-progress break.
@@ -90,6 +115,8 @@ pub struct CurrentBreakInfo {
     pub remaining_duration: Duration,
     /// Optional suggestion list (e.g. body + eyes for a long break).
     pub suggestion_exercise_ids: Option<Vec<String>>,
+    /// Whether this break is the usual surface or a gentle game card.
+    pub surface: BreakSurface,
 }
 
 impl CurrentBreakInfo {
@@ -99,6 +126,7 @@ impl CurrentBreakInfo {
             exercise_id: self.exercise_id.clone(),
             total_duration: self.total_duration,
             suggestion_exercise_ids: self.suggestion_exercise_ids.clone(),
+            surface: self.surface,
         }
     }
 }
@@ -180,6 +208,15 @@ pub struct EngineSnapshot {
     pub strict_mode: bool,
     /// Kind of scheduled start currently held for a natural moment, if any.
     pub natural_hold: Option<NaturalHoldKind>,
+    /// While working, a game hold is active and the host should poll for the game ending.
+    ///
+    /// The scheduler uses the 5 s idle cadence for this. Together with a natural moment
+    /// (at most 60 s) a post-game break arrives within about a minute of leaving the game.
+    pub poll_external: bool,
+    /// A game that is not on the silent list is in front and no hold-until-close is active.
+    ///
+    /// The tray offers "Hold breaks until I close this game" only while this is true.
+    pub game_in_front: bool,
 }
 
 /// Events emitted by [`BreakEngine`] methods in exact C# event order.
@@ -221,8 +258,22 @@ pub struct BreakEngine {
     previous_short_exercise_id: Option<&'static str>,
     previous_body_exercise_id: Option<&'static str>,
     previous_eyes_exercise_id: Option<&'static str>,
+    water_in_previous_long_break: bool,
     active_seconds_accumulator: f64,
     pending_startup_gap: Option<Duration>,
+    /// Game process the user asked to hold until it exits. Not persisted.
+    hold_until_pid: Option<u32>,
+    /// Start of the current game-suppression streak. Not persisted.
+    suppression_started: Option<Timestamp>,
+    /// Last decision: defer the next due break.
+    break_held: bool,
+    /// Last decision: the foreground app is a gentle game.
+    gentle_game: bool,
+    /// Last decision: a game hold (not an ordinary video or presentation) is active.
+    suppressed_play: bool,
+    /// Last decision: a non-silent game with a known process id is in front, no hold active.
+    game_in_front: bool,
+    reminders_suspended: bool,
 }
 
 impl fmt::Debug for BreakEngine {
@@ -290,8 +341,16 @@ impl BreakEngine {
             previous_short_exercise_id: None,
             previous_body_exercise_id: None,
             previous_eyes_exercise_id: None,
+            water_in_previous_long_break: false,
             active_seconds_accumulator: 0.0,
             pending_startup_gap: None,
+            hold_until_pid: None,
+            suppression_started: None,
+            break_held: false,
+            gentle_game: false,
+            suppressed_play: false,
+            game_in_front: false,
+            reminders_suspended: false,
         };
 
         engine.initialize_state(state_to_load);
@@ -362,17 +421,85 @@ impl BreakEngine {
         self.current_break.as_ref()
     }
 
+    /// Returns `true` when reminders are suspended (for example after a Store trial expires).
+    #[must_use]
+    pub const fn reminders_suspended(&self) -> bool {
+        self.reminders_suspended
+    }
+
+    /// Suspends or resumes break reminders (used by Store builds when a trial expires or is bought).
+    ///
+    /// When `suspended` becomes `true`, any active break or warning is stopped immediately and
+    /// subsequent ticks produce no breaks until `set_reminders_suspended(false)` is called.
+    pub fn set_reminders_suspended(&mut self, suspended: bool) -> Vec<EngineEvent> {
+        if self.reminders_suspended == suspended {
+            return Vec::new();
+        }
+        self.reminders_suspended = suspended;
+        self.natural_hold = None;
+        // A game streak must not survive a suspension and arm a post-game prompt on resume.
+        self.abandon_suppression();
+
+        let mut events = Vec::new();
+        if suspended {
+            self.warning_countdown_remaining = Duration::ZERO;
+            if self.phase == EnginePhase::ShortBreak || self.phase == EnginePhase::LongBreak {
+                let fallback_kind = if self.phase == EnginePhase::ShortBreak {
+                    BreakKind::Short
+                } else {
+                    BreakKind::Long
+                };
+                let break_info = self.current_break.as_ref().map_or_else(
+                    || Self::fallback_break_info(fallback_kind, Duration::ZERO),
+                    CurrentBreakInfo::to_break_info,
+                );
+                self.current_break = None;
+                events.push(EngineEvent::BreakEnded(
+                    break_info,
+                    BreakOutcome::Interrupted,
+                ));
+            } else {
+                self.current_break = None;
+            }
+
+            if self.phase != EnginePhase::Paused {
+                let target = if self.is_session_away || self.is_focus_away {
+                    EnginePhase::Away
+                } else {
+                    EnginePhase::Working
+                };
+                if self.phase != target {
+                    self.transition_to(target, &mut events);
+                } else {
+                    events.push(EngineEvent::PhaseChanged(self.snapshot()));
+                }
+            } else {
+                events.push(EngineEvent::PhaseChanged(self.snapshot()));
+            }
+        } else {
+            self.last_tick_utc = Some(DateTimeOffset::from_utc(self.clock.now().timestamp()));
+            events.push(EngineEvent::PhaseChanged(self.snapshot()));
+        }
+        events
+    }
+
     /// Returns a point-in-time snapshot of the engine state.
     #[must_use]
     pub fn snapshot(&self) -> EngineSnapshot {
-        let time_until_short =
-            ScheduleCalculator::time_until_short_break(&self.settings, self.since_short_break);
-        let time_until_long =
-            ScheduleCalculator::time_until_long_break(&self.settings, self.since_long_break);
-        let time_until_long_warning = ScheduleCalculator::time_until_long_break_warning(
-            &self.settings,
-            self.since_long_break,
-        );
+        let (time_until_short, time_until_long, time_until_long_warning) = if self
+            .reminders_suspended
+        {
+            (None, None, None)
+        } else {
+            (
+                ScheduleCalculator::time_until_short_break(&self.settings, self.since_short_break),
+                ScheduleCalculator::time_until_long_break(&self.settings, self.since_long_break),
+                ScheduleCalculator::time_until_long_break_warning(
+                    &self.settings,
+                    self.since_long_break,
+                ),
+            )
+        };
         let max_postpones =
             u32::try_from(self.settings.long_breaks.max_postpones.max(0)).unwrap_or(0);
         let postpones_left = max_postpones.saturating_sub(self.postpones_used);
@@ -386,7 +513,15 @@ impl BreakEngine {
             paused_until_utc: self.paused_until,
             postpones_left,
             strict_mode: self.settings.strict_mode,
-            natural_hold: self.natural_hold.map(|hold| hold.kind),
+            natural_hold: if self.reminders_suspended {
+                None
+            } else {
+                self.natural_hold.map(|hold| hold.kind)
+            },
+            poll_external: !self.reminders_suspended
+                && self.phase == EnginePhase::Working
+                && self.suppressed_play,
+            game_in_front: !self.reminders_suspended && self.game_in_front,
         }
     }
 
@@ -424,8 +559,15 @@ impl BreakEngine {
         let now_utc = DateTimeOffset::from_utc(now_ts);
         let local_date = now_zoned.date();
 
+        if self.reminders_suspended {
+            self.pending_startup_gap = None;
+            self.last_tick_utc = Some(now_utc);
+            return events;
+        }
+
         // Rule 6: An active pause survives restarts, sleep gaps, and session events.
         if self.phase == EnginePhase::Paused {
+            self.abandon_suppression();
             self.pending_startup_gap = None;
             self.last_tick_utc = Some(now_utc);
             if let Some(paused) = self.paused_until
@@ -437,6 +579,7 @@ impl BreakEngine {
         }
 
         if let Some(gap) = self.pending_startup_gap.take() {
+            self.abandon_suppression();
             self.last_tick_utc = Some(now_utc);
             self.apply_return_span(gap, now_ts, local_date, &mut events);
             return events;
@@ -459,6 +602,7 @@ impl BreakEngine {
 
         // Rule 1: Gap = sleep. If dt > 15s, treat whole dt as away span and do not add to counters.
         if dt > SLEEP_GAP_THRESHOLD {
+            self.abandon_suppression();
             if self.phase == EnginePhase::ShortBreak || self.phase == EnginePhase::LongBreak {
                 let focus_in_break = self.current_focus_state();
                 if focus_in_break == FocusState::NotPresent {
@@ -541,14 +685,26 @@ impl BreakEngine {
             }
         }
 
+        // Game policy, then the post-game prompt, before any due check so a prompted
+        // break can start on this same tick. Ordinary video fullscreen does not arm it.
+        self.sync_game_policy(now_ts, dt);
+
         // LongBreakWarning
         if self.phase == EnginePhase::LongBreakWarning {
             if dt >= self.warning_countdown_remaining {
                 self.warning_countdown_remaining = Duration::ZERO;
-                if self.hold_scheduled_start(NaturalHoldKind::LongBreak, now_ts) {
+                // A game hold that starts during the warning must not dim the game.
+                // A video or presentation already in the warning still starts the long break.
+                if self.suppressed_play {
+                    self.natural_hold = None;
+                    self.transition_to(EnginePhase::Deferred, &mut events);
                     return events;
                 }
-                self.start_long_break(&mut events);
+                if self.hold_scheduled_start(NaturalHoldKind::LongBreak, now_ts, &mut events) {
+                    return events;
+                }
+                let surface = self.break_surface();
+                self.start_long_break(&mut events, surface);
             } else {
                 self.warning_countdown_remaining -= dt;
             }
@@ -557,18 +713,21 @@ impl BreakEngine {
 
         // Deferred
         if self.phase == EnginePhase::Deferred {
-            let is_fullscreen_now = self.is_fullscreen_focus(focus);
-            if !is_fullscreen_now {
+            if !self.break_held {
                 if self.settings.long_breaks.warning_seconds > 0 {
-                    if self.hold_scheduled_start(NaturalHoldKind::LongBreakWarning, now_ts) {
+                    if self.hold_scheduled_start(
+                        NaturalHoldKind::LongBreakWarning,
+                        now_ts,
+                        &mut events,
+                    ) {
                         return events;
                     }
                     self.start_long_break_warning(&mut events);
                 } else {
-                    if self.hold_scheduled_start(NaturalHoldKind::LongBreak, now_ts) {
+                    if self.hold_scheduled_start(NaturalHoldKind::LongBreak, now_ts, &mut events) {
                         return events;
                     }
-                    self.start_long_break(&mut events);
+                    self.start_long_break(&mut events, BreakSurface::Standard);
                 }
             }
             return events;
@@ -584,8 +743,6 @@ impl BreakEngine {
                 self.stats.get_or_create(local_date).active_minutes += 1;
             }
 
-            let is_fullscreen = self.is_fullscreen_focus(focus);
-
             // Check long break warning due
             if self.settings.long_breaks.enabled {
                 let warning_at = self
@@ -594,13 +751,17 @@ impl BreakEngine {
                     .interval()
                     .saturating_sub(self.settings.long_breaks.warning_duration());
                 if self.since_long_break >= warning_at {
-                    if is_fullscreen {
+                    if self.break_held {
                         self.transition_to(EnginePhase::Deferred, &mut events);
                         return events;
                     }
 
                     if self.settings.long_breaks.warning_seconds > 0 {
-                        if self.hold_scheduled_start(NaturalHoldKind::LongBreakWarning, now_ts) {
+                        if self.hold_scheduled_start(
+                            NaturalHoldKind::LongBreakWarning,
+                            now_ts,
+                            &mut events,
+                        ) {
                             return events;
                         }
                         self.start_long_break_warning(&mut events);
@@ -608,10 +769,14 @@ impl BreakEngine {
                     }
 
                     if self.since_long_break >= self.settings.long_breaks.interval() {
-                        if self.hold_scheduled_start(NaturalHoldKind::LongBreak, now_ts) {
+                        if self.hold_scheduled_start(
+                            NaturalHoldKind::LongBreak,
+                            now_ts,
+                            &mut events,
+                        ) {
                             return events;
                         }
-                        self.start_long_break(&mut events);
+                        self.start_long_break(&mut events, self.break_surface());
                         return events;
                     }
                 }
@@ -621,7 +786,7 @@ impl BreakEngine {
             if self.settings.short_breaks.enabled
                 && self.since_short_break >= self.settings.short_breaks.interval()
             {
-                if is_fullscreen {
+                if self.break_held {
                     self.since_short_break = Duration::ZERO;
                     return events;
                 }
@@ -634,11 +799,11 @@ impl BreakEngine {
                     return events;
                 }
 
-                if self.hold_scheduled_start(NaturalHoldKind::ShortBreak, now_ts) {
+                if self.hold_scheduled_start(NaturalHoldKind::ShortBreak, now_ts, &mut events) {
                     return events;
                 }
 
-                self.start_short_break(&mut events);
+                self.start_short_break(&mut events, self.break_surface());
             }
         }
 
@@ -646,13 +811,43 @@ impl BreakEngine {
     }
 
     /// Starts a long break immediately if in `Working`, `LongBreakWarning`, or `Deferred`.
+    ///
+    /// A gentle long-break card already on screen is interrupted (no statistics) and replaced
+    /// by the real dimmed long break. The explicit long break is always [`BreakSurface::Standard`].
     pub fn start_long_break_now(&mut self) -> (bool, Vec<EngineEvent>) {
-        if matches!(
-            self.phase,
-            EnginePhase::Working | EnginePhase::LongBreakWarning | EnginePhase::Deferred
-        ) {
+        let gentle_long = !self.reminders_suspended
+            && self.phase == EnginePhase::LongBreak
+            && self
+                .current_break
+                .as_ref()
+                .is_some_and(|info| info.surface == BreakSurface::GentleCard);
+        if gentle_long {
             let mut events = Vec::new();
-            self.start_long_break(&mut events);
+            let break_info = self.current_break.as_ref().map_or_else(
+                || {
+                    Self::fallback_break_info(
+                        BreakKind::Long,
+                        self.settings.short_breaks.duration(),
+                    )
+                },
+                CurrentBreakInfo::to_break_info,
+            );
+            self.current_break = None;
+            events.push(EngineEvent::BreakEnded(
+                break_info,
+                BreakOutcome::Interrupted,
+            ));
+            self.start_long_break(&mut events, BreakSurface::Standard);
+            return (true, events);
+        }
+        if !self.reminders_suspended
+            && matches!(
+                self.phase,
+                EnginePhase::Working | EnginePhase::LongBreakWarning | EnginePhase::Deferred
+            )
+        {
+            let mut events = Vec::new();
+            self.start_long_break(&mut events, BreakSurface::Standard);
             (true, events)
         } else {
             (false, Vec::new())
@@ -660,14 +855,94 @@ impl BreakEngine {
     }
 
     /// Starts a short break immediately ("try short break") if in `Working` or `Deferred`.
+    ///
+    /// During a gentle game the card stays small ([`BreakSurface::GentleCard`]).
     pub fn start_short_break_now(&mut self) -> (bool, Vec<EngineEvent>) {
-        if matches!(self.phase, EnginePhase::Working | EnginePhase::Deferred) {
+        if !self.reminders_suspended
+            && matches!(self.phase, EnginePhase::Working | EnginePhase::Deferred)
+        {
             let mut events = Vec::new();
-            self.start_short_break(&mut events);
+            self.refresh_game_flags();
+            self.start_short_break(&mut events, self.break_surface());
             (true, events)
         } else {
             (false, Vec::new())
         }
+    }
+
+    /// Adds the foreground game's exe to `games_silent`. Returns false when the foreground
+    /// app is not a game or its exe name could not be read.
+    ///
+    /// The caller persists settings. This does not write the registry.
+    pub fn silence_foreground_game(&mut self) -> bool {
+        let FullscreenClass::Game {
+            exe_name: Some(name),
+            ..
+        } = self.foreground_class()
+        else {
+            return false;
+        };
+        if !self
+            .settings
+            .games_silent
+            .iter()
+            .any(|existing| exe_names_equal(existing, &name))
+        {
+            self.settings.games_silent.push(name);
+            self.settings.clamp();
+        }
+        self.refresh_game_flags();
+        true
+    }
+
+    /// Holds breaks until the foreground game process exits. Returns false when the
+    /// foreground app is not a game or its process id is unknown.
+    ///
+    /// The hold is in memory only. It ends on the tick that sees the process has exited,
+    /// including when the user has alt-tabbed away before then.
+    pub fn hold_until_foreground_game_closes(&mut self) -> bool {
+        let FullscreenClass::Game {
+            process_id: Some(pid),
+            ..
+        } = self.foreground_class()
+        else {
+            return false;
+        };
+        if !self.platform.foreground().process_alive(pid) {
+            return false;
+        }
+        self.hold_until_pid = Some(pid);
+        self.refresh_game_flags();
+        true
+    }
+
+    /// Closes a gentle game card without counting it ("Not during this game").
+    ///
+    /// Ends the break with [`BreakOutcome::Interrupted`]: no statistics, not a skip, not a
+    /// postpone. Returns false unless a [`BreakSurface::GentleCard`] break is on screen.
+    pub fn dismiss_gentle_card(&mut self) -> (bool, Vec<EngineEvent>) {
+        let gentle = matches!(self.phase, EnginePhase::ShortBreak | EnginePhase::LongBreak)
+            && self
+                .current_break
+                .as_ref()
+                .is_some_and(|info| info.surface == BreakSurface::GentleCard);
+        if !gentle {
+            return (false, Vec::new());
+        }
+        let mut events = Vec::new();
+        if let Some(info) = self.current_break.take() {
+            events.push(EngineEvent::BreakEnded(
+                info.to_break_info(),
+                BreakOutcome::Interrupted,
+            ));
+        }
+        let now_ts = self.clock.now().timestamp();
+        if self.is_session_away || self.is_focus_away {
+            self.enter_away(now_ts, &mut events);
+        } else {
+            self.transition_to(EnginePhase::Working, &mut events);
+        }
+        (true, events)
     }
 
     /// Postpones the upcoming long break while in `LongBreakWarning`.
@@ -708,11 +983,11 @@ impl BreakEngine {
         match self.phase {
             EnginePhase::ShortBreak => {
                 let break_info = self.current_break.as_ref().map_or_else(
-                    || BreakInfo {
-                        kind: BreakKind::Short,
-                        exercise_id: String::new(),
-                        total_duration: self.settings.short_breaks.duration(),
-                        suggestion_exercise_ids: None,
+                    || {
+                        Self::fallback_break_info(
+                            BreakKind::Short,
+                            self.settings.short_breaks.duration(),
+                        )
                     },
                     CurrentBreakInfo::to_break_info,
                 );
@@ -735,11 +1010,11 @@ impl BreakEngine {
                 }
 
                 let break_info = self.current_break.as_ref().map_or_else(
-                    || BreakInfo {
-                        kind: BreakKind::Long,
-                        exercise_id: String::new(),
-                        total_duration: self.settings.long_breaks.duration(),
-                        suggestion_exercise_ids: None,
+                    || {
+                        Self::fallback_break_info(
+                            BreakKind::Long,
+                            self.settings.long_breaks.duration(),
+                        )
                     },
                     CurrentBreakInfo::to_break_info,
                 );
@@ -778,6 +1053,7 @@ impl BreakEngine {
 
     /// Pauses breaks for `duration`, or indefinitely when `duration` is `None`.
     pub fn pause_for(&mut self, duration: Option<Duration>) -> Vec<EngineEvent> {
+        self.abandon_suppression();
         let now_utc = DateTimeOffset::from_utc(self.clock.now().timestamp());
         self.paused_until = Some(match duration {
             Some(d) => match now_utc.checked_add(d) {
@@ -797,12 +1073,7 @@ impl BreakEngine {
                 BreakKind::Long
             };
             let break_info = self.current_break.as_ref().map_or_else(
-                || BreakInfo {
-                    kind: fallback_kind,
-                    exercise_id: String::new(),
-                    total_duration: Duration::ZERO,
-                    suggestion_exercise_ids: None,
-                },
+                || Self::fallback_break_info(fallback_kind, Duration::ZERO),
                 CurrentBreakInfo::to_break_info,
             );
             self.current_break = None;
@@ -917,25 +1188,148 @@ impl BreakEngine {
         }
     }
 
-    fn is_fullscreen_focus(&self, focus: FocusState) -> bool {
-        self.settings.pause_during_fullscreen
-            && matches!(focus, FocusState::FullscreenApp | FocusState::Presentation)
+    fn foreground_class(&self) -> FullscreenClass {
+        let focus = self.current_focus_state();
+        let probe = self.platform.foreground();
+        let observation = probe.observe();
+        let paths = probe.game_bar_exe_paths();
+        games::classify(focus, &observation, &paths)
     }
 
-    /// Decides whether a scheduled start of `kind` should be held for a natural moment.
+    fn refresh_game_flags(&mut self) -> GameDecision {
+        if let Some(pid) = self.hold_until_pid
+            && !self.platform.foreground().process_alive(pid)
+        {
+            self.hold_until_pid = None;
+        }
+        let class = self.foreground_class();
+        self.game_in_front = self.hold_until_pid.is_none()
+            && matches!(
+                &class,
+                FullscreenClass::Game {
+                    process_id: Some(_),
+                    exe_name,
+                    ..
+                } if !exe_name.as_deref().is_some_and(|name| self.settings.is_silent_game(name))
+            );
+        let decision = games::decide(&class, &self.settings, self.hold_until_pid.is_some());
+        self.break_held = decision.break_held;
+        self.gentle_game = decision.gentle_game;
+        self.suppressed_play = decision.suppressed_play;
+        decision
+    }
+
+    fn sync_game_policy(&mut self, now: Timestamp, dt: Duration) {
+        let decision = self.refresh_game_flags();
+        // Keep the controller-activity baseline fresh while a gentle game is in front,
+        // so the calm-moment check measures real quiet, not a stale first poll. This is
+        // the only place the controller is polled outside a hold, and only in games.
+        if decision.gentle_game && self.platform.controller().is_supported() {
+            let _ = self.platform.controller().idle_time();
+        }
+        self.track_suppressed_play(now, dt, decision.suppressed_play);
+    }
+
+    /// Measures a continuous game hold. The streak includes the tick that first saw it
+    /// (`now - dt`) and ends on the tick that sees it stop. Sleep, pause, and away call
+    /// [`Self::abandon_suppression`] instead, so they never prompt.
+    fn track_suppressed_play(&mut self, now: Timestamp, dt: Duration, suppressed: bool) {
+        if !matches!(
+            self.phase,
+            EnginePhase::Working | EnginePhase::Deferred | EnginePhase::LongBreakWarning
+        ) {
+            return;
+        }
+        if suppressed {
+            if self.suppression_started.is_none() {
+                self.suppression_started = Some(subtract_duration(now, dt));
+            }
+        } else if let Some(started) = self.suppression_started.take() {
+            let elapsed = Duration::try_from(now.duration_since(started)).unwrap_or(Duration::ZERO);
+            if elapsed >= MIN_PLAY_FOR_PROMPT {
+                self.arm_prompt_break();
+            }
+        }
+    }
+
+    fn abandon_suppression(&mut self) {
+        self.suppression_started = None;
+    }
+
+    fn arm_prompt_break(&mut self) {
+        match games::prompt_pull(
+            &self.settings,
+            self.since_short_break,
+            self.since_long_break,
+        ) {
+            PromptPull::None => {}
+            PromptPull::Short => {
+                let interval = self.settings.short_breaks.interval();
+                if self.since_short_break < interval {
+                    self.since_short_break = interval;
+                }
+            }
+            PromptPull::Long => {
+                let target = if self.settings.long_breaks.warning_seconds > 0 {
+                    self.settings
+                        .long_breaks
+                        .interval()
+                        .saturating_sub(self.settings.long_breaks.warning_duration())
+                } else {
+                    self.settings.long_breaks.interval()
+                };
+                if self.since_long_break < target {
+                    self.since_long_break = target;
+                }
+            }
+        }
+    }
+
+    fn break_surface(&self) -> BreakSurface {
+        if self.gentle_game {
+            BreakSurface::GentleCard
+        } else {
+            BreakSurface::Standard
+        }
+    }
+
+    fn fallback_break_info(kind: BreakKind, total_duration: Duration) -> BreakInfo {
+        BreakInfo {
+            kind,
+            exercise_id: String::new(),
+            total_duration,
+            suggestion_exercise_ids: None,
+            surface: BreakSurface::Standard,
+        }
+    }
+
+    /// Decides whether a scheduled start of `kind` should be held.
     ///
-    /// Returns `true` when the start must wait (the hold was created or extended): the
-    /// `natural_moments` setting is on, the idle provider is supported, and the user is
-    /// still active (idle < [`NATURAL_LULL`]). The start happens at the first tick with a
-    /// lull, or once [`NATURAL_MAX_HOLD`] has passed since the start became due.
+    /// Outside games (today's rule): the `natural_moments` setting is on, the idle provider
+    /// is supported, and the user is still active (idle < [`NATURAL_LULL`]). The start
+    /// happens at the first tick with a lull, or once [`NATURAL_MAX_HOLD`] has passed since
+    /// the start became due.
+    ///
+    /// In a gentle game a calm moment is always required, whatever `natural_moments`
+    /// says: the start waits for [`GAME_CALM_LULL`] of quiet from the keyboard, the mouse,
+    /// and the game controller, with no [`NATURAL_MAX_HOLD`] cap. When the next break of
+    /// the held kind would be due, the held start is dropped as
+    /// [`BreakOutcome::MissedInGame`] and the next one waits for its own calm moment.
     ///
     /// One continuous hold covers the whole wait, whatever kinds it passes through: when
     /// the kind changes mid-hold (e.g. a held short break is overtaken by the long-break
-    /// warning becoming due), the original `due_at` is kept and only the kind switches, so
-    /// the total hold never exceeds [`NATURAL_MAX_HOLD`]. A start, pause, away or sleep
-    /// clears the hold, and the next due moment then holds afresh.
-    /// Explicit starts never pass through here and are never held.
-    fn hold_scheduled_start(&mut self, kind: NaturalHoldKind, now_ts: Timestamp) -> bool {
+    /// warning becoming due), the original `due_at` is kept and only the kind switches.
+    /// A start, pause, away or sleep clears the hold, and the next due moment then holds
+    /// afresh. Explicit starts never pass through here and are never held.
+    fn hold_scheduled_start(
+        &mut self,
+        kind: NaturalHoldKind,
+        now_ts: Timestamp,
+        events: &mut Vec<EngineEvent>,
+    ) -> bool {
+        if self.gentle_game {
+            return self.hold_for_game_calm(kind, now_ts, events);
+        }
         if !self.settings.natural_moments || !self.platform.idle().is_supported() {
             return false;
         }
@@ -968,7 +1362,117 @@ impl BreakEngine {
         }
     }
 
-    fn start_short_break(&mut self, events: &mut Vec<EngineEvent>) {
+    /// The game calm-moment rule: a due start waits for [`GAME_CALM_LULL`] of quiet from
+    /// the keyboard, the mouse, and the controller, with no time cap.
+    ///
+    /// The wait ends at the first calm moment, or when the next break of the held kind
+    /// would be due: then the held start is dropped ([`BreakOutcome::MissedInGame`]) and
+    /// the next one, due now, waits for its own calm moment.
+    fn hold_for_game_calm(
+        &mut self,
+        kind: NaturalHoldKind,
+        now_ts: Timestamp,
+        events: &mut Vec<EngineEvent>,
+    ) -> bool {
+        if self.game_calm_now() {
+            // A calm moment: whatever was held is released and the start happens now.
+            return false;
+        }
+
+        match self.natural_hold {
+            Some(hold) => {
+                if self.game_hold_expired(hold, now_ts) {
+                    self.drop_held_start(hold.kind, events);
+                    // The next break of this kind is due now and waits for its own
+                    // calm moment, with a fresh wait window.
+                    self.natural_hold = Some(NaturalHold {
+                        kind,
+                        due_at: now_ts,
+                    });
+                } else if hold.kind != kind {
+                    self.natural_hold = Some(NaturalHold {
+                        kind,
+                        due_at: hold.due_at,
+                    });
+                }
+                true
+            }
+            None => {
+                self.natural_hold = Some(NaturalHold {
+                    kind,
+                    due_at: now_ts,
+                });
+                true
+            }
+        }
+    }
+
+    /// Whether this instant is calm in a game: [`GAME_CALM_LULL`] with no input from the
+    /// keyboard, the mouse, or a game controller. A provider that cannot see a device's
+    /// input does not block the start (its input cannot be judged).
+    fn game_calm_now(&self) -> bool {
+        let idle = self.platform.idle();
+        let idle_calm = !idle.is_supported() || idle.idle_time() >= GAME_CALM_LULL;
+        let controller = self.platform.controller();
+        let controller_calm =
+            !controller.is_supported() || controller.idle_time() >= GAME_CALM_LULL;
+        idle_calm && controller_calm
+    }
+
+    /// A game hold ends when the next break of the held kind would be due: one full
+    /// interval after the held start became due.
+    fn game_hold_expired(&self, hold: NaturalHold, now_ts: Timestamp) -> bool {
+        let interval = match hold.kind {
+            NaturalHoldKind::ShortBreak => self.settings.short_breaks.interval(),
+            NaturalHoldKind::LongBreakWarning | NaturalHoldKind::LongBreak => {
+                self.settings.long_breaks.interval()
+            }
+        };
+        SignedDuration::try_from(interval).is_ok_and(|i| now_ts.duration_since(hold.due_at) >= i)
+    }
+
+    /// Drops a held start whose wait outlasted the schedule: the next break of the held
+    /// kind is due now, so the held one is missed.
+    ///
+    /// Not a user skip and not a postpone: the outcome is [`BreakOutcome::MissedInGame`]
+    /// and no statistics counter changes. The counters are set back to the due moment of
+    /// the held kind, so the next break is due immediately and waits for its own calm
+    /// moment. A held long break parks in `LongBreakWarning` with the countdown spent;
+    /// the drop returns the engine to `Working` so the next cycle starts cleanly.
+    fn drop_held_start(&mut self, kind: NaturalHoldKind, events: &mut Vec<EngineEvent>) {
+        self.natural_hold = None;
+        let break_kind = match kind {
+            NaturalHoldKind::ShortBreak => {
+                self.since_short_break = self.settings.short_breaks.interval();
+                BreakKind::Short
+            }
+            NaturalHoldKind::LongBreakWarning => {
+                self.since_long_break = self
+                    .settings
+                    .long_breaks
+                    .interval()
+                    .saturating_sub(self.settings.long_breaks.warning_duration());
+                self.postpones_used = 0;
+                BreakKind::Long
+            }
+            NaturalHoldKind::LongBreak => {
+                self.since_long_break = self.settings.long_breaks.interval();
+                self.postpones_used = 0;
+                BreakKind::Long
+            }
+        };
+        events.push(EngineEvent::BreakEnded(
+            Self::fallback_break_info(break_kind, Duration::ZERO),
+            BreakOutcome::MissedInGame,
+        ));
+        if self.phase == EnginePhase::LongBreakWarning
+            && self.warning_countdown_remaining == Duration::ZERO
+        {
+            self.transition_to(EnginePhase::Working, events);
+        }
+    }
+
+    fn start_short_break(&mut self, events: &mut Vec<EngineEvent>, surface: BreakSurface) {
         self.natural_hold = None;
         let exercise = self.exercise_picker.pick_short_exercise(
             self.settings.has_window_nearby,
@@ -983,6 +1487,7 @@ impl BreakEngine {
             total_duration: duration,
             remaining_duration: duration,
             suggestion_exercise_ids: None,
+            surface,
         });
         self.transition_to(EnginePhase::ShortBreak, events);
         events.push(EngineEvent::BreakStarted(BreakInfo {
@@ -990,6 +1495,7 @@ impl BreakEngine {
             exercise_id: exercise.id.to_owned(),
             total_duration: duration,
             suggestion_exercise_ids: None,
+            surface,
         }));
     }
 
@@ -1001,18 +1507,28 @@ impl BreakEngine {
         events.push(EngineEvent::LongBreakWarningStarted(countdown));
     }
 
-    fn start_long_break(&mut self, events: &mut Vec<EngineEvent>) {
+    fn start_long_break(&mut self, events: &mut Vec<EngineEvent>, surface: BreakSurface) {
         self.natural_hold = None;
+        // Gentle throttle: the water reminder joins the rotation only when the setting is on
+        // and the previous long break did not already suggest it (at most every second one).
+        let water_eligible = self.settings.water_nudges && !self.water_in_previous_long_break;
         let (body_ex, eyes_ex) = self.exercise_picker.pick_long_exercises(
             self.settings.has_window_nearby,
             self.previous_eyes_exercise_id,
             self.previous_body_exercise_id,
+            water_eligible,
         );
         self.previous_eyes_exercise_id = Some(eyes_ex.id);
         self.previous_body_exercise_id = Some(body_ex.id);
+        self.water_in_previous_long_break = body_ex.id == ExerciseCatalogue::WATER_ID;
 
         let suggestions = vec![body_ex.id.to_owned(), eyes_ex.id.to_owned()];
-        let duration = self.settings.long_breaks.duration();
+        // A gentle long break is a short nudge. Passing it does not credit a long break.
+        let duration = if surface == BreakSurface::GentleCard {
+            self.settings.short_breaks.duration()
+        } else {
+            self.settings.long_breaks.duration()
+        };
 
         self.current_break = Some(CurrentBreakInfo {
             kind: BreakKind::Long,
@@ -1020,6 +1536,7 @@ impl BreakEngine {
             total_duration: duration,
             remaining_duration: duration,
             suggestion_exercise_ids: Some(suggestions.clone()),
+            surface,
         });
         self.transition_to(EnginePhase::LongBreak, events);
         events.push(EngineEvent::BreakStarted(BreakInfo {
@@ -1027,6 +1544,7 @@ impl BreakEngine {
             exercise_id: body_ex.id.to_owned(),
             total_duration: duration,
             suggestion_exercise_ids: Some(suggestions),
+            surface,
         }));
     }
 
@@ -1051,21 +1569,29 @@ impl BreakEngine {
             let break_ended_utc = subtract_duration(now_ts, overshoot);
             let break_info = current.to_break_info();
 
-            let today = self.stats.get_or_create(local_date);
-            match current.kind {
-                BreakKind::Short => {
-                    self.since_short_break = Duration::ZERO;
-                    today.short_completed += 1;
+            let gentle_long =
+                current.kind == BreakKind::Long && current.surface == BreakSurface::GentleCard;
+            if gentle_long {
+                self.since_long_break = Duration::ZERO;
+                self.since_short_break = Duration::ZERO;
+                self.postpones_used = 0;
+                events.push(EngineEvent::BreakEnded(break_info, BreakOutcome::Passed));
+            } else {
+                let today = self.stats.get_or_create(local_date);
+                match current.kind {
+                    BreakKind::Short => {
+                        self.since_short_break = Duration::ZERO;
+                        today.short_completed += 1;
+                    }
+                    BreakKind::Long => {
+                        self.since_long_break = Duration::ZERO;
+                        self.since_short_break = Duration::ZERO;
+                        self.postpones_used = 0;
+                        today.long_completed += 1;
+                    }
                 }
-                BreakKind::Long => {
-                    self.since_long_break = Duration::ZERO;
-                    self.since_short_break = Duration::ZERO;
-                    self.postpones_used = 0;
-                    today.long_completed += 1;
-                }
+                events.push(EngineEvent::BreakEnded(break_info, BreakOutcome::Completed));
             }
-
-            events.push(EngineEvent::BreakEnded(break_info, BreakOutcome::Completed));
 
             if self.is_session_away || self.is_focus_away {
                 self.enter_away(break_ended_utc, events);
@@ -1086,6 +1612,7 @@ impl BreakEngine {
         }
         self.away_started_utc = Some(away_started_utc);
         self.natural_hold = None;
+        self.abandon_suppression();
         self.warning_countdown_remaining = Duration::ZERO;
         self.transition_to(EnginePhase::Away, events);
     }

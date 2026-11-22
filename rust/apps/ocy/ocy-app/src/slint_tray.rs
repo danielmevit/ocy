@@ -23,6 +23,9 @@ slint::slint! {
         in property <string> take-long-break-text;
         in property <bool> take-long-break-enabled: true;
 
+        in property <string> hold-game-text;
+        in property <bool> hold-game-visible: false;
+
         in property <string> pause-1h-text;
         in property <bool> pause-1h-enabled: true;
         in-out property <bool> pause-1h-checked: false;
@@ -48,6 +51,7 @@ slint::slint! {
         callback tray-clicked();
         callback take-short-break-clicked();
         callback take-long-break-clicked();
+        callback hold-game-clicked();
         callback pause-1h-clicked();
         callback pause-3h-clicked();
         callback pause-until-resumed-clicked();
@@ -73,6 +77,10 @@ slint::slint! {
                 title: root.take-long-break-text;
                 enabled: root.take-long-break-enabled;
                 activated => { root.take-long-break-clicked(); }
+            }
+            if root.hold-game-visible : MenuItem {
+                title: root.hold-game-text;
+                activated => { root.hold-game-clicked(); }
             }
             MenuSeparator {}
             MenuItem {
@@ -179,6 +187,14 @@ impl TraySink for SlintTraySink {
         ));
         self.tray
             .set_take_long_break_enabled(presentation.take_long_break_now.is_enabled);
+
+        self.tray.set_hold_game_text(SharedString::from(
+            presentation.hold_until_game_closes.text.as_str(),
+        ));
+        self.tray.set_hold_game_visible(
+            presentation.hold_until_game_closes.is_visible
+                && presentation.hold_until_game_closes.is_enabled,
+        );
 
         self.tray
             .set_pause_1h_text(SharedString::from(presentation.pause_1_hour.text.as_str()));

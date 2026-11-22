@@ -110,12 +110,12 @@ All 9 Slint crates (`1.19.0`) in `ocy-app`'s normal closure declare `GPL-3.0-onl
 | `crossbeam-epoch` | `0.9.21` | `MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | `0.8.23` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/crossbeam-rs/crossbeam |
 | `cursor-icon` | `1.2.0` | `MIT OR Apache-2.0 OR Zlib` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT`, `LICENSE-ZLIB` | https://github.com/rust-windowing/cursor-icon |
-| `damt-app` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-art` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-overlay` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-platform` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-platform-win` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `damt-theme` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-app` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-art` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-overlay` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-platform` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-platform-win` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `damt-theme` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
 | `data-url` | `0.3.2` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/servo/rust-url |
 | `derive_more` | `2.1.1` | `MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE` | https://github.com/JelteF/derive_more |
 | `derive_more-impl` | `2.1.1` | `MIT` | `MIT` | Proc-macro/host | `LICENSE` | https://github.com/JelteF/derive_more |
@@ -200,9 +200,9 @@ All 9 Slint crates (`1.19.0`) in `ocy-app`'s normal closure declare `GPL-3.0-onl
 | `num-traits` | `0.2.19` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/rust-num/num-traits |
 | `num_enum` | `0.7.6` | `BSD-3-Clause OR MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-BSD`, `LICENSE-MIT` | https://github.com/illicitonion/num_enum |
 | `num_enum_derive` | `0.7.6` | `BSD-3-Clause OR MIT OR Apache-2.0` | `MIT` | Proc-macro/host | `LICENSE-APACHE`, `LICENSE-BSD`, `LICENSE-MIT` | https://github.com/illicitonion/num_enum |
-| `ocy-app` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `ocy-core` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
-| `ocy-ui` | `0.2.1` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-app` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-core` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
+| `ocy-ui` | `0.2.2-dev` | `AGPL-3.0-only` | `AGPL-3.0-only` | Workspace (`Ocy.exe`) | repo `LICENSE` | (none) |
 | `once_cell` | `1.21.4` | `MIT OR Apache-2.0` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/matklad/once_cell |
 | `parlance` | `0.1.1` | `Apache-2.0 OR MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/linebender/parley |
 | `parley` | `0.12.0` | `Apache-2.0 OR MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT` | https://github.com/linebender/parley |
@@ -338,3 +338,37 @@ All 9 Slint crates (`1.19.0`) in `ocy-app`'s normal closure declare `GPL-3.0-onl
 | `zmij` | `1.0.23` | `MIT` | `MIT` | Target (`Ocy.exe`) | `LICENSE-MIT` | https://github.com/dtolnay/zmij |
 | `zune-core` | `0.5.3` | `MIT OR Apache-2.0 OR Zlib` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT`, `LICENSE-ZLIB` | https://github.com/etemesi254/zune-image |
 | `zune-jpeg` | `0.5.15` | `MIT OR Apache-2.0 OR Zlib` | `MIT` | Target (`Ocy.exe`) | `LICENSE-APACHE`, `LICENSE-MIT`, `LICENSE-ZLIB` | https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg |
+
+## 4. Linux Platform Additions (`damt-platform-linux`, `x86_64-unknown-linux-gnu`)
+
+`damt-platform-linux` (`0.2.2-dev`, `AGPL-3.0-only`) is compiled only on `target_os = "linux"` (empty on Windows and other targets, leaving the `x86_64-pc-windows-msvc` dependency closure unchanged). Its direct Linux-only dependencies were already present in `Cargo.lock` (pulled by `slint` / `i-slint-backend-winit` / `accesskit_unix` on Linux):
+
+| Crate | Version | Declared licence | Chosen | AGPL-3.0-only verdict | Repository |
+| --- | --- | --- | --- | --- | --- |
+| `async-channel` | `2.5.0` | `Apache-2.0 OR MIT` | `MIT` | Compatible | https://github.com/smol-rs/async-channel |
+| `async-io` | `2.6.0` | `Apache-2.0 OR MIT` | `MIT` | Compatible | https://github.com/smol-rs/async-io |
+| `futures-lite` | `2.6.1` | `Apache-2.0 OR MIT` | `MIT` | Compatible | https://github.com/smol-rs/futures-lite |
+| `ksni` | `0.3.7` | `Unlicense` | `Unlicense` | Compatible (public-domain-equivalent; ships `UNLICENSE`) | https://github.com/iovxw/ksni |
+| `png` | `0.18.1` | `MIT OR Apache-2.0` | `MIT` | Compatible | https://github.com/image-rs/image-png |
+| `x11rb` | `0.13.2` | `MIT OR Apache-2.0` | `MIT` | Compatible (`screensaver` and `randr` features) | https://github.com/psychon/x11rb |
+| `zbus` | `5.19.0` | `MIT` | `MIT` | Compatible (`async-io` and `blocking-api` features) | https://github.com/z-galaxy/zbus/ |
+| `wayland-client` | `0.31.15` | `MIT` | `MIT` | Compatible (Linux target only) | https://github.com/smithay/wayland-rs |
+| `wayland-protocols` | `0.32.13` | `MIT` | `MIT` | Compatible (`client` and `staging` features; `ext-idle-notify-v1`) | https://github.com/smithay/wayland-rs |
+
+`rust/tools/notices.py` also recognizes `UNLICENSE` files (covering `ksni 0.3.7`) and maps `accesskit_atspi_common 0.21.1` / `accesskit_unix 0.24.1` (`MIT OR Apache-2.0`) to the already-vendored `accesskit/*` upstream licence texts, so `python3 tools/notices.py --target x86_64-unknown-linux-gnu` completes cleanly (342 third-party crates).
+
+## 5. macOS Platform Additions (`damt-platform-mac`, `aarch64-apple-darwin`)
+
+`damt-platform-mac` (`0.2.2-dev`, `AGPL-3.0-only`) is compiled only on `target_os = "macos"` (empty on Windows, Linux, and other targets, leaving the `x86_64-pc-windows-msvc` dependency closure unchanged). Its macOS-only dependencies are pinned exactly and are pure-Rust `extern "C"` bindings to Apple system frameworks (no build script, no Apple SDK needed for `cargo check --target aarch64-apple-darwin`):
+
+| Crate | Version | Declared licence | Chosen | AGPL-3.0-only verdict | Repository |
+| --- | --- | --- | --- | --- | --- |
+| `block2` | `0.6.2` | `MIT` | `MIT` | Compatible | https://github.com/madsmtm/objc2 |
+| `objc2` | `0.6.5` | `MIT` | `MIT` | Compatible | https://github.com/madsmtm/objc2 |
+| `objc2-app-kit` | `0.3.2` | `Zlib OR Apache-2.0 OR MIT` | `MIT` | Compatible | https://github.com/madsmtm/objc2 |
+| `objc2-core-graphics` | `0.3.2` | `Zlib OR Apache-2.0 OR MIT` | `MIT` | Compatible | https://github.com/madsmtm/objc2 |
+| `objc2-foundation` | `0.3.2` | `MIT` | `MIT` | Compatible | https://github.com/madsmtm/objc2 |
+
+Transitive additions from the same repository (all pulled in by the `objc2-app-kit` `NSWorkspace`/`NSRunningApplication` features; all `Zlib OR Apache-2.0 OR MIT`, **MIT** chosen, AGPL-compatible): `dispatch2 0.3.1`, `objc2-cloud-kit 0.3.2`, `objc2-core-data 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-image 0.3.2`, `objc2-core-text 0.3.2`, `objc2-core-video 0.3.2`, `objc2-metal 0.3.2`, `objc2-quartz-core 0.3.2`, plus `objc2-encode 4.1.0` (`MIT`). `bitflags`, `libc`, `jiff`, `thiserror`, and the `syn`/`proc-macro2`/`quote`/`unicode-ident`/`serde_core` host crates were already in the workspace closure.
+
+The older `objc2 0.5.3` / `objc2-app-kit 0.2.2` / `objc2-foundation 0.2.2` / `objc2-core-data 0.2.2` / `objc2-core-image 0.2.2` / `objc2-metal 0.2.2` / `objc2-quartz-core 0.2.2` / `block2 0.5.1` versions already in `Cargo.lock` come from `slint`/`winit` macOS dependencies (present since M0); they are `MIT` and unchanged.

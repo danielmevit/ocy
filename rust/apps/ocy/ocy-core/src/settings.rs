@@ -13,9 +13,107 @@ where
     Ok(opt.unwrap_or_default())
 }
 
-/// Serde helper: skips serialization for `false` booleans (used by `natural_moments`).
+/// Serde helper: skips serialization for `true` booleans (used by `natural_moments` and
+/// `water_nudges`), so files written with defaults stay byte-identical to older ones.
 fn is_true(value: &bool) -> bool {
     *value
+}
+
+/// How breaks behave while a game is the full-screen foreground app.
+///
+/// Missing, null, and unrecognised values deserialize as [`GamesMode::Gentle`], so an old
+/// settings file or a bad field does not fail the load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GamesMode {
+    /// Short breaks, and a brief long-break card, stay small. This is the default.
+    #[default]
+    Gentle,
+    /// Hold breaks for every game, the way a presentation holds them.
+    Hold,
+}
+
+impl GamesMode {
+    fn is_gentle(mode: &Self) -> bool {
+        matches!(mode, Self::Gentle)
+    }
+}
+
+fn deserialize_games_mode<'de, D>(deserializer: D) -> Result<GamesMode, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mode = match value {
+        serde_json::Value::String(text) if text.trim().eq_ignore_ascii_case("hold") => {
+            GamesMode::Hold
+        }
+        _ => GamesMode::Gentle,
+    };
+    Ok(mode)
+}
+
+fn deserialize_games_silent<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let names = match value {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|item| match item {
+                serde_json::Value::String(text) => Some(text),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    Ok(names)
+}
+
+/// Maximum number of silent-game exe names kept after clamping.
+pub const MAX_SILENT_GAMES: usize = 64;
+
+/// Maximum length of one silent-game exe file name.
+pub const MAX_EXE_NAME_LEN: usize = 260;
+
+/// File name of an exe path or bare name. Slashes, backslashes, and surrounding quotes are removed.
+#[must_use]
+pub fn exe_file_name(path_or_name: &str) -> String {
+    let trimmed = path_or_name.trim().trim_matches('"').trim();
+    trimmed
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(trimmed)
+        .trim()
+        .to_owned()
+}
+
+/// Case-insensitive exe file-name comparison. Paths are reduced to the file name first.
+#[must_use]
+pub fn exe_names_equal(left: &str, right: &str) -> bool {
+    exe_file_name(left).eq_ignore_ascii_case(&exe_file_name(right))
+}
+
+fn clamp_games_silent(names: &mut Vec<String>) {
+    let mut kept = Vec::new();
+    for raw in names.drain(..) {
+        let name = exe_file_name(&raw);
+        if name.is_empty() || name.len() > MAX_EXE_NAME_LEN {
+            continue;
+        }
+        if kept
+            .iter()
+            .any(|existing: &String| existing.eq_ignore_ascii_case(&name))
+        {
+            continue;
+        }
+        kept.push(name);
+        if kept.len() == MAX_SILENT_GAMES {
+            break;
+        }
+    }
+    *names = kept;
 }
 
 /// Configuration for short eye-rest breaks.
@@ -209,9 +307,31 @@ pub struct OcySettings {
     /// properties).
     #[serde(skip_serializing_if = "is_true")]
     pub natural_moments: bool,
+    /// Lets long breaks occasionally suggest having a glass of water (never two long breaks
+    /// in a row, no tracking or goals). Defaults to `true` and is omitted from the JSON while
+    /// `true`, so files written with defaults stay byte-identical to older versions'.
+    #[serde(skip_serializing_if = "is_true")]
+    pub water_nudges: bool,
     /// BCP-47 language tag (e.g. `"en"`, `"mk"`).
     #[serde(deserialize_with = "deserialize_null_default")]
     pub language: String,
+    /// Break behaviour for a full-screen game. Omitted from JSON while [`GamesMode::Gentle`].
+    #[serde(
+        default,
+        skip_serializing_if = "GamesMode::is_gentle",
+        deserialize_with = "deserialize_games_mode"
+    )]
+    pub games_mode: GamesMode,
+    /// Exe file names that always hold breaks. Omitted from JSON while empty.
+    ///
+    /// Comparison is case-insensitive. Stored spelling is whatever the user (or Game Bar path)
+    /// first supplied, after clamping.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_games_silent"
+    )]
+    pub games_silent: Vec<String>,
 }
 
 impl OcySettings {
@@ -239,6 +359,15 @@ impl OcySettings {
         if self.language.trim().is_empty() {
             self.language = "en".to_owned();
         }
+        clamp_games_silent(&mut self.games_silent);
+    }
+
+    /// Whether `exe_name` is on the silent-game list (case-insensitive file name).
+    #[must_use]
+    pub fn is_silent_game(&self, exe_name: &str) -> bool {
+        self.games_silent
+            .iter()
+            .any(|listed| exe_names_equal(listed, exe_name))
     }
 }
 
@@ -257,7 +386,10 @@ impl Default for OcySettings {
             status_notifications: true,
             start_with_system: false,
             natural_moments: true,
+            water_nudges: true,
             language: "en".to_owned(),
+            games_mode: GamesMode::Gentle,
+            games_silent: Vec::new(),
         }
     }
 }

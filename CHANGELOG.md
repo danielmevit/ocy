@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.2 — 2026-11-22
+
+Gentle breaks in games, a glass of water now and then, and a Settings header that shows your rhythm.
+
+### Added
+- **Gentle breaks in games.** While you play, a break comes as the small card, never the dimmed screen, and only in
+  a calm moment: Ocy waits until your keyboard, mouse and controller have been quiet for a few seconds, so it never
+  interrupts a fight. The hourly long break comes as a card too; choose **Take the long break** for the real one.
+  - **Not during this game** on the card keeps that game silent from then on. Settings → Customize → Quiet times →
+    Games lists your silent games, and you can remove any of them.
+  - From the tray, **Hold breaks until I close this game** keeps breaks away for this session only.
+  - Prefer the old way? Choose **Hold breaks in games** in Settings.
+  - Presentations and fullscreen videos still hold breaks until you're done.
+- **A glass of water, now and then.** Some long breaks suggest a few calm sips: never two in a row, no tracking, no
+  goals. Turn it off in Settings → General → **Water reminders in long breaks**.
+- **The Settings header shows your rhythm** with its own illustration and a one-line description.
+
+### Changed
+- **Pause in fullscreen** now means presentations and videos; games have their own setting.
+- The text on green buttons is regular, and semibold when you point at it.
+
+### Behind the scenes
+- Early groundwork for Linux and macOS versions. They are not ready to use yet.
+
 ## 0.2.1 — 2026-11-21
 
 A new Settings window, Ocy in 40 languages, calmer presets and a warmer dark mode.

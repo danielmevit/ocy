@@ -6,10 +6,12 @@ use damt_platform::{Clock, PlatformServices, TaskbarThemeProvider, Unsupported};
 use ocy_app::strings::Strings;
 use ocy_app::tray::{
     AppTheme, PauseSource, TRAY_MENU_ORDER, TrayController, TrayIconState, TrayMenuEntry,
-    TrayMenuSlot, TrayPresentation, TrayPresenter, TraySink, can_take_long_break_now,
-    can_take_short_break_now,
+    TrayMenuSlot, TrayPresentation, TrayPresenter, TraySink, can_hold_until_game_closes,
+    can_take_long_break_now, can_take_short_break_now,
 };
-use ocy_core::engine::{BreakEngine, BreakKind, CurrentBreakInfo, EnginePhase, EngineSnapshot};
+use ocy_core::engine::{
+    BreakEngine, BreakKind, BreakSurface, CurrentBreakInfo, EnginePhase, EngineSnapshot,
+};
 use ocy_core::settings::OcySettings;
 use ocy_core::time::{DateTimeOffset, FakeClock, Paused};
 
@@ -50,6 +52,8 @@ fn working_phase_presents_correct_state() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -81,6 +85,8 @@ fn warning_phase_presents_correct_state() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -106,12 +112,15 @@ fn short_break_phase_presents_correct_state() {
             total_duration: Duration::from_secs(15),
             remaining_duration: Duration::from_secs(10),
             suggestion_exercise_ids: None,
+            surface: BreakSurface::Standard,
         }),
         paused_until_utc: None,
         postpones_left: 3,
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -138,12 +147,15 @@ fn non_strict_long_break_presents_correct_state() {
             total_duration: Duration::from_secs(5 * 60),
             remaining_duration: Duration::from_secs(4 * 60),
             suggestion_exercise_ids: None,
+            surface: BreakSurface::Standard,
         }),
         paused_until_utc: None,
         postpones_left: 0,
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -173,12 +185,15 @@ fn strict_long_break_disables_all_menu_items_except_quit() {
             total_duration: Duration::from_secs(5 * 60),
             remaining_duration: Duration::from_secs(4 * 60),
             suggestion_exercise_ids: None,
+            surface: BreakSurface::Standard,
         }),
         paused_until_utc: None,
         postpones_left: 0,
         strict_mode: true,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -208,6 +223,8 @@ fn deferred_phase_presents_correct_state() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -238,6 +255,8 @@ fn away_phase_presents_correct_state() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -261,6 +280,8 @@ fn paused_phase_shows_resume_menu_item() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -285,6 +306,8 @@ fn paused_tooltip_indefinite_pause() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -314,6 +337,8 @@ fn paused_tooltip_timed_pause() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     let presentation = presenter.present(&snapshot, None);
@@ -360,6 +385,8 @@ fn take_short_break_now_enable_rule_across_phases_and_parity_with_long_break() {
                     strict_mode,
                     time_until_long_break_warning: None,
                     natural_hold: None,
+                    poll_external: false,
+                    game_in_front: false,
                 };
                 let presentation = presenter.present(&snapshot, None);
 
@@ -433,6 +460,8 @@ fn tray_menu_item_order_places_pause_status_first_then_existing_order() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     let presentation = presenter.present(&snapshot, None);
 
@@ -442,6 +471,7 @@ fn tray_menu_item_order_places_pause_status_first_then_existing_order() {
             TrayMenuSlot::PauseStatus,
             TrayMenuSlot::TakeShortBreakNow,
             TrayMenuSlot::TakeLongBreakNow,
+            TrayMenuSlot::HoldUntilGameCloses,
             TrayMenuSlot::Separator1,
             TrayMenuSlot::Pause1Hour,
             TrayMenuSlot::Pause3Hours,
@@ -454,7 +484,7 @@ fn tray_menu_item_order_places_pause_status_first_then_existing_order() {
     );
 
     let entries = presentation.ordered_menu_entries();
-    assert_eq!(entries.len(), 11);
+    assert_eq!(entries.len(), 12);
     assert!(matches!(
         entries[0],
         TrayMenuEntry::Item(TrayMenuSlot::PauseStatus, item)
@@ -470,31 +500,36 @@ fn tray_menu_item_order_places_pause_status_first_then_existing_order() {
         TrayMenuEntry::Item(TrayMenuSlot::TakeLongBreakNow, item)
             if item.text == "Take a long break now"
     ));
-    assert_eq!(entries[3], TrayMenuEntry::Separator);
     assert!(matches!(
-        entries[4],
+        entries[3],
+        TrayMenuEntry::Item(TrayMenuSlot::HoldUntilGameCloses, item)
+            if !item.is_visible && item.text == "Hold breaks until I close this game"
+    ));
+    assert_eq!(entries[4], TrayMenuEntry::Separator);
+    assert!(matches!(
+        entries[5],
         TrayMenuEntry::Item(TrayMenuSlot::Pause1Hour, item) if item.text == "Pause for 1 hour"
     ));
     assert!(matches!(
-        entries[5],
+        entries[6],
         TrayMenuEntry::Item(TrayMenuSlot::Pause3Hours, item) if item.text == "Pause for 3 hours"
     ));
     assert!(matches!(
-        entries[6],
+        entries[7],
         TrayMenuEntry::Item(TrayMenuSlot::PauseUntilResumed, item)
             if item.text == "Pause until resumed"
     ));
     assert!(matches!(
-        entries[7],
+        entries[8],
         TrayMenuEntry::Item(TrayMenuSlot::Resume, item) if item.text == "Resume reminders"
     ));
-    assert_eq!(entries[8], TrayMenuEntry::Separator);
+    assert_eq!(entries[9], TrayMenuEntry::Separator);
     assert!(matches!(
-        entries[9],
+        entries[10],
         TrayMenuEntry::Item(TrayMenuSlot::Settings, item) if item.text == "Settings"
     ));
     assert!(matches!(
-        entries[10],
+        entries[11],
         TrayMenuEntry::Item(TrayMenuSlot::Quit, item) if item.text == "Quit Ocy"
     ));
 
@@ -539,6 +574,8 @@ fn pause_status_line_formats_remainder_and_local_24h_clock_with_edge_cases() {
             strict_mode: false,
             time_until_long_break_warning: None,
             natural_hold: None,
+            poll_external: false,
+            game_in_front: false,
         }
     };
 
@@ -601,6 +638,8 @@ fn pause_status_line_formats_remainder_and_local_24h_clock_with_edge_cases() {
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     let p_midnight = night_presenter.present(&night_snapshot, None);
     assert_eq!(
@@ -645,6 +684,8 @@ fn pause_status_line_is_hidden_in_every_non_paused_phase_and_visible_only_when_p
             strict_mode,
             time_until_long_break_warning: None,
             natural_hold: None,
+            poll_external: false,
+            game_in_front: false,
         };
         let pres = presenter.present(&snapshot, None);
         assert!(
@@ -667,6 +708,8 @@ fn pause_status_line_is_hidden_in_every_non_paused_phase_and_visible_only_when_p
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     let pres_paused = presenter.present(&paused_snapshot, None);
     assert!(pres_paused.pause_status.is_visible);
@@ -690,6 +733,8 @@ fn active_pause_option_checkmark_tracks_source_clears_on_resume_or_expiry_and_ha
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     let indef_snapshot = EngineSnapshot {
         phase: EnginePhase::Paused,
@@ -701,6 +746,8 @@ fn active_pause_option_checkmark_tracks_source_clears_on_resume_or_expiry_and_ha
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     let working_snapshot = EngineSnapshot {
         phase: EnginePhase::Working,
@@ -712,6 +759,8 @@ fn active_pause_option_checkmark_tracks_source_clears_on_resume_or_expiry_and_ha
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
 
     // 1. Pause for 1 hour -> only pause_1_hour checked.
@@ -847,5 +896,44 @@ fn controller_refreshes_pause_status_on_ticks_and_on_reclicking_same_pause_optio
             .unwrap()
             .pause_1_hour
             .is_checked
+    );
+}
+
+#[test]
+fn hold_until_game_closes_shows_only_while_a_non_silent_game_is_in_front() {
+    let (presenter, _) = make_presenter();
+    let mut snapshot = EngineSnapshot {
+        phase: EnginePhase::Working,
+        time_until_short_break: Some(Duration::from_secs(600)),
+        time_until_long_break: Some(Duration::from_secs(3600)),
+        current_break: None,
+        paused_until_utc: None,
+        postpones_left: 3,
+        strict_mode: false,
+        time_until_long_break_warning: None,
+        natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
+    };
+    let hidden = presenter.present(&snapshot, None);
+    assert!(!hidden.hold_until_game_closes.is_visible);
+
+    snapshot.game_in_front = true;
+    assert!(can_hold_until_game_closes(&snapshot));
+    let shown = presenter.present(&snapshot, None);
+    assert!(shown.hold_until_game_closes.is_visible);
+    assert!(shown.hold_until_game_closes.is_enabled);
+    assert_eq!(
+        shown.hold_until_game_closes.text,
+        "Hold breaks until I close this game"
+    );
+
+    snapshot.phase = EnginePhase::Paused;
+    snapshot.paused_until_utc = Some(Paused::UntilResumed);
+    assert!(
+        !presenter
+            .present(&snapshot, None)
+            .hold_until_game_closes
+            .is_visible
     );
 }

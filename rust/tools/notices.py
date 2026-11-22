@@ -15,7 +15,7 @@ from dataclasses import dataclass
 DEFAULT_PACKAGE = "ocy-app"
 DEFAULT_TARGET = "x86_64-pc-windows-msvc"
 DEFAULT_EXTRA_DIR = pathlib.Path(__file__).resolve().parent / "licenses-extra"
-LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE")
+LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE", "UNLICENSE")
 LICENSE_DIR_NAMES = {"LICENSES", "LICENCES"}
 SCOPE_LINKED = "linked"
 SCOPE_PROC_MACRO = "proc-macro"
@@ -52,6 +52,18 @@ VENDORED_LICENSE_FILES: dict[str, tuple[str, ...]] = {
     ),
     "accesskit_winit": (
         "accesskit/LICENSE-APACHE",
+        "accesskit/AUTHORS",
+    ),
+    "accesskit_atspi_common": (
+        "accesskit/LICENSE-APACHE",
+        "accesskit/LICENSE-MIT",
+        "accesskit/LICENSE.chromium",
+        "accesskit/AUTHORS",
+    ),
+    "accesskit_unix": (
+        "accesskit/LICENSE-APACHE",
+        "accesskit/LICENSE-MIT",
+        "accesskit/LICENSE.chromium",
         "accesskit/AUTHORS",
     ),
 }

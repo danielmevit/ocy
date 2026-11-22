@@ -226,13 +226,13 @@ fn v2(lang: &str, tab: Option<i32>) -> SettingsWindowV2 {
 #[test]
 fn settings_v2_every_state_fits_the_grown_window_with_labelled_controls_in_en_and_de() {
     init();
-    // presets 3 + section headers 2 + General (language, start with system, window nearby) 3,
-    // then per Customize tab.
+    // presets 3 + section headers 2 + General (language, start with system, window nearby,
+    // water reminders) 4, then per Customize tab.
     let states = [
-        (None, 3 + 2 + 3),
-        (Some(0), 3 + 2 + 3 + 3 + 2 + 4 + 1 + 2), // tabs, 2 toggles, 4 sliders, full screen, 2 links
-        (Some(1), 3 + 2 + 3 + 3 + 1 + 3),         // tabs, strict, 3 sliders
-        (Some(2), 3 + 2 + 3 + 3 + 2 + 1),         // tabs, inactivity + pause, away slider
+        (None, 3 + 2 + 4),
+        (Some(0), 3 + 2 + 4 + 3 + 2 + 4 + 1 + 2), // tabs, 2 toggles, 4 sliders, full screen, 2 links
+        (Some(1), 3 + 2 + 4 + 3 + 1 + 3),         // tabs, strict, 3 sliders
+        (Some(2), 3 + 2 + 4 + 3 + 2 + 1 + 1),     // tabs, inactivity + pause, away slider, games
     ];
     for lang in ["en", "de"] {
         for (tab, expected) in states {
@@ -270,11 +270,13 @@ fn settings_v2_every_state_fits_the_grown_window_with_labelled_controls_in_en_an
 }
 
 /// With General folded, Customize alone still fits the 640 px default (no growing needed).
+/// Quiet times carries the Games group (0.2.2) and may grow the window downwards (owner rule);
+/// the grown-window test above keeps it inside the work area.
 #[test]
 fn settings_v2_customize_alone_fits_640() {
     init();
     for lang in ["en", "de"] {
-        for tab in 0..3 {
+        for tab in 0..2 {
             let ui = v2(lang, Some(tab));
             ui.set_general_open(false);
             let _ = interactive(&ui);
@@ -305,12 +307,12 @@ fn settings_v2_slider_tabs_presets_accordion_and_dropdown_semantics() {
 
     // Slider: value is the whole phrase with its unit; increment/decrement step and save.
     let interval = by_label(&ui, "Short break interval", AccessibleRole::Slider);
-    assert_eq!(interval.accessible_value().as_deref(), Some("every 20 min"));
+    assert_eq!(interval.accessible_value().as_deref(), Some("every 25 min"));
     assert_eq!(interval.accessible_value_minimum(), Some(2.0));
     assert_eq!(interval.accessible_value_maximum(), Some(60.0));
     interval.invoke_accessible_increment_action();
-    assert_eq!(ui.get_short_interval(), 21);
-    assert_eq!(interval.accessible_value().as_deref(), Some("every 21 min"));
+    assert_eq!(ui.get_short_interval(), 26);
+    assert_eq!(interval.accessible_value().as_deref(), Some("every 26 min"));
     assert_eq!(changed.get(), 1);
     let long_interval = by_label(&ui, "Long break interval", AccessibleRole::Slider);
     assert_eq!(long_interval.accessible_value_step(), Some(5.0));
@@ -421,4 +423,114 @@ fn settings_v2_toggle_checked_state_and_today_groupbox_semantics() {
     assert!(!ui.get_strict_mode());
     assert_eq!(strict.accessible_checked(), Some(false));
     assert_eq!(changed.get(), 1);
+}
+
+/// Store build: the trial line's Buy link and the trial-ended Buy button are labelled and inside
+/// the window; a GitHub build (default) shows neither, and the header art stays decorative.
+#[test]
+fn settings_v2_store_controls_are_labelled_and_absent_by_default() {
+    init();
+    let ui = v2("en", None);
+    tall(&ui);
+    let none = ElementQuery::from_root(&ui)
+        .match_descendants()
+        .match_accessible_label("Buy Ocy")
+        .find_all();
+    assert!(none.is_empty(), "non-store build shows a Buy control");
+
+    for (state, days, role) in [
+        ("trial", 12, AccessibleRole::Button),
+        ("trial-expired", 0, AccessibleRole::Button),
+    ] {
+        let ui = v2("en", None);
+        ui.set_store_build(true);
+        ui.set_license_state(state.into());
+        ui.set_trial_days_left(days);
+        ui.set_trial_days_left_text("12 days left in your trial".into());
+        ui.set_trial_ended_title("Your trial has ended.".into());
+        ui.set_trial_ended_body("If you'd like to keep using Ocy, please buy it.".into());
+        ui.set_buy_label("Buy Ocy".into());
+        let need = ui.get_content_height().ceil().max(640.0);
+        ui.window().set_size(slint::LogicalSize::new(560.0, need));
+        let buy = by_label(&ui, "Buy Ocy", role);
+        let (p, s) = (buy.absolute_position(), buy.size());
+        assert!(
+            p.x >= 0.0 && p.y >= 0.0 && p.x + s.width <= 560.0 && p.y + s.height <= need,
+            "{state}: Buy at {p:?} {s:?} is outside 560x{need}"
+        );
+        for e in interactive(&ui) {
+            let label = e.accessible_label().unwrap_or_default();
+            assert!(
+                !label.trim().is_empty(),
+                "{state}: {:?} unlabelled",
+                e.accessible_role()
+            );
+        }
+    }
+}
+
+/// The Games group: the mode dropdown is labelled, each silent game has a "Remove {name}" button
+/// that reports its index, and the list grows the window downwards without any sideways shift.
+#[test]
+fn settings_v2_games_group_lists_silent_games_with_labelled_remove_buttons() {
+    init();
+    let ui = v2("en", Some(2));
+    let before = interactive(&ui).len();
+    let empty_height = ui.get_content_height();
+    let rows: Vec<ocy_ui::SilentGame> = ["eldenring.exe", "cs2.exe"]
+        .into_iter()
+        .map(|name| ocy_ui::SilentGame {
+            name: name.into(),
+            remove_label: format!("Remove {name}").into(),
+        })
+        .collect();
+    ui.set_games_silent(slint::ModelRc::new(slint::VecModel::from(rows)));
+    let removed = Rc::new(Cell::new(-1));
+    let r = Rc::clone(&removed);
+    ui.on_remove_silent_game(move |i| r.set(i));
+    let _ = interactive(&ui);
+    let need = ui.get_content_height();
+    ui.window()
+        .set_size(slint::LogicalSize::new(560.0, need.ceil().max(640.0)));
+    assert!(need > empty_height, "the list grows the window downwards");
+    let all = interactive(&ui);
+    assert_eq!(all.len(), before + 2);
+    let _ = by_label(&ui, "Games", AccessibleRole::Combobox);
+    let remove = by_label(&ui, "Remove cs2.exe", AccessibleRole::Button);
+    let p = remove.absolute_position();
+    assert!(p.x + remove.size().width <= 560.0);
+    remove.invoke_accessible_default_action();
+    assert_eq!(removed.get(), 1);
+}
+
+/// The gentle game card: "Not during this game" on every gentle card, "Take the long break" only
+/// on the gentle long card; both are labelled buttons after Close and fire their callbacks.
+#[test]
+fn gentle_card_game_actions_are_labelled_and_activate() {
+    init();
+    let card = ShortBreakCard::new().unwrap_or_else(|e| panic!("{e}"));
+    tall(&card);
+    card.set_heading("Blink slowly".into());
+    card.set_close_label("Close".into());
+    card.set_hold_game_label("Not during this game".into());
+    card.set_take_long_label("Take the long break".into());
+    let held = Rc::new(Cell::new(0));
+    let h = Rc::clone(&held);
+    card.on_hold_game_clicked(move || h.set(h.get() + 1));
+    let took = Rc::new(Cell::new(0));
+    let t = Rc::clone(&took);
+    card.on_take_long_clicked(move || t.set(t.get() + 1));
+
+    assert_all_labelled(&card, 1);
+    card.set_show_hold_game(true);
+    assert_all_labelled(&card, 2);
+    by_label(&card, "Not during this game", AccessibleRole::Button)
+        .invoke_accessible_default_action();
+    assert_eq!(held.get(), 1);
+
+    card.set_show_take_long(true);
+    assert_all_labelled(&card, 3);
+    by_label(&card, "Take the long break", AccessibleRole::Button)
+        .invoke_accessible_default_action();
+    assert_eq!(took.get(), 1);
 }

@@ -191,6 +191,21 @@ pub fn announce_to_screen_reader(window: &slint::Window, text: &str) -> bool {
     }
 }
 
+/// Extracts the raw Win32 `HWND` (`isize`) from a Slint window, or `None` when not created yet
+/// or on non-Windows targets.
+#[must_use]
+pub fn raw_win32_hwnd(window: &slint::Window) -> Option<isize> {
+    #[cfg(windows)]
+    {
+        windows_impl::extract_win32_hwnd(window).map(|hwnd| hwnd.0 as isize)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        None
+    }
+}
+
 const BRAND_SPROUT_LIGHT_16: &[u8] =
     include_bytes!("../../../../../assets/icons/brand/png/ocy-sprout-light-16.png");
 const BRAND_SPROUT_LIGHT_20: &[u8] =
@@ -501,7 +516,7 @@ mod windows_impl {
         true
     }
 
-    fn extract_win32_hwnd(window: &slint::Window) -> Option<HWND> {
+    pub(super) fn extract_win32_hwnd(window: &slint::Window) -> Option<HWND> {
         window
             .with_winit_window(|winit_win| {
                 let raw = winit_win.window_handle().ok()?;

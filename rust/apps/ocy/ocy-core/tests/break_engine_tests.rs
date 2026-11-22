@@ -992,3 +992,52 @@ fn defect_pause_pause_expires_while_locked_without_ticks_then_unlock_lands_in_wo
     assert_eq!(h.engine.since_short_break(), Duration::from_secs(10));
     assert_eq!(h.engine.since_long_break(), Duration::from_secs(10));
 }
+
+#[test]
+fn suspended_reminders_produce_no_breaks_and_resume_cleanly() {
+    let mut h = EngineHarness::new();
+    let events = h.engine.set_reminders_suspended(true);
+    assert!(h.engine.reminders_suspended());
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::PhaseChanged(_)))
+    );
+
+    let snap = h.engine.snapshot();
+    assert_eq!(snap.time_until_short_break, None);
+    assert_eq!(snap.time_until_long_break, None);
+    assert_eq!(snap.time_until_long_break_warning, None);
+    assert!(!h.engine.start_short_break_now().0);
+    assert!(!h.engine.start_long_break_now().0);
+
+    // Advance 2 hours (far past both short and long intervals): zero breaks or warnings fire.
+    let two_hours = h.tick_seconds(2 * 3600);
+    assert!(two_hours.is_empty());
+    assert_eq!(h.engine.phase(), EnginePhase::Working);
+    assert_eq!(h.engine.since_short_break(), Duration::ZERO);
+    assert_eq!(h.engine.since_long_break(), Duration::ZERO);
+
+    // Resuming restores normal scheduling immediately.
+    let resume_events = h.engine.set_reminders_suspended(false);
+    assert!(!h.engine.reminders_suspended());
+    assert!(
+        resume_events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::PhaseChanged(_)))
+    );
+    let resumed_snap = h.engine.snapshot();
+    assert!(resumed_snap.time_until_short_break.is_some());
+    assert!(resumed_snap.time_until_long_break.is_some());
+    assert!(h.engine.start_short_break_now().0);
+    assert_eq!(h.engine.phase(), EnginePhase::ShortBreak);
+
+    // Suspending mid-break interrupts it cleanly.
+    let interrupt_events = h.engine.set_reminders_suspended(true);
+    assert!(
+        interrupt_events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::BreakEnded(_, BreakOutcome::Interrupted)))
+    );
+    assert_eq!(h.engine.phase(), EnginePhase::Working);
+}

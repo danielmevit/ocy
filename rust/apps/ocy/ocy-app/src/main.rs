@@ -22,6 +22,7 @@ use ocy_app::slint_breaks::{
     BreakActionCallbacks, BreakLatencySample, LatencyOptions, SlintBreakWindows,
 };
 use ocy_app::slint_settings::SlintSettingsWindow;
+#[cfg(not(target_os = "linux"))]
 use ocy_app::slint_tray::{OcyTray, SlintTraySink};
 use ocy_app::soak::{
     OffsetClock, SoakHooks, SoakTimings, build_soak_settings, format_soak_cycle_line,
@@ -37,7 +38,12 @@ use slint::{Timer, TimerMode};
 const APP_DATA_DIR_NAME: &str = "Ocy";
 const ERROR_LOG_PREFIX: &str = "ocy";
 
-type LiveHost = AppHost<OverlayBreakWindows<SlintBreakWindows>, SlintSettingsWindow, SlintTraySink>;
+#[cfg(target_os = "linux")]
+type LiveTraySink = LinuxTraySink;
+#[cfg(not(target_os = "linux"))]
+type LiveTraySink = SlintTraySink;
+
+type LiveHost = AppHost<OverlayBreakWindows<SlintBreakWindows>, SlintSettingsWindow, LiveTraySink>;
 
 thread_local! {
     static UI_HOST: RefCell<Option<Weak<RefCell<LiveHost>>>> = const { RefCell::new(None) };
@@ -78,11 +84,24 @@ fn arm_next_tick() {
         let clock = Arc::clone(clock);
         let delay = with_ui_host_ret(|host| {
             let snapshot = host.engine().snapshot();
-            scheduler::next_wake_delay(&snapshot, clock.now().timestamp())
+            #[cfg(feature = "store")]
+            {
+                scheduler::next_wake_delay_for_license(
+                    &snapshot,
+                    clock.now().timestamp(),
+                    host.license_state(),
+                )
+            }
+            #[cfg(not(feature = "store"))]
+            {
+                scheduler::next_wake_delay(&snapshot, clock.now().timestamp())
+            }
         })
         .unwrap_or(Duration::from_secs(1));
         timer.start(TimerMode::SingleShot, delay, || {
             WAKEUP_COUNT.with(|count| count.set(count.get() + 1));
+            #[cfg(feature = "store")]
+            store_license::maybe_periodic_recheck();
             with_ui_host(LiveHost::on_tick);
             arm_next_tick();
         });
@@ -105,7 +124,8 @@ fn build_platform_services(
         use damt_platform_win::{WinNotifier, WinPlatform};
         use ocy_app::notifications::{APP_DISPLAY_NAME, APP_NOTIFY_ICON_PNG, APP_USER_MODEL_ID};
 
-        let mut win_platform = WinPlatform::new(APP_DATA_DIR_NAME);
+        let mut win_platform = WinPlatform::new(APP_DATA_DIR_NAME)
+            .with_startup_task_id(ocy_app::instance::STARTUP_TASK_ID);
         if !is_isolated {
             win_platform = win_platform.with_notifier(WinNotifier::new(
                 APP_USER_MODEL_ID,
@@ -118,6 +138,10 @@ fn build_platform_services(
         win_platform.session().start(Box::new(move |event| {
             if let Err(err) = slint::invoke_from_event_loop(move || {
                 with_ui_host(|host| host.on_session_event(event));
+                #[cfg(feature = "store")]
+                if !is_isolated && event == damt_platform::SessionEvent::Resumed {
+                    store_license::refresh();
+                }
                 arm_next_tick();
             }) {
                 dispatch_log.log_error("session_event_dispatch", &err);
@@ -132,7 +156,63 @@ fn build_platform_services(
         (platform, None)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        use damt_platform::SessionEventSource;
+        use damt_platform_linux::{LinuxNotifier, LinuxPlatform};
+        use ocy_app::notifications::APP_DISPLAY_NAME;
+
+        let mut linux_platform =
+            LinuxPlatform::new(APP_DATA_DIR_NAME).with_desktop_id(ocy_app::instance::APP_ID);
+        if !is_isolated {
+            linux_platform = linux_platform.with_notifier(LinuxNotifier::new(
+                APP_DISPLAY_NAME,
+                ocy_app::instance::APP_ID,
+            ));
+        }
+        let dispatch_log = error_log.clone();
+        linux_platform.session().start(Box::new(move |event| {
+            if let Err(err) = slint::invoke_from_event_loop(move || {
+                with_ui_host(|host| host.on_session_event(event));
+                arm_next_tick();
+            }) {
+                dispatch_log.log_error("session_event_dispatch", &err);
+            }
+        }));
+
+        let platform: Arc<dyn PlatformServices> = if is_isolated {
+            Arc::new(DemoPlatformServices::new(linux_platform))
+        } else {
+            Arc::new(linux_platform)
+        };
+        (platform, None)
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use damt_platform::SessionEventSource;
+        use damt_platform_mac::MacPlatform;
+
+        let mut mac_platform = MacPlatform::new();
+        let dispatch_log = error_log.clone();
+        mac_platform.session().start(Box::new(move |event| {
+            if let Err(err) = slint::invoke_from_event_loop(move || {
+                with_ui_host(|host| host.on_session_event(event));
+                arm_next_tick();
+            }) {
+                dispatch_log.log_error("session_event_dispatch", &err);
+            }
+        }));
+
+        let platform: Arc<dyn PlatformServices> = if is_isolated {
+            Arc::new(DemoPlatformServices::new(mac_platform))
+        } else {
+            Arc::new(mac_platform)
+        };
+        (platform, None)
+    }
+
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {
         let _ = error_log;
         let platform: Arc<dyn PlatformServices> = if is_isolated {
@@ -255,7 +335,10 @@ fn main() -> ExitCode {
         .backend_name("winit".into())
         .renderer_name("software".into())
         .with_winit_window_attributes_hook(move |attrs| {
-            apply_window_attributes_for_role(attrs, owner_hwnd)
+            let attrs = apply_window_attributes_for_role(attrs, owner_hwnd);
+            #[cfg(target_os = "linux")]
+            let attrs = ocy_app::linux_window::apply_window_attributes_for_role(attrs);
+            attrs
         })
         .select()
     {
@@ -327,13 +410,19 @@ fn main() -> ExitCode {
     );
     let initial_snapshot = engine.snapshot();
 
-    let tray_component = match OcyTray::new() {
-        Ok(tray) => tray,
-        Err(err) => {
-            error_log.log_error("tray_create", &err);
-            return ExitCode::FAILURE;
-        }
+    #[cfg(not(target_os = "linux"))]
+    let tray_sink = {
+        let tray_component = match OcyTray::new() {
+            Ok(tray) => tray,
+            Err(err) => {
+                error_log.log_error("tray_create", &err);
+                return ExitCode::FAILURE;
+            }
+        };
+        SlintTraySink::new(tray_component, error_log.clone())
     };
+    #[cfg(target_os = "linux")]
+    let tray_sink = LinuxTraySink::spawn(error_log.clone());
 
     let taskbar_theme: Rc<dyn damt_platform::TaskbarThemeProvider> = Rc::new(TaskbarThemeAdapter {
         platform: Arc::clone(&platform),
@@ -344,7 +433,6 @@ fn main() -> ExitCode {
         _ => Some(AppTheme::Light),
     };
 
-    let tray_sink = SlintTraySink::new(tray_component, error_log.clone());
     let tray_presenter = TrayPresenter::new(Arc::clone(&strings), Arc::clone(&clock));
     let tray_controller = TrayController::new(
         tray_presenter,
@@ -369,6 +457,12 @@ fn main() -> ExitCode {
         on_postpone_long_break: Rc::new(|| {
             with_ui_host(|h| {
                 let _ = h.postpone_long_break();
+            });
+            arm_next_tick();
+        }),
+        on_hold_game: Rc::new(|| {
+            with_ui_host(|h| {
+                let _ = h.hold_current_game_and_close_card();
             });
             arm_next_tick();
         }),
@@ -412,6 +506,16 @@ fn main() -> ExitCode {
             arm_next_tick();
         }),
     };
+    #[cfg(feature = "store")]
+    let mut settings_window = SlintSettingsWindow::new(
+        Arc::clone(&platform),
+        Arc::clone(&clock),
+        Arc::clone(&strings),
+        error_log.clone(),
+        settings_callbacks,
+        initial_settings,
+    );
+    #[cfg(not(feature = "store"))]
     let settings_window = SlintSettingsWindow::new(
         Arc::clone(&platform),
         Arc::clone(&clock),
@@ -420,6 +524,10 @@ fn main() -> ExitCode {
         settings_callbacks,
         initial_settings,
     );
+    #[cfg(feature = "store")]
+    if !is_isolated {
+        settings_window.set_on_buy(Rc::new(store_license::trigger_purchase));
+    }
     let notifier: Rc<dyn damt_platform::Notifier> = if is_isolated {
         Rc::new(RecordingNotifier::new())
     } else {
@@ -444,6 +552,17 @@ fn main() -> ExitCode {
         *slot.borrow_mut() = Some(Rc::downgrade(&host));
     });
 
+    #[cfg(feature = "store")]
+    if !is_isolated {
+        let cache_path = data_dir.join(ocy_app::license::LICENSE_CACHE_FILE_NAME);
+        let initial_license =
+            store_license::init(cache_path, Arc::clone(&clock), error_log.clone());
+        host.borrow_mut()
+            .set_license_state(initial_license, clock.now().timestamp());
+        store_license::refresh();
+    }
+
+    #[cfg(not(target_os = "linux"))]
     {
         let host_ref = host.borrow();
         let tray = host_ref.tray().sink().component();
@@ -456,6 +575,12 @@ fn main() -> ExitCode {
         });
         tray.on_take_long_break_clicked(|| {
             with_ui_host(LiveHost::start_long_break_now);
+            arm_next_tick();
+        });
+        tray.on_hold_game_clicked(|| {
+            with_ui_host(|h| {
+                let _ = h.hold_until_game_closes();
+            });
             arm_next_tick();
         });
         tray.on_pause_1h_clicked(|| {
@@ -614,6 +739,8 @@ fn main() -> ExitCode {
         }
     });
     host.borrow_mut().shutdown();
+    #[cfg(feature = "store")]
+    store_license::clear();
     UI_HOST.with(|slot| {
         *slot.borrow_mut() = None;
     });
@@ -656,5 +783,344 @@ impl damt_platform::Notifier for NotifierAdapter {
 
     fn notify(&self, title: &str, body: &str) -> Result<(), damt_platform::PlatformError> {
         self.platform.notifier().notify(title, body)
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct LinuxTraySink {
+    handle: Option<damt_platform_linux::LinuxTrayHandle>,
+    error_log: ErrorLog,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxTraySink {
+    fn spawn(error_log: ErrorLog) -> Self {
+        use damt_platform_linux::{
+            LinuxTrayConfig, LinuxTrayHandle, LinuxTrayIconState, LinuxTrayPresentation,
+        };
+
+        let dispatch_log = error_log.clone();
+        let config = LinuxTrayConfig {
+            id: ocy_app::instance::APP_ID.to_owned(),
+            title: ocy_app::notifications::APP_DISPLAY_NAME.to_owned(),
+        };
+        let handle = match LinuxTrayHandle::spawn(
+            config,
+            LinuxTrayPresentation::default(),
+            LinuxTrayIconState::Active,
+            false,
+            move |action| {
+                if let Err(err) = slint::invoke_from_event_loop(move || {
+                    dispatch_linux_tray_action(action);
+                }) {
+                    dispatch_log.log_error("linux_tray_dispatch", &err);
+                }
+            },
+        ) {
+            Ok(h) => Some(h),
+            Err(err) => {
+                error_log.log_error("tray_create", &err);
+                None
+            }
+        };
+        Self { handle, error_log }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn dispatch_linux_tray_action(action: damt_platform_linux::LinuxTrayAction) {
+    use damt_platform_linux::LinuxTrayAction;
+
+    match action {
+        LinuxTrayAction::TrayClicked => with_ui_host(LiveHost::on_tray_left_click),
+        LinuxTrayAction::TakeShortBreakNow => {
+            with_ui_host(|h| {
+                let _ = h.start_short_break_now();
+            });
+            arm_next_tick();
+        }
+        LinuxTrayAction::TakeLongBreakNow => {
+            with_ui_host(LiveHost::start_long_break_now);
+            arm_next_tick();
+        }
+        LinuxTrayAction::HoldUntilGameCloses => {
+            with_ui_host(|h| {
+                let _ = h.hold_until_game_closes();
+            });
+            arm_next_tick();
+        }
+        LinuxTrayAction::Pause1Hour => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::OneHour));
+            arm_next_tick();
+        }
+        LinuxTrayAction::Pause3Hours => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::ThreeHours));
+            arm_next_tick();
+        }
+        LinuxTrayAction::PauseUntilResumed => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::UntilResumed));
+            arm_next_tick();
+        }
+        LinuxTrayAction::Resume => {
+            with_ui_host(LiveHost::resume);
+            arm_next_tick();
+        }
+        LinuxTrayAction::Settings => with_ui_host(LiveHost::show_settings),
+        LinuxTrayAction::Quit => {
+            with_ui_host(LiveHost::shutdown);
+            let _ = slint::quit_event_loop();
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl ocy_app::tray::TraySink for LinuxTraySink {
+    fn set_tooltip(&mut self, tooltip: &str) {
+        if let Some(handle) = &self.handle {
+            handle.set_tooltip(tooltip);
+        }
+    }
+
+    fn set_icon(&mut self, state: ocy_app::tray::TrayIconState, use_light_set: bool) {
+        use damt_platform_linux::LinuxTrayIconState;
+        use ocy_app::tray::TrayIconState;
+
+        let mapped = match state {
+            TrayIconState::Active => LinuxTrayIconState::Active,
+            TrayIconState::Paused => LinuxTrayIconState::Paused,
+            TrayIconState::OnBreak => LinuxTrayIconState::OnBreak,
+            TrayIconState::Attention => LinuxTrayIconState::Attention,
+        };
+        if let Some(handle) = &self.handle
+            && let Err(err) = handle.set_icon(mapped, use_light_set)
+        {
+            self.error_log.log_error("tray_icon", &err);
+        }
+    }
+
+    fn set_menu(&mut self, presentation: &ocy_app::tray::TrayPresentation) {
+        use damt_platform_linux::{LinuxTrayMenuItem, LinuxTrayPresentation};
+        use ocy_app::tray::TrayMenuItemState;
+
+        fn map_item(item: &TrayMenuItemState) -> LinuxTrayMenuItem {
+            LinuxTrayMenuItem {
+                text: item.text.clone(),
+                is_visible: item.is_visible,
+                is_enabled: item.is_enabled,
+                is_checked: item.is_checked,
+            }
+        }
+
+        if let Some(handle) = &self.handle {
+            handle.set_menu(LinuxTrayPresentation {
+                tooltip: presentation.tooltip.clone(),
+                pause_status: map_item(&presentation.pause_status),
+                take_short_break_now: map_item(&presentation.take_short_break_now),
+                take_long_break_now: map_item(&presentation.take_long_break_now),
+                hold_until_game_closes: map_item(&presentation.hold_until_game_closes),
+                pause_1_hour: map_item(&presentation.pause_1_hour),
+                pause_3_hours: map_item(&presentation.pause_3_hours),
+                pause_until_resumed: map_item(&presentation.pause_until_resumed),
+                resume: map_item(&presentation.resume),
+                settings: map_item(&presentation.settings),
+                quit: map_item(&presentation.quit),
+            });
+        }
+    }
+}
+
+#[cfg(feature = "store")]
+mod store_license {
+    use std::cell::RefCell;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use damt_app::ErrorLog;
+    use damt_platform::Clock;
+    use damt_platform_win::{RawStoreLicense, StorePurchaseOutcome};
+    use ocy_app::license::{LicenseManager, LicenseState};
+
+    use super::{UI_HOST, arm_next_tick, with_ui_host, with_ui_host_ret};
+
+    struct StoreLicenseRuntime {
+        manager: LicenseManager,
+        in_flight: bool,
+        error_logged: bool,
+        error_log: ErrorLog,
+        clock: Arc<dyn Clock>,
+    }
+
+    thread_local! {
+        static RUNTIME: RefCell<Option<StoreLicenseRuntime>> = const { RefCell::new(None) };
+    }
+
+    pub fn init(cache_path: PathBuf, clock: Arc<dyn Clock>, error_log: ErrorLog) -> LicenseState {
+        let manager = LicenseManager::new(Some(cache_path), Arc::clone(&clock));
+        let initial = manager.state();
+        RUNTIME.with(|slot| {
+            *slot.borrow_mut() = Some(StoreLicenseRuntime {
+                manager,
+                in_flight: false,
+                error_logged: false,
+                error_log,
+                clock,
+            });
+        });
+        initial
+    }
+
+    pub fn clear() {
+        RUNTIME.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
+    }
+
+    pub fn maybe_periodic_recheck() {
+        let should_refresh = RUNTIME.with(|slot| {
+            let borrow = slot.borrow();
+            borrow
+                .as_ref()
+                .is_some_and(|rt| !rt.in_flight && rt.manager.is_recheck_due())
+        });
+        if should_refresh {
+            refresh();
+        }
+    }
+
+    pub fn refresh() {
+        let can_start = RUNTIME.with(|slot| {
+            let mut borrow = slot.borrow_mut();
+            let Some(rt) = borrow.as_mut() else {
+                return false;
+            };
+            if rt.in_flight {
+                return false;
+            }
+            rt.in_flight = true;
+            rt.manager.mark_check_started();
+            true
+        });
+        if !can_start {
+            return;
+        }
+
+        #[cfg(windows)]
+        {
+            damt_platform_win::query_app_license_async(|res| {
+                let mapped = res.map_err(|err| err.to_string());
+                let _ = slint::invoke_from_event_loop(move || {
+                    on_query_completed(mapped);
+                });
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            on_query_completed(Err(
+                "Microsoft Store licensing is only available on Windows".to_owned(),
+            ));
+        }
+    }
+
+    fn on_query_completed(res: Result<RawStoreLicense, String>) {
+        let update = RUNTIME.with(|slot| {
+            let mut borrow = slot.borrow_mut();
+            let rt = borrow.as_mut()?;
+            rt.in_flight = false;
+            let state = rt.manager.on_query_result(res);
+            if let Some(err) = rt.manager.last_error() {
+                if !rt.error_logged {
+                    rt.error_logged = true;
+                    rt.error_log.log(Some("store_license"), err);
+                }
+            } else {
+                rt.error_logged = false;
+            }
+            Some((state, rt.clock.now().timestamp()))
+        });
+
+        if let Some((state, now)) = update
+            && UI_HOST.with(|slot| slot.borrow().is_some())
+        {
+            with_ui_host(|host| host.set_license_state(state, now));
+            arm_next_tick();
+        }
+    }
+
+    pub fn trigger_purchase() {
+        let owner_hwnd =
+            with_ui_host_ret(|host| host.coordinator().settings_window().active_hwnd()).flatten();
+
+        let Some(hwnd) = owner_hwnd else {
+            RUNTIME.with(|slot| {
+                if let Some(rt) = slot.borrow().as_ref() {
+                    rt.error_log.log(
+                        Some("store_purchase"),
+                        "Settings window HWND unavailable for Store purchase",
+                    );
+                }
+            });
+            return;
+        };
+
+        #[cfg(windows)]
+        {
+            if let Err(err) =
+                damt_platform_win::request_purchase_async(ocy_app::license::STORE_ID, hwnd, |res| {
+                    let mapped = res.map_err(|err| err.to_string());
+                    let _ = slint::invoke_from_event_loop(move || {
+                        on_purchase_completed(mapped);
+                    });
+                })
+            {
+                RUNTIME.with(|slot| {
+                    if let Some(rt) = slot.borrow().as_ref() {
+                        rt.error_log.log_error("store_purchase_start", &err);
+                    }
+                });
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = hwnd;
+            on_purchase_completed(Err(
+                "Microsoft Store purchase is only available on Windows".to_owned()
+            ));
+        }
+    }
+
+    fn on_purchase_completed(res: Result<StorePurchaseOutcome, String>) {
+        match res {
+            Ok(outcome) if outcome.is_owned() => {
+                let update = RUNTIME.with(|slot| {
+                    let mut borrow = slot.borrow_mut();
+                    let rt = borrow.as_mut()?;
+                    let state = rt.manager.on_purchase_succeeded();
+                    Some((state, rt.clock.now().timestamp()))
+                });
+                if let Some((state, now)) = update {
+                    with_ui_host(|host| host.set_license_state(state, now));
+                    arm_next_tick();
+                }
+                refresh();
+            }
+            Ok(StorePurchaseOutcome::NotPurchased) => {}
+            Ok(other) => {
+                RUNTIME.with(|slot| {
+                    if let Some(rt) = slot.borrow().as_ref() {
+                        rt.error_log.log(
+                            Some("store_purchase"),
+                            &format!("Store purchase did not complete: {other:?}"),
+                        );
+                    }
+                });
+            }
+            Err(err) => {
+                RUNTIME.with(|slot| {
+                    if let Some(rt) = slot.borrow().as_ref() {
+                        rt.error_log.log(Some("store_purchase"), &err);
+                    }
+                });
+            }
+        }
     }
 }

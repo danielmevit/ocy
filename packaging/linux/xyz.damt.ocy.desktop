@@ -1,0 +1,19 @@
+# Draft .desktop file for the Flatpak manifest — NOT INSTALLED YET (task L0).
+# Spec: https://specifications.freedesktop.org/desktop-entry-spec/latest/
+# Flathub requires StartupWMClass to match the window's WM_CLASS/wayland app_id.
+[Desktop Entry]
+Type=Application
+Name=Ocy
+GenericName=Break reminder
+Comment=Calm break reminders for your eyes
+# Inside Flatpak the launcher is the app id; the portal/flatpak wrapper resolves it.
+Exec=ocy
+Icon=xyz.damt.ocy
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=health;eyes;break;rest;reminder;stretch;
+StartupWMClass=ocy
+X-KDE-StartupNotify=false
+# Single instance: a second launch signals the running instance to open Settings
+# (damt-app SingleInstance), so keep launching cheap and quiet.
+StartupNotify=false

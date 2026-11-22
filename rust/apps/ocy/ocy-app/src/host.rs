@@ -12,6 +12,8 @@ use ocy_core::persistence::AppDataStore;
 use ocy_core::settings::OcySettings;
 
 use crate::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
+#[cfg(feature = "store")]
+use crate::license::LicenseState;
 use crate::notifications::{NotificationPresenter, StatusNotification};
 use crate::tray::{PauseSource, TrayController, TraySink};
 
@@ -52,6 +54,8 @@ pub struct AppHost<W: BreakWindows, S: SettingsWindow, T: TraySink> {
     time_source: Arc<dyn MonotonicTimeSource>,
     last_save: Instant,
     shut_down: bool,
+    #[cfg(feature = "store")]
+    license_state: LicenseState,
 }
 
 impl<W, S, T> fmt::Debug for AppHost<W, S, T>
@@ -115,6 +119,8 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
             time_source,
             last_save,
             shut_down: false,
+            #[cfg(feature = "store")]
+            license_state: LicenseState::Unknown,
         }
     }
 
@@ -317,6 +323,49 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         self.tray.update(&self.engine.snapshot());
     }
 
+    /// Adds the foreground game to the silent list and saves settings.
+    ///
+    /// Returns false when the foreground app is not a game or its exe name could not be read.
+    /// The card and the tray call this; it does not draw anything.
+    pub fn hold_current_game(&mut self) -> bool {
+        if self.shut_down {
+            return false;
+        }
+        if !self.engine.silence_foreground_game() {
+            return false;
+        }
+        self.save_settings(self.engine.settings().clone())
+    }
+
+    /// Holds breaks until the foreground game process exits.
+    ///
+    /// Returns false when the foreground app is not a game or its process id is unknown.
+    /// The hold lives in the engine until that process exits. The card and the tray call this.
+    pub fn hold_until_game_closes(&mut self) -> bool {
+        if self.shut_down {
+            return false;
+        }
+        let held = self.engine.hold_until_foreground_game_closes();
+        self.tray.update(&self.engine.snapshot());
+        held
+    }
+
+    /// "Not during this game" on a gentle card: silences the foreground game, then closes the
+    /// card as an interrupted break (not a skip, not a postpone, no statistics).
+    ///
+    /// Returns false when the foreground app is not a game. The card stays open then.
+    pub fn hold_current_game_and_close_card(&mut self) -> bool {
+        if !self.hold_current_game() {
+            return false;
+        }
+        let (_closed, events) = self.engine.dismiss_gentle_card();
+        let snapshot = self.engine.snapshot();
+        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator.handle_events(&events);
+        self.tray.update(&self.engine.snapshot());
+        true
+    }
+
     /// Resumes reminders from an active pause.
     pub fn resume(&mut self) {
         if self.shut_down {
@@ -417,6 +466,40 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
     /// Mutable reference to the underlying [`BreakUiCoordinator`].
     pub const fn coordinator_mut(&mut self) -> &mut BreakUiCoordinator<W, S> {
         &mut self.coordinator
+    }
+
+    /// Current Microsoft Store license state (only present in `--features store` builds).
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub const fn license_state(&self) -> LicenseState {
+        self.license_state
+    }
+
+    /// Remaining trial days (`-1` when not in a trial with a known end date, `0` when expired).
+    #[cfg(feature = "store")]
+    #[must_use]
+    pub fn trial_days_left(&self, now: jiff::Timestamp) -> i32 {
+        self.license_state.trial_days_left_i32(now)
+    }
+
+    /// Updates the Store license state, suspending or resuming engine reminders and updating
+    /// the tray and Settings UI immediately.
+    #[cfg(feature = "store")]
+    pub fn set_license_state(&mut self, state: LicenseState, now: jiff::Timestamp) {
+        if self.shut_down {
+            return;
+        }
+        self.license_state = state;
+        let events = self
+            .engine
+            .set_reminders_suspended(!state.allows_reminders());
+        let snapshot = self.engine.snapshot();
+        self.coordinator
+            .sync_license(state, state.trial_days_left_i32(now));
+        self.sync_coordinator_for_snapshot(&snapshot);
+        self.coordinator.handle_events(&events);
+        self.tray.set_license_state(state);
+        self.tray.update(&self.engine.snapshot());
     }
 }
 

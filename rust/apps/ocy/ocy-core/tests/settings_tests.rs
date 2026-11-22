@@ -38,6 +38,7 @@ fn settings_defaults_match_architecture_specification() {
     assert!(settings.has_window_nearby);
     assert!(settings.status_notifications);
     assert!(!settings.start_with_system);
+    assert!(settings.water_nudges);
     assert_eq!(settings.language, "en");
 }
 
@@ -343,4 +344,135 @@ fn downgrade_safety_v2_json_loads_without_resetting_values() {
     assert!(v020_loaded.strict_mode);
     assert_eq!(v020_loaded.away_threshold_seconds, 240);
     assert_eq!(v020_loaded.language, "mk");
+    assert_eq!(
+        v020_loaded.games_mode,
+        ocy_core::settings::GamesMode::Gentle
+    );
+    assert!(v020_loaded.games_silent.is_empty());
+}
+
+#[test]
+fn old_settings_file_gains_gentle_games_and_a_bad_field_does_not_wipe_the_file() {
+    let old = r#"{
+        "schemaVersion": 2,
+        "strictMode": true,
+        "language": "mk"
+    }"#;
+    let loaded: OcySettings = serde_json::from_str(old).expect("old file");
+    assert_eq!(loaded.games_mode, ocy_core::settings::GamesMode::Gentle);
+    assert!(loaded.games_silent.is_empty());
+    assert!(loaded.strict_mode);
+    assert_eq!(loaded.language, "mk");
+
+    let messy = r#"{
+        "schemaVersion": 2,
+        "language": "de",
+        "gamesMode": null,
+        "gamesSilent": null
+    }"#;
+    let loaded: OcySettings = serde_json::from_str(messy).expect("null games fields");
+    assert_eq!(loaded.games_mode, ocy_core::settings::GamesMode::Gentle);
+    assert!(loaded.games_silent.is_empty());
+    assert_eq!(loaded.language, "de");
+
+    let held = r#"{
+        "schemaVersion": 2,
+        "gamesMode": " HoLd ",
+        "gamesSilent": ["C:\\\\Games\\\\Demo\\\\DEMO.EXE", "demo.exe", "", 3, "notepad.exe"]
+    }"#;
+    let mut loaded: OcySettings = serde_json::from_str(held).expect("hold mode");
+    assert_eq!(loaded.games_mode, ocy_core::settings::GamesMode::Hold);
+    loaded.clamp();
+    assert_eq!(
+        loaded.games_silent,
+        vec!["DEMO.EXE".to_owned(), "notepad.exe".to_owned()]
+    );
+    assert!(loaded.is_silent_game("demo.exe"));
+    assert!(!loaded.is_silent_game("other.exe"));
+
+    let bad_types = r#"{
+        "schemaVersion": 2,
+        "language": "en",
+        "shortBreaks": {"enabled": true, "intervalMinutes": 25, "durationSeconds": 15, "fullscreen": false},
+        "gamesMode": 7,
+        "gamesSilent": {"nope": true}
+    }"#;
+    let loaded: OcySettings =
+        serde_json::from_str(bad_types).expect("bad games fields are ignored");
+    assert_eq!(loaded.games_mode, ocy_core::settings::GamesMode::Gentle);
+    assert!(loaded.games_silent.is_empty());
+    assert_eq!(loaded.short_breaks.interval_minutes, 25);
+
+    let default_json = serde_json::to_string(&OcySettings::default()).expect("serialize");
+    assert!(!default_json.contains("gamesMode"));
+    assert!(!default_json.contains("gamesSilent"));
+    assert!(!default_json.contains("naturalMoments"));
+}
+
+#[test]
+fn water_nudges_missing_key_migrates_to_default_true() {
+    let dir = TempDir::new("settings-water-migration");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 17, 12, 0, 0).expect("valid date"));
+    let store = AppDataStore::new(dir.path(), clock);
+
+    // A pre-water settings file (0.2.1) has no `waterNudges` key at all.
+    let json = r#"{
+        "schemaVersion": 2,
+        "shortBreaks": {
+            "enabled": true,
+            "intervalMinutes": 20,
+            "durationSeconds": 15,
+            "fullscreen": false
+        },
+        "longBreaks": {
+            "enabled": true,
+            "intervalMinutes": 60,
+            "durationMinutes": 5,
+            "warningSeconds": 60,
+            "postponeMinutes": 3,
+            "maxPostpones": 3
+        },
+        "strictMode": false,
+        "sounds": false,
+        "inactivityTracking": true,
+        "awayThresholdSeconds": 120,
+        "pauseDuringFullscreen": true,
+        "hasWindowNearby": true,
+        "statusNotifications": true,
+        "startWithSystem": false,
+        "language": "en"
+    }"#;
+    fs::write(store.settings_path(), json).expect("write pre-water settings");
+
+    let loaded = store.load_settings();
+    assert_eq!(loaded.schema_version, 2);
+    assert!(
+        loaded.water_nudges,
+        "missing waterNudges key defaults to true"
+    );
+}
+
+#[test]
+fn water_nudges_false_round_trips_and_true_stays_unwritten() {
+    let dir = TempDir::new("settings-water-roundtrip");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 17, 12, 0, 0).expect("valid date"));
+    let store = AppDataStore::new(dir.path(), clock);
+
+    // Default (true) files stay byte-identical to pre-water files: the key is omitted.
+    store
+        .save_settings(&OcySettings::default())
+        .expect("save defaults");
+    let json = fs::read_to_string(store.settings_path()).expect("read saved json");
+    assert!(!json.contains("waterNudges"));
+
+    // An explicit opt-out persists and survives a reload.
+    let opt_out = OcySettings {
+        water_nudges: false,
+        ..OcySettings::default()
+    };
+    store.save_settings(&opt_out).expect("save opt-out");
+    let json = fs::read_to_string(store.settings_path()).expect("read saved json");
+    assert!(json.contains("\"waterNudges\": false"));
+    let reloaded = store.load_settings();
+    assert!(!reloaded.water_nudges);
 }

@@ -6,7 +6,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use damt_platform::{FocusState, FocusStateProvider, IdleProvider, PlatformServices};
+use damt_platform::{
+    ControllerIdleProvider, FocusState, FocusStateProvider, ForegroundObservation, ForegroundProbe,
+    IdleProvider, PlatformServices,
+};
 
 #[derive(Debug)]
 pub struct FakeIdleProvider {
@@ -33,6 +36,44 @@ impl FakeIdleProvider {
 }
 
 impl IdleProvider for FakeIdleProvider {
+    fn is_supported(&self) -> bool {
+        self.supported.load(Ordering::Relaxed)
+    }
+
+    fn idle_time(&self) -> Duration {
+        if !self.is_supported() {
+            return Duration::ZERO;
+        }
+        Duration::from_nanos(self.idle_nanos.load(Ordering::Relaxed))
+    }
+}
+
+/// Scripted controller-activity provider: reports a fixed idle time.
+#[derive(Debug)]
+pub struct FakeControllerIdle {
+    supported: AtomicBool,
+    idle_nanos: AtomicU64,
+}
+
+impl FakeControllerIdle {
+    pub fn new() -> Self {
+        Self {
+            supported: AtomicBool::new(true),
+            idle_nanos: AtomicU64::new(0),
+        }
+    }
+
+    pub fn set_supported(&self, supported: bool) {
+        self.supported.store(supported, Ordering::Relaxed);
+    }
+
+    pub fn set_idle_time(&self, duration: Duration) {
+        let nanos = u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX);
+        self.idle_nanos.store(nanos, Ordering::Relaxed);
+    }
+}
+
+impl ControllerIdleProvider for FakeControllerIdle {
     fn is_supported(&self) -> bool {
         self.supported.load(Ordering::Relaxed)
     }
@@ -81,10 +122,83 @@ impl FocusStateProvider for FakeFocusStateProvider {
     }
 }
 
+/// Scripted foreground probe. Unsupported until a test stores an observation.
+#[derive(Debug)]
+pub struct FakeForeground {
+    supported: AtomicBool,
+    observation: Mutex<ForegroundObservation>,
+    paths: Mutex<Vec<String>>,
+    dead_pids: Mutex<Vec<u32>>,
+}
+
+impl FakeForeground {
+    pub fn new() -> Self {
+        Self {
+            supported: AtomicBool::new(false),
+            observation: Mutex::new(ForegroundObservation::unknown()),
+            paths: Mutex::new(Vec::new()),
+            dead_pids: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn set_observation(&self, observation: ForegroundObservation) {
+        self.supported.store(true, Ordering::Relaxed);
+        *self.observation.lock().unwrap_or_else(|e| e.into_inner()) = observation;
+    }
+
+    pub fn set_game_bar_paths(&self, paths: Vec<String>) {
+        self.supported.store(true, Ordering::Relaxed);
+        *self.paths.lock().unwrap_or_else(|e| e.into_inner()) = paths;
+    }
+
+    pub fn mark_dead(&self, pid: u32) {
+        self.dead_pids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(pid);
+    }
+}
+
+impl ForegroundProbe for FakeForeground {
+    fn is_supported(&self) -> bool {
+        self.supported.load(Ordering::Relaxed)
+    }
+
+    fn observe(&self) -> ForegroundObservation {
+        if !self.is_supported() {
+            return ForegroundObservation::unknown();
+        }
+        self.observation
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    fn game_bar_exe_paths(&self) -> Vec<String> {
+        if !self.is_supported() {
+            return Vec::new();
+        }
+        self.paths.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    fn process_alive(&self, process_id: u32) -> bool {
+        if !self.is_supported() || process_id == 0 {
+            return false;
+        }
+        !self
+            .dead_pids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(&process_id)
+    }
+}
+
 #[derive(Debug)]
 pub struct TestPlatformServices {
     pub idle: FakeIdleProvider,
     pub focus: FakeFocusStateProvider,
+    pub foreground: FakeForeground,
+    pub controller: FakeControllerIdle,
 }
 
 impl TestPlatformServices {
@@ -92,6 +206,8 @@ impl TestPlatformServices {
         Arc::new(Self {
             idle: FakeIdleProvider::new(),
             focus: FakeFocusStateProvider::new(),
+            foreground: FakeForeground::new(),
+            controller: FakeControllerIdle::new(),
         })
     }
 }
@@ -103,6 +219,14 @@ impl PlatformServices for TestPlatformServices {
 
     fn focus(&self) -> &dyn FocusStateProvider {
         &self.focus
+    }
+
+    fn foreground(&self) -> &dyn ForegroundProbe {
+        &self.foreground
+    }
+
+    fn controller(&self) -> &dyn ControllerIdleProvider {
+        &self.controller
     }
 }
 

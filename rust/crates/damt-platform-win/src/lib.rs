@@ -9,9 +9,12 @@
 pub mod pure;
 
 pub use pure::{
-    AutostartCommand, AutostartCommandError, ExStyle, FocusStateMapper, IdleMath, MotionMath,
-    RectMath, RegistryValue, SessionEventMapper, TaskbarThemeMath, ToastXml, aumid_registry_subkey,
-    notify_icon_path,
+    AutostartCommand, AutostartCommandError, AutostartKind, AutostartPathSelector, ControllerMath,
+    ExStyle, FocusStateMapper, GamepadSample, GamepadSignature, IdleMath, MotionMath,
+    MsixVersionError, RawStoreLicense, RectMath, RegistryValue, SessionEventMapper,
+    StartupTaskToggleState, StoreLicenseKind, StoreLicenseMapper, StorePurchaseOutcome,
+    TaskbarThemeMath, ToastXml, aumid_registry_subkey, format_msix_version, game_bar_exe_path,
+    is_game_bar_exe_value_name, notify_icon_path,
 };
 
 #[cfg(windows)]
@@ -19,6 +22,9 @@ mod windows;
 
 #[cfg(windows)]
 pub use windows::{
-    WinActiveScreen, WinAutostart, WinFocus, WinIdle, WinMotion, WinNotifier, WinPlatform,
-    WinSessionEvents, WinTaskbarTheme,
+    WinActiveScreen, WinAutostart, WinControllerIdle, WinFocus, WinForeground, WinIdle, WinMotion,
+    WinNotifier, WinPlatform, WinSessionEvents, WinTaskbarTheme, is_packaged_app,
 };
+
+#[cfg(all(windows, feature = "store"))]
+pub use windows::{query_app_license, query_app_license_async, request_purchase_async};

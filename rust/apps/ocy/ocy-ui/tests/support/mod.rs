@@ -403,6 +403,13 @@ pub fn render_all() -> Result<Vec<Shot>, String> {
                 image: settings_v2_shot(state, dark)?,
             });
         }
+        for &state in MODE_STATES {
+            shots.push(Shot {
+                theme,
+                name: state.name,
+                image: mode_shot(state, dark)?,
+            });
+        }
     }
     Ok(shots)
 }
@@ -440,6 +447,186 @@ const BLINK_DARK_F1: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../assets/illustrations/ocy-v1f/svg/blink-dark-f1.svg"
 ));
+
+macro_rules! mode_svg {
+    ($name:expr) => {
+        (
+            $name,
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../assets/illustrations/modes/svg/",
+                $name
+            )) as &[u8],
+        )
+    };
+}
+macro_rules! mode_svgs {
+    ($($mode:literal),*) => {
+        &[$(
+            mode_svg!(concat!("scene-", $mode, "-light-f1.svg")),
+            mode_svg!(concat!("scene-", $mode, "-light-f2.svg")),
+            mode_svg!(concat!("scene-", $mode, "-light-f3.svg")),
+            mode_svg!(concat!("scene-", $mode, "-light-f4.svg")),
+            mode_svg!(concat!("scene-", $mode, "-dark-f1.svg")),
+            mode_svg!(concat!("scene-", $mode, "-dark-f2.svg")),
+            mode_svg!(concat!("scene-", $mode, "-dark-f3.svg")),
+            mode_svg!(concat!("scene-", $mode, "-dark-f4.svg")),
+            mode_svg!(concat!("glyph-", $mode, "-light-f1.svg")),
+            mode_svg!(concat!("glyph-", $mode, "-dark-f1.svg")),
+        )*]
+    };
+}
+const MODE_SVGS: &[(&str, &[u8])] = mode_svgs!("gentle", "balanced", "focused", "custom");
+const MODES: [&str; 4] = ["gentle", "balanced", "focused", "custom"];
+
+fn mode_svg(name: &str) -> Result<&'static [u8], String> {
+    MODE_SVGS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, b)| *b)
+        .ok_or_else(|| format!("{name} not embedded"))
+}
+
+fn art_width(svg: &[u8], logical_w: f32) -> Result<slint::Image, String> {
+    let w = (logical_w * SCALE).round() as u32;
+    let raster = damt_art::Raster::render_width(svg, w).map_err(|e| e.to_string())?;
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        &raster.pixels,
+        raster.width,
+        raster.height,
+    );
+    Ok(slint::Image::from_rgba8_premultiplied(buffer))
+}
+
+/// Sets the placeholder mode art (16 scene frames, 4 glyphs) and the mode descriptions, as the host does.
+fn set_mode_art(ui: &ocy_ui::SettingsWindowV2, t: &Table, dark: bool) -> Result<(), String> {
+    let theme = if dark { "dark" } else { "light" };
+    let mut scenes = Vec::new();
+    let mut glyphs = Vec::new();
+    for mode in MODES {
+        for f in 1..=4 {
+            scenes.push(art_width(
+                mode_svg(&format!("scene-{mode}-{theme}-f{f}.svg"))?,
+                160.0,
+            )?);
+        }
+        glyphs.push(art(
+            mode_svg(&format!("glyph-{mode}-{theme}-f1.svg"))?,
+            20.0,
+        )?);
+    }
+    ui.set_mode_scenes(slint::ModelRc::new(slint::VecModel::from(scenes)));
+    ui.set_mode_glyphs(slint::ModelRc::new(slint::VecModel::from(glyphs)));
+    let d = |m: &str| -> slint::SharedString {
+        t.get(&format!("settings.v2.mode.{m}.description")).into()
+    };
+    ui.set_mode_gentle_description(d("gentle"));
+    ui.set_mode_balanced_description(d("balanced"));
+    ui.set_mode_focused_description(d("focused"));
+    ui.set_mode_custom_description(d("custom"));
+    Ok(())
+}
+
+/// One V11 gallery state: a mode (preset 0..3), an idle frame, and an optional Store licence state.
+#[derive(Debug, Clone, Copy)]
+pub struct ModeState {
+    pub name: &'static str,
+    pub preset: i32,
+    pub frame: i32,
+    /// `None` = GitHub build (no Store elements); else the `license-state` tag.
+    pub license: Option<&'static str>,
+    pub days_left: i32,
+}
+
+pub const MODE_STATES: &[ModeState] = &[
+    ModeState {
+        name: "v11-mode-gentle",
+        preset: 0,
+        frame: 1,
+        license: None,
+        days_left: -1,
+    },
+    ModeState {
+        name: "v11-mode-balanced",
+        preset: 1,
+        frame: 1,
+        license: None,
+        days_left: -1,
+    },
+    ModeState {
+        name: "v11-mode-focused",
+        preset: 2,
+        frame: 1,
+        license: None,
+        days_left: -1,
+    },
+    ModeState {
+        name: "v11-mode-yours",
+        preset: 3,
+        frame: 1,
+        license: None,
+        days_left: -1,
+    },
+    ModeState {
+        name: "v11-mode-balanced-f3",
+        preset: 1,
+        frame: 3,
+        license: None,
+        days_left: -1,
+    },
+    ModeState {
+        name: "v11-store-trial",
+        preset: 1,
+        frame: 1,
+        license: Some("trial"),
+        days_left: 12,
+    },
+    ModeState {
+        name: "v11-store-trial-ended",
+        preset: 1,
+        frame: 1,
+        license: Some("trial-expired"),
+        days_left: 0,
+    },
+    ModeState {
+        name: "v11-store-full",
+        preset: 1,
+        frame: 1,
+        license: Some("full"),
+        days_left: -1,
+    },
+];
+
+fn mode_shot(state: ModeState, dark: bool) -> Result<Rgba, String> {
+    let ui = settings_v2("en", dark)?;
+    let t = Table::load("en")?;
+    let window = take_window()?;
+    ui.set_preset(state.preset);
+    ui.set_mode_frame(state.frame);
+    if let Some(license) = state.license {
+        ui.set_store_build(true);
+        ui.set_license_state(license.into());
+        ui.set_trial_days_left(state.days_left);
+        ui.set_trial_days_left_text(
+            t.fmt(
+                if state.days_left == 1 {
+                    "store.trialDaysLeft.one"
+                } else {
+                    "store.trialDaysLeft.other"
+                },
+                &[("days", state.days_left.to_string())],
+            )
+            .into(),
+        );
+        ui.set_trial_ended_title(t.get("store.trialEnded.title").into());
+        ui.set_trial_ended_body(t.get("store.trialEnded.body").into());
+        ui.set_buy_label(t.get("store.buy").into());
+        ui.set_made_with_slint_label(t.get("store.madeWithSlint").into());
+    }
+    Ok(render(&window, 560.0, || {
+        640.0_f32.max(ui.get_content_height().ceil())
+    }))
+}
 
 /// Parses a flat `{"key": "string", ...}` JSON object (the string tables have no nesting).
 pub fn parse_flat_json(src: &str) -> Result<Vec<(String, String)>, String> {
@@ -537,6 +724,7 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
         if dark { BLINK_DARK_F1 } else { BLINK_LIGHT_F1 },
         48.0,
     )?);
+    set_mode_art(&ui, &t, dark)?;
     ui.set_next_break_text(
         t.fmt(
             "settings.v2.header.nextShort",
@@ -556,10 +744,10 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_timeline_short_label(s("settings.v2.timeline.shortBreaks"));
     ui.set_timeline_long_label(s("settings.v2.timeline.longBreaks"));
     ui.set_now_label(s("settings.v2.timeline.now"));
-    // Balanced: short every 20 min (next in 7), long every 60 min (next in 25), over 120 min.
+    // Balanced: short every 25 min (next in 7), long every 60 min (next in 25), over 120 min.
     let mut marks = Vec::new();
     // A long break replaces the short one that falls on it.
-    for at in [7, 47, 67, 107] {
+    for at in [7, 32, 57, 82, 107] {
         marks.push(TimelineMark {
             kind: TimelineMarkKind::ShortBreak,
             position: at as f32 / 120.0,
@@ -595,9 +783,9 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
         )
         .into()
     };
-    ui.set_preset_gentle_summary(summary(15, 30, 5, 60));
-    ui.set_preset_balanced_summary(summary(20, 20, 5, 60));
-    ui.set_preset_focused_summary(summary(20, 45, 10, 90));
+    ui.set_preset_gentle_summary(summary(15, 40, 5, 90));
+    ui.set_preset_balanced_summary(summary(15, 25, 5, 60));
+    ui.set_preset_focused_summary(summary(20, 50, 10, 90));
     ui.set_customize_title(s("settings.v2.section.customize"));
     ui.set_general_title(s("settings.section.general"));
     ui.set_tab_breaks_label(s("settings.v2.tab.breaks"));
@@ -618,6 +806,8 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_long_postpone_label(s("settings.longBreaks.postponeMinutes.label"));
     ui.set_long_max_postpones_label(s("settings.longBreaks.maxPostpones.label"));
     ui.set_try_long_label(s("settings.tryLongBreak"));
+    ui.set_water_nudges_label(s("settings.waterNudges.label"));
+    ui.set_water_nudges_help(s("settings.waterNudges.help"));
     ui.set_strict_label(s("settings.strictMode.label"));
     ui.set_strict_help(s("settings.strictMode.help"));
     ui.set_inactivity_label(s("settings.inactivityTracking.label"));
@@ -625,6 +815,15 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_away_label(s("settings.awayThresholdSeconds.label"));
     ui.set_pause_fullscreen_label(s("settings.pauseDuringFullscreen.label"));
     ui.set_pause_fullscreen_help(s("settings.pauseDuringFullscreen.help"));
+    ui.set_games_title(s("settings.section.games"));
+    ui.set_games_mode_model(slint::ModelRc::new(slint::VecModel::from(vec![
+        s("settings.games.gentle"),
+        s("settings.games.hold"),
+    ])));
+    ui.set_games_gentle_help(s("settings.games.gentleHelp"));
+    ui.set_games_hold_help(s("settings.games.holdHelp"));
+    ui.set_games_silent_title(s("settings.games.silent"));
+    ui.set_games_silent_empty(s("settings.games.silentEmpty"));
     ui.set_window_nearby_label(s("settings.hasWindowNearby.label"));
     ui.set_window_nearby_help(s("settings.hasWindowNearby.help"));
     ui.set_language_label(s("settings.language.label"));
@@ -654,8 +853,8 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_language_index(0);
     ui.set_start_with_system(true);
     ui.set_preset(1);
-    ui.set_short_interval(20);
-    ui.set_short_duration(20);
+    ui.set_short_interval(25);
+    ui.set_short_duration(15);
     ui.set_long_interval(60);
     ui.set_long_duration(5);
 

@@ -167,6 +167,15 @@ class NoticesTests(unittest.TestCase):
                 {},
                 repo="https://github.com/mondeja/rspolib",
             )
+            # Crate shipping UNLICENSE file -> recognized automatically
+            ksni_pkg, _ = _make_crate(
+                root,
+                "ksni",
+                "0.3.7",
+                "Unlicense",
+                {"UNLICENSE": "This is free and unencumbered software.\n"},
+                repo="https://github.com/iovxw/ksni",
+            )
             # Mapped crate WITH its own source licence file -> source file wins over vendored
             clip_pkg, _ = _make_crate(
                 root,
@@ -193,7 +202,7 @@ class NoticesTests(unittest.TestCase):
             meta_file.write_text(
                 json.dumps(
                     {
-                        "packages": [app_pkg, taffy_pkg, rspolib_pkg, clip_pkg, skia_pkg],
+                        "packages": [app_pkg, taffy_pkg, rspolib_pkg, ksni_pkg, clip_pkg, skia_pkg],
                     }
                 ),
                 encoding="utf-8",
@@ -205,6 +214,7 @@ class NoticesTests(unittest.TestCase):
                         f"ocy-app v0.2.0-dev ({root / 'ocy-app-0.2.0-dev'})",
                         "taffy v0.15.1",
                         "clipboard-win v5.4.3",
+                        "ksni v0.3.7",
                         "rspolib v0.1.2 (proc-macro)",
                         "taffy v0.15.1 (*)",
                     ]
@@ -219,6 +229,7 @@ class NoticesTests(unittest.TestCase):
                         f"ocy-app v0.2.0-dev ({root / 'ocy-app-0.2.0-dev'})",
                         "taffy v0.15.1",
                         "clipboard-win v5.4.3",
+                        "ksni v0.3.7",
                     ]
                 )
                 + "\n",
@@ -244,12 +255,13 @@ class NoticesTests(unittest.TestCase):
             text = out_file.read_text(encoding="utf-8")
 
             self.assertIn(
-                "Third-party crates in normal dependency closure: 3 (2 linked into Ocy.exe, 1 proc-macro/build-time)",
+                "Third-party crates in normal dependency closure: 4 (3 linked into Ocy.exe, 1 proc-macro/build-time)",
                 text,
             )
             self.assertNotIn("skia-safe", text)
             self.assertIn("Vendored Taffy MIT", text)
             self.assertIn("Vendored rspolib MIT", text)
+            self.assertIn("This is free and unencumbered software.", text)
             self.assertIn("Own shipped BSL text", text)
             self.assertNotIn("Vendored clipboard-win BSL", text)
             self.assertIn("(taffy/LICENSE; licence text from upstream repository)", text)

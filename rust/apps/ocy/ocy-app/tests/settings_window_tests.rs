@@ -241,7 +241,7 @@ impl SettingsBackend for FakeSettingsBackend {
         handlers: SettingsUiHandlers,
     ) -> Result<Self::Instance, String> {
         let inst = FakeInstance(Rc::new(FakeInstanceInner {
-            values: RefCell::new(*params.values),
+            values: RefCell::new(params.values.clone()),
             handlers: RefCell::new(handlers),
             preset: Cell::new(params.preset),
             language_index: Cell::new(params.language_index),
@@ -285,7 +285,7 @@ impl SettingsBackend for FakeSettingsBackend {
     }
 
     fn read_values(&self, instance: &Self::Instance) -> SettingsValues {
-        *instance.0.values.borrow()
+        instance.0.values.borrow().clone()
     }
 
     fn set_preset(&self, instance: &Self::Instance, preset: i32) {
@@ -383,6 +383,9 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
         pause_during_fullscreen: false,
         has_window_nearby: false,
         natural_moments: true,
+        games_mode: ocy_core::settings::GamesMode::Hold,
+        games_silent: vec!["Demo.exe".to_owned()],
+        water_nudges: false,
     };
 
     // When autostart is supported, start_with_system is loaded from platform autostart state.
@@ -403,6 +406,7 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
     assert_eq!(loaded.away_threshold, 240);
     assert!(!loaded.pause_fullscreen);
     assert!(!loaded.window_nearby);
+    assert!(!loaded.water_nudges);
 
     let mut edited = loaded;
     edited.short_enabled = true;
@@ -420,6 +424,7 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
     edited.away_threshold = 300;
     edited.pause_fullscreen = true;
     edited.window_nearby = true;
+    edited.water_nudges = true;
     edited.start_with_system = true;
 
     let applied = edited.apply_to(&original, true);
@@ -443,6 +448,9 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
     assert_eq!(applied.away_threshold_seconds, 300);
     assert!(applied.pause_during_fullscreen);
     assert!(applied.has_window_nearby);
+    assert_eq!(applied.games_mode, ocy_core::settings::GamesMode::Hold);
+    assert_eq!(applied.games_silent, ["Demo.exe"]);
+    assert!(applied.water_nudges);
 
     // When autostart is unsupported, original.start_with_system is preserved on save.
     let applied_unsupported = edited.apply_to(&original, false);
@@ -524,6 +532,8 @@ fn settings_texts_resolve_every_en_json_key_without_missing_keys() {
         &texts.long_postpone_label,
         &texts.long_max_postpones_label,
         &texts.try_long_label,
+        &texts.water_nudges_label,
+        &texts.water_nudges_help,
         &texts.strict_label,
         &texts.strict_help,
         &texts.inactivity_label,
@@ -1279,6 +1289,8 @@ fn managed_settings_v2_refreshes_timeline_today_and_header_on_edits_and_30s_tick
         postpones_left: 3,
         strict_mode: false,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     win.sync_live_status(&snap, &stats);
     win.show();
@@ -1384,6 +1396,8 @@ fn v2_formatters_and_next_break_header_cover_plurals_durations_and_phases() {
         postpones_left: 3,
         strict_mode: false,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     };
     assert_eq!(
         format_next_break_text(&working_short, &en, &clock),
@@ -1410,4 +1424,21 @@ fn v2_formatters_and_next_break_header_cover_plurals_durations_and_phases() {
         format_next_break_text(&paused_indef, &en, &clock),
         "Paused until you resume"
     );
+}
+
+#[test]
+fn games_mode_and_silent_list_round_trip_through_settings_values() {
+    let original = OcySettings {
+        games_silent: vec!["eldenring.exe".to_owned(), "cs2.exe".to_owned()],
+        ..OcySettings::default()
+    };
+    let mut values = SettingsValues::from_settings(&original, true, true);
+    assert!(!values.games_hold);
+    assert_eq!(values.games_silent, original.games_silent);
+
+    values.games_hold = true;
+    values.games_silent.remove(0);
+    let applied = values.apply_to(&original, true);
+    assert_eq!(applied.games_mode, ocy_core::settings::GamesMode::Hold);
+    assert_eq!(applied.games_silent, vec!["cs2.exe".to_owned()]);
 }

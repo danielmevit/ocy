@@ -8,6 +8,7 @@
 
 pub mod engine;
 pub mod exercises;
+pub mod games;
 pub mod persistence;
 pub mod schedule;
 pub mod settings;

@@ -2,9 +2,9 @@
 
 use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, WIN32_ERROR};
 use windows::Win32::System::Registry::{
-    HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_WRITE, REG_DWORD, REG_SAM_FLAGS, REG_SZ,
-    REG_VALUE_TYPE, RegCloseKey, RegCreateKeyW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW,
-    RegSetValueExW,
+    HKEY, HKEY_CURRENT_USER, KEY_ENUMERATE_SUB_KEYS, KEY_QUERY_VALUE, KEY_WRITE, REG_DWORD,
+    REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE, RegCloseKey, RegCreateKeyW, RegDeleteValueW,
+    RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
 };
 use windows::core::HSTRING;
 
@@ -164,3 +164,82 @@ pub const WRITE_ACCESS: REG_SAM_FLAGS = KEY_WRITE;
 
 /// Access mask used by [`open_key`] when reading the Run value.
 pub const READ_ACCESS: REG_SAM_FLAGS = KEY_QUERY_VALUE;
+
+/// Access mask for listing subkeys and reading their values. Never includes write access.
+///
+/// `BitOr` for `REG_SAM_FLAGS` is not const, so the bits are combined directly:
+/// `KEY_ENUMERATE_SUB_KEYS` (8) and `KEY_QUERY_VALUE` (1).
+pub const ENUM_READ_ACCESS: REG_SAM_FLAGS =
+    REG_SAM_FLAGS(KEY_ENUMERATE_SUB_KEYS.0 | KEY_QUERY_VALUE.0);
+
+/// Lists subkey names under `key`. Stops at the first error or after 4096 names.
+pub fn enum_subkey_names(key: &RegKey) -> Vec<String> {
+    use windows::Win32::Foundation::ERROR_NO_MORE_ITEMS;
+    use windows::Win32::System::Registry::RegEnumKeyExW;
+    use windows::core::PWSTR;
+
+    let mut names = Vec::new();
+    for index in 0..4096u32 {
+        let mut buffer = [0u16; 256];
+        let mut len = buffer.len() as u32;
+        // SAFETY: `buffer` is a writable UTF-16 buffer and `len` is its capacity in characters,
+        // including space for a trailing NUL. The call only reads this key.
+        let status = unsafe {
+            RegEnumKeyExW(
+                key.handle(),
+                index,
+                Some(PWSTR(buffer.as_mut_ptr())),
+                &mut len,
+                None,
+                None,
+                None,
+                None,
+            )
+        };
+        if status == ERROR_NO_MORE_ITEMS {
+            break;
+        }
+        if status.is_err() {
+            break;
+        }
+        let count = usize::try_from(len).unwrap_or(0).min(buffer.len());
+        names.push(String::from_utf16_lossy(&buffer[..count]));
+    }
+    names
+}
+
+/// Lists value names under `key`. Stops at the first error or after 256 names.
+pub fn enum_value_names(key: &RegKey) -> Vec<String> {
+    use windows::Win32::Foundation::ERROR_NO_MORE_ITEMS;
+    use windows::Win32::System::Registry::RegEnumValueW;
+    use windows::core::PWSTR;
+
+    let mut names = Vec::new();
+    for index in 0..256u32 {
+        let mut buffer = [0u16; 256];
+        let mut len = buffer.len() as u32;
+        // SAFETY: `buffer` is a writable UTF-16 buffer and `len` is its capacity in characters.
+        // No data buffer is requested; the call only reads value names.
+        let status = unsafe {
+            RegEnumValueW(
+                key.handle(),
+                index,
+                Some(PWSTR(buffer.as_mut_ptr())),
+                &mut len,
+                None,
+                None,
+                None,
+                None,
+            )
+        };
+        if status == ERROR_NO_MORE_ITEMS {
+            break;
+        }
+        if status.is_err() {
+            break;
+        }
+        let count = usize::try_from(len).unwrap_or(0).min(buffer.len());
+        names.push(String::from_utf16_lossy(&buffer[..count]));
+    }
+    names
+}

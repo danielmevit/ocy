@@ -44,7 +44,10 @@ impl ExerciseDefinition {
 pub struct ExerciseCatalogue;
 
 impl ExerciseCatalogue {
-    /// All built-in exercises (9 eye exercises, 3 body exercises).
+    /// Id of the gentle water reminder that joins the long-break rotation (`water_nudges`).
+    pub const WATER_ID: &str = "water";
+
+    /// All built-in exercises (9 eye exercises, 4 body exercises).
     pub const ALL: &'static [ExerciseDefinition] = &[
         // Eyes (9 exercises)
         ExerciseDefinition {
@@ -120,6 +123,14 @@ impl ExerciseCatalogue {
             requires_window: false,
             suggested_duration: Duration::from_secs(60),
         },
+        // Gentle water reminder; long breaks only (Body kind is never picked for short breaks).
+        // Placeholder art: reuses the stand-walk illustration until its own arrives.
+        ExerciseDefinition {
+            id: "water",
+            kind: ExerciseKind::Body,
+            requires_window: false,
+            suggested_duration: Duration::from_secs(30),
+        },
     ];
 
     /// Looks up an exercise by ID (case-insensitive).
@@ -191,12 +202,14 @@ pub trait ExercisePicker: fmt::Debug {
         previous_exercise_id: Option<&str>,
     ) -> &'static ExerciseDefinition;
 
-    /// Picks `(body, eyes)` exercises for a long break.
+    /// Picks `(body, eyes)` exercises for a long break. The water reminder joins the body
+    /// rotation only when `water_eligible` is `true`; otherwise it is never returned.
     fn pick_long_exercises(
         &mut self,
         has_window_nearby: bool,
         previous_eyes_id: Option<&str>,
         previous_body_id: Option<&str>,
+        water_eligible: bool,
     ) -> (&'static ExerciseDefinition, &'static ExerciseDefinition);
 }
 
@@ -225,12 +238,36 @@ impl<R: RandomSource> DefaultExercisePicker<R> {
         has_window_nearby: bool,
         previous_id: Option<&str>,
     ) -> &'static ExerciseDefinition {
-        let mut candidates: Vec<&'static ExerciseDefinition> = ExerciseCatalogue::ALL
+        let candidates: Vec<&'static ExerciseDefinition> = ExerciseCatalogue::ALL
             .iter()
             .filter(|e| e.kind == kind)
             .filter(|e| has_window_nearby || !e.requires_window)
             .collect();
+        self.pick_from_candidates(candidates, previous_id)
+    }
 
+    /// Picks a body exercise for a long break; the water reminder is a candidate only when
+    /// `water_eligible` is `true`.
+    fn pick_body_exercise(
+        &mut self,
+        has_window_nearby: bool,
+        previous_id: Option<&str>,
+        water_eligible: bool,
+    ) -> &'static ExerciseDefinition {
+        let candidates: Vec<&'static ExerciseDefinition> = ExerciseCatalogue::ALL
+            .iter()
+            .filter(|e| e.kind == ExerciseKind::Body)
+            .filter(|e| has_window_nearby || !e.requires_window)
+            .filter(|e| water_eligible || e.id != ExerciseCatalogue::WATER_ID)
+            .collect();
+        self.pick_from_candidates(candidates, previous_id)
+    }
+
+    fn pick_from_candidates(
+        &mut self,
+        mut candidates: Vec<&'static ExerciseDefinition>,
+        previous_id: Option<&str>,
+    ) -> &'static ExerciseDefinition {
         if candidates.len() > 1
             && let Some(prev) = previous_id
             && !prev.is_empty()
@@ -267,8 +304,9 @@ impl<R: RandomSource> ExercisePicker for DefaultExercisePicker<R> {
         has_window_nearby: bool,
         previous_eyes_id: Option<&str>,
         previous_body_id: Option<&str>,
+        water_eligible: bool,
     ) -> (&'static ExerciseDefinition, &'static ExerciseDefinition) {
-        let body = self.pick_from_kind(ExerciseKind::Body, has_window_nearby, previous_body_id);
+        let body = self.pick_body_exercise(has_window_nearby, previous_body_id, water_eligible);
         let eyes = self.pick_short_exercise(has_window_nearby, previous_eyes_id);
         (body, eyes)
     }

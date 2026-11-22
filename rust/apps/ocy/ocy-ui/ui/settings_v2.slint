@@ -5,9 +5,15 @@
 // first, then the today card; a scroll view is the last resort at the 480 x 400 minimum.
 // Every string is an input property and every number shown in a phrase comes from a host formatter.
 import { Theme } from "@app-theme/theme.slint";
-import { Toggle, LinkButton, Slider, TabList, PresetCard, AccordionHeader, Dropdown, Timeline, TimelineMark, TimelineMarkKind, Swatch, Caption, CompactRow } from "@damt-ui/kit.slint";
+import { Button, ButtonKind, Toggle, LinkButton, Slider, TabList, PresetCard, AccordionHeader, Dropdown, Timeline, TimelineMark, TimelineMarkKind, Swatch, Caption, CompactRow, CloseButton } from "@damt-ui/kit.slint";
 
 export { TimelineMark, TimelineMarkKind }
+
+// One entry of the silent-games list: the exe name and its remove button's accessible name.
+export struct SilentGame {
+    name: string,
+    remove-label: string,
+}
 
 // Flat card on the deep window background.
 component Group inherits Rectangle {
@@ -38,6 +44,26 @@ export component SettingsWindowV2 inherits Window {
     in property <string> window-title;
     in property <string> save-error;
     in property <image> mascot;
+    // Mode art (placeholder set, assets/illustrations/modes): 16 scene frames, mode-major
+    // (Gentle f1..f4, Balanced f1..f4, Focused f1..f4, Yours f1..f4), and 4 card glyphs. The host
+    // steps `mode-frame` (1..4) like the exercise flip-books and holds it still under reduced motion.
+    in property <[image]> mode-scenes;
+    in property <int> mode-frame: 1;
+    in property <[image]> mode-glyphs;
+    in property <string> mode-gentle-description;
+    in property <string> mode-balanced-description;
+    in property <string> mode-focused-description;
+    in property <string> mode-custom-description;
+    // Microsoft Store build only (`store` feature); a GitHub build leaves `store-build` false and
+    // none of these render.
+    in property <bool> store-build: false;
+    in property <string> license-state; // "full", "trial", "trial-expired", "unknown"
+    in property <int> trial-days-left: -1;
+    in property <string> trial-days-left-text;
+    in property <string> trial-ended-title;
+    in property <string> trial-ended-body;
+    in property <string> buy-label;
+    in property <string> made-with-slint-label;
     in property <string> next-break-text;
     in property <string> today-title;
     in property <string> today-taken-label;
@@ -75,6 +101,8 @@ export component SettingsWindowV2 inherits Window {
     in property <string> long-postpone-label;
     in property <string> long-max-postpones-label;
     in property <string> try-long-label;
+    in property <string> water-nudges-label;
+    in property <string> water-nudges-help;
     in property <string> strict-label;
     in property <string> strict-help;
     in property <string> inactivity-label;
@@ -82,6 +110,15 @@ export component SettingsWindowV2 inherits Window {
     in property <string> away-label;
     in property <string> pause-fullscreen-label;
     in property <string> pause-fullscreen-help;
+    // Games group (Quiet times tab): gentle cards or held breaks, and the silent-games list.
+    in property <string> games-title;
+    in property <[string]> games-mode-model; // [gentle, hold]
+    in-out property <int> games-mode-index; // 0 gentle, 1 hold
+    in property <string> games-gentle-help;
+    in property <string> games-hold-help;
+    in property <string> games-silent-title;
+    in property <string> games-silent-empty;
+    in property <[SilentGame]> games-silent;
     in property <string> window-nearby-label;
     in property <string> window-nearby-help;
     in property <string> language-label;
@@ -114,6 +151,7 @@ export component SettingsWindowV2 inherits Window {
     in-out property <int> long-warning: 60; // seconds, 0..300
     in-out property <int> long-postpone: 3; // minutes, 1..30
     in-out property <int> long-max-postpones: 3; // 0..10
+    in-out property <bool> water-nudges: true;
     in-out property <bool> strict-mode;
     in-out property <bool> inactivity-tracking: true;
     in-out property <int> away-threshold: 120; // seconds, 30..1800
@@ -140,6 +178,10 @@ export component SettingsWindowV2 inherits Window {
     callback language-selected(int);
     callback try-short-break();
     callback try-long-break();
+    // Remove a silent game by its index; the host saves at once.
+    callback remove-silent-game(int);
+    // Store build: open the Store purchase flow.
+    callback buy();
     // Esc pressed: the host closes the window as if its close button was used.
     callback escape-pressed();
 
@@ -163,6 +205,13 @@ export component SettingsWindowV2 inherits Window {
         : root.preset == 1 ? root.preset-balanced-label
         : root.preset == 2 ? root.preset-focused-label
         : root.preset-custom-label;
+    property <string> mode-description: root.preset == 0 ? root.mode-gentle-description
+        : root.preset == 1 ? root.mode-balanced-description
+        : root.preset == 2 ? root.mode-focused-description
+        : root.mode-custom-description;
+    property <int> scene-index: max(0, min(3, root.preset)) * 4 + max(0, min(3, root.mode-frame - 1));
+    property <bool> trial-ended: root.store-build && root.license-state == "trial-expired";
+    property <bool> trial-running: root.store-build && root.license-state == "trial" && root.trial-days-left > 0;
 
     function pick-preset(i: int) {
         root.preset = i;
@@ -198,15 +247,52 @@ export component SettingsWindowV2 inherits Window {
                     wrap: word-wrap;
                 }
 
+                // Store build, trial ended: a calm card at the top with the purchase button.
+                if root.trial-ended : Group {
+                    accessible-role: groupbox;
+                    accessible-label: root.trial-ended-title;
+                    HorizontalLayout {
+                        padding: 12px;
+                        spacing: 12px;
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+                            Text { text: root.trial-ended-title; font-size: Theme.font-size-body; font-weight: 600; color: Theme.text; wrap: word-wrap; }
+                            Text { text: root.trial-ended-body; font-size: Theme.font-size-label; color: Theme.text-muted; wrap: word-wrap; }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Button {
+                                text: root.buy-label;
+                                kind: ButtonKind.accent;
+                                accessible-name: root.buy-label;
+                                clicked => { root.buy(); }
+                            }
+                        }
+                    }
+                }
+
                 // Header card: Ocy, current mode, next break, today and the next two hours.
                 Group {
                     VerticalLayout {
                         padding: 12px;
-                        padding-bottom: 12px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
                         spacing: 6px;
                         HorizontalLayout {
                             spacing: 12px;
-                            Image {
+                            // The current mode's scene (decorative); the sprout only if no mode art is set.
+                            if root.mode-scenes.length > 0 : Image {
+                                source: root.mode-scenes[root.scene-index];
+                                // 160 x 110 by default; smaller while Customize is open so the editing
+                                // view still fits the 640 px default height.
+                                width: root.customize-open ? 104px : 160px;
+                                height: root.customize-open ? 72px : 110px;
+                                image-fit: contain;
+                                accessible-role: none;
+                            }
+                            if root.mode-scenes.length == 0 : Image {
                                 source: root.mascot;
                                 width: 48px;
                                 height: 48px;
@@ -221,6 +307,12 @@ export component SettingsWindowV2 inherits Window {
                                     text: root.mode-label;
                                     font-size: Theme.font-size-title;
                                     font-weight: 600;
+                                    color: Theme.text;
+                                    wrap: word-wrap;
+                                }
+                                if root.mode-description != "" : Text {
+                                    text: root.mode-description;
+                                    font-size: Theme.font-size-label;
                                     color: Theme.text;
                                     wrap: word-wrap;
                                 }
@@ -247,8 +339,10 @@ export component SettingsWindowV2 inherits Window {
                                         padding-right: 10px;
                                         spacing: 0px;
                                         Caption { text: root.today-title; }
-                                        HorizontalLayout {
-                                            spacing: 12px;
+                                        // Stacked (taken over skipped) so the 160 px mode scene leaves the
+                                        // mode text room, also in longer languages.
+                                        VerticalLayout {
+                                            spacing: 0px;
                                             alignment: start;
                                             HorizontalLayout {
                                                 spacing: 4px;
@@ -287,18 +381,21 @@ export component SettingsWindowV2 inherits Window {
                     spacing: 8px;
                     PresetCard {
                         title: root.preset-gentle-label;
+                        glyph: root.mode-glyphs.length > 0 ? root.mode-glyphs[0] : @image-url("");
                         summary: root.preset-gentle-summary;
                         selected: root.preset == 0;
                         picked => { root.pick-preset(0); }
                     }
                     PresetCard {
                         title: root.preset-balanced-label;
+                        glyph: root.mode-glyphs.length > 1 ? root.mode-glyphs[1] : @image-url("");
                         summary: root.preset-balanced-summary;
                         selected: root.preset == 1;
                         picked => { root.pick-preset(1); }
                     }
                     PresetCard {
                         title: root.preset-focused-label;
+                        glyph: root.mode-glyphs.length > 2 ? root.mode-glyphs[2] : @image-url("");
                         summary: root.preset-focused-summary;
                         selected: root.preset == 2;
                         picked => { root.pick-preset(2); }
@@ -477,6 +574,42 @@ export component SettingsWindowV2 inherits Window {
                                     checked <=> root.pause-fullscreen;
                                     toggled => { root.changed(); }
                                 }
+                                // Games: the mode, then the silent list (grows downwards only).
+                                CompactRow {
+                                    label: root.games-title;
+                                    help: root.games-mode-index == 1 ? root.games-hold-help : root.games-gentle-help;
+                                    Dropdown {
+                                        model: root.games-mode-model;
+                                        current-index <=> root.games-mode-index;
+                                        window-height: root.height;
+                                        accessible-name: root.games-title;
+                                        selected => { root.changed(); }
+                                    }
+                                }
+                                VerticalLayout {
+                                    Caption { text: root.games-silent-title; }
+                                    if root.games-silent.length == 0 : Text {
+                                        text: root.games-silent-empty;
+                                        font-size: Theme.font-size-help;
+                                        color: Theme.text-muted;
+                                        wrap: word-wrap;
+                                    }
+                                    for game[i] in root.games-silent : HorizontalLayout {
+                                        spacing: 8px;
+                                        Text {
+                                            text: game.name;
+                                            font-size: Theme.font-size-label;
+                                            color: Theme.text;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            horizontal-stretch: 1;
+                                        }
+                                        CloseButton {
+                                            accessible-name: game.remove-label;
+                                            clicked => { root.remove-silent-game(i); }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -529,7 +662,27 @@ export component SettingsWindowV2 inherits Window {
                                 checked <=> root.window-nearby;
                                 toggled => { root.changed(); }
                             }
+                            ToggleRow {
+                                label: root.water-nudges-label;
+                                help: root.water-nudges-help;
+                                checked <=> root.water-nudges;
+                                toggled => { root.changed(); }
+                            }
                         }
+                    }
+                }
+
+                // Store build, trial running: a quiet line with a small purchase link.
+                if root.trial-running : HorizontalLayout {
+                    spacing: 8px;
+                    padding-left: 2px;
+                    alignment: start;
+                    Text { text: root.trial-days-left-text; font-size: Theme.font-size-help; color: Theme.text-muted; vertical-alignment: center; }
+                    LinkButton {
+                        text: root.buy-label;
+                        font-size: Theme.font-size-help;
+                        padding-y: 2px;
+                        clicked => { root.buy(); }
                     }
                 }
 
@@ -538,6 +691,8 @@ export component SettingsWindowV2 inherits Window {
                     padding-left: 2px;
                     Text { text: root.about-name-version; font-size: Theme.font-size-help; font-weight: 600; color: Theme.text-muted; }
                     Text { text: root.about-tagline; font-size: Theme.font-size-help; color: Theme.text-muted; wrap: word-wrap; horizontal-stretch: 1; }
+                    // Slint royalty-free licence attribution (Store build only).
+                    if root.store-build : Text { text: root.made-with-slint-label; font-size: Theme.font-size-help; color: Theme.text-muted; horizontal-alignment: right; }
                 }
             }
         }

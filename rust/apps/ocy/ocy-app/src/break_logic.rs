@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use damt_platform::{AppThemeProvider, Clock};
 use jiff::{SignedDuration, Timestamp};
-use ocy_core::engine::{EnginePhase, EngineSnapshot, EngineState};
+use ocy_core::engine::{BreakKind, BreakSurface, EnginePhase, EngineSnapshot, EngineState};
 use ocy_core::settings::OcySettings;
 
 use crate::strings::Strings;
@@ -22,6 +22,14 @@ pub const PREWARM_TTL: Duration = Duration::from_secs(10);
 
 /// Suppression window matching `ScheduleCalculator` (short breaks yield when long break <= 2 min).
 const SHORT_BREAK_SUPPRESSION_WINDOW: Duration = Duration::from_secs(120);
+
+/// Whether a short-break (or gentle long-break) card dims every monitor.
+///
+/// Gentle game cards never dim, even when short breaks are configured as full-screen.
+#[must_use]
+pub const fn short_break_dims(short_fullscreen: bool, surface: BreakSurface) -> bool {
+    short_fullscreen && !matches!(surface, BreakSurface::GentleCard)
+}
 
 /// Maps `AppThemeProvider::is_light_app_theme()` to `dark: bool`, falling back to light (`false`).
 #[must_use]
@@ -181,6 +189,15 @@ pub fn break_announcement(parts: &[&str]) -> String {
         out.push_str(part);
     }
     out
+}
+
+/// Which game actions a short-break card shows: `(not during this game, take the long break)`.
+///
+/// Only a gentle game card shows them. "Take the long break" is only on the gentle long card.
+#[must_use]
+pub fn gentle_card_actions(kind: BreakKind, surface: BreakSurface) -> (bool, bool) {
+    let gentle = surface == BreakSurface::GentleCard;
+    (gentle, gentle && kind == BreakKind::Long)
 }
 
 /// What the warning card announces: its heading plus the buttons it actually shows.
@@ -432,5 +449,19 @@ pub fn build_demo_launch_plan(
                 initial_clock_offset_secs: 0,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::short_break_dims;
+    use ocy_core::engine::BreakSurface;
+
+    #[test]
+    fn gentle_card_never_dims_and_a_standard_short_dims_only_when_configured() {
+        assert!(!short_break_dims(true, BreakSurface::GentleCard));
+        assert!(!short_break_dims(false, BreakSurface::GentleCard));
+        assert!(!short_break_dims(false, BreakSurface::Standard));
+        assert!(short_break_dims(true, BreakSurface::Standard));
     }
 }

@@ -788,7 +788,8 @@ fn shipped_languages_include_de_ja_and_mk_with_valid_keys_and_matching_placehold
             );
         }
 
-        // 3. Every English key must be translated in each shipped language (directly or via `.other`)
+        // 3. Every English key must be translated in each shipped language (directly or via
+        //    `.other`).
         for en_key in en_map.keys() {
             if is_metadata_key(en_key) {
                 continue;

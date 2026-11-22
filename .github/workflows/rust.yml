@@ -12,6 +12,29 @@ on:
 permissions: {}
 
 jobs:
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings
+      - name: Build
+        run: cargo build --workspace --locked -j 4
+      - name: Test
+        run: cargo test --workspace --locked -j 4
+
   test:
     strategy:
       fail-fast: false
@@ -37,8 +60,19 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Clippy (Store feature, Windows)
+        if: runner.os == 'Windows'
+        run: cargo clippy -p ocy-app --features store --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --workspace --locked
+      - name: Test (Store feature)
+        run: cargo test -p ocy-app --features store --locked
+      - name: Windows target compile check
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo check --workspace --all-targets --locked --target x86_64-pc-windows-msvc
+          cargo check -p ocy-app --features store --all-targets --locked --target x86_64-pc-windows-msvc
       - name: Parity with the C# engine tests
         if: runner.os == 'Linux'
         working-directory: .

@@ -7,7 +7,7 @@ use damt_platform::{Clock, PlatformServices, Unsupported};
 use ocy_app::coordinator::BreakWindows;
 use ocy_app::slint_breaks::{BreakActionCallbacks, LatencyOptions, SlintBreakWindows};
 use ocy_app::strings::Strings;
-use ocy_core::engine::{BreakEngine, BreakInfo, BreakKind};
+use ocy_core::engine::{BreakEngine, BreakInfo, BreakKind, BreakSurface};
 use ocy_core::settings::OcySettings;
 use ocy_core::time::FakeClock;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
@@ -47,6 +47,7 @@ fn live_language_switch_updates_active_break_cards_and_rebuilds_prewarmed_cards(
         on_skip: Rc::new(|| {}),
         on_start_long_break_now: Rc::new(|| {}),
         on_postpone_long_break: Rc::new(|| {}),
+        on_hold_game: Rc::new(|| {}),
     };
     let mut break_windows = SlintBreakWindows::new(
         platform,
@@ -78,6 +79,7 @@ fn live_language_switch_updates_active_break_cards_and_rebuilds_prewarmed_cards(
         exercise_id: "blink".to_owned(),
         total_duration: Duration::from_secs(15),
         suggestion_exercise_ids: None,
+        surface: BreakSurface::Standard,
     });
     let short_card = break_windows
         .active_short_card()
@@ -122,6 +124,7 @@ fn live_language_switch_updates_active_break_cards_and_rebuilds_prewarmed_cards(
         exercise_id: "palming".to_owned(),
         total_duration: Duration::from_secs(300),
         suggestion_exercise_ids: Some(vec!["stretch-arms".to_owned(), "palming".to_owned()]),
+        surface: BreakSurface::Standard,
     });
     let long_card = break_windows.active_long_card().expect("long card active");
     assert_eq!(long_card.get_font_family().as_str(), "Segoe UI");

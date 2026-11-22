@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use damt_app::ErrorLog;
 use damt_art::FrameSequencer;
+#[cfg(not(target_os = "linux"))]
 use damt_overlay::enumerate_monitors;
 use damt_platform::{Clock, PlatformServices};
 use jiff::Timestamp;
@@ -23,16 +24,18 @@ use crate::art::{
     frame_and_next_delay, scaled_art_px,
 };
 use crate::break_logic::{
-    AppThemeTracker, PrewarmKind, PrewarmPlanner, break_announcement, long_break_can_end,
-    long_break_countdown_text_localized, long_break_progress, short_break_progress,
-    warning_announcement, warning_buttons, warning_heading, warning_postpone_label,
+    AppThemeTracker, PrewarmKind, PrewarmPlanner, break_announcement, gentle_card_actions,
+    long_break_can_end, long_break_countdown_text_localized, long_break_progress,
+    short_break_progress, warning_announcement, warning_buttons, warning_heading,
+    warning_postpone_label,
 };
 use crate::coordinator::BreakWindows;
 use crate::layout::{DipSize, OverlayLayout, PixelPoint, ScreenInfo, select_active_screen};
 use crate::strings::{Strings, font_family_for};
+#[cfg(not(target_os = "linux"))]
+use crate::win32_window::install_break_window_subclass_and_style;
 use crate::win32_window::{
-    WindowRole, WindowRoleGuard, announce_to_screen_reader,
-    install_break_window_subclass_and_style, should_allow_close,
+    WindowRole, WindowRoleGuard, announce_to_screen_reader, should_allow_close,
 };
 
 const CARD_WINDOW_WIDTH_DIP: f64 = 392.0;
@@ -43,6 +46,8 @@ pub struct BreakActionCallbacks {
     pub on_skip: Rc<dyn Fn()>,
     pub on_start_long_break_now: Rc<dyn Fn()>,
     pub on_postpone_long_break: Rc<dyn Fn()>,
+    /// "Not during this game" on a gentle card.
+    pub on_hold_game: Rc<dyn Fn()>,
 }
 
 impl fmt::Debug for BreakActionCallbacks {
@@ -71,6 +76,7 @@ pub struct BreakLatencySample {
 struct ShortBreakState {
     card: ShortBreakCard,
     exercise_id: String,
+    game_actions: (bool, bool),
     scale: f64,
     fullscreen: bool,
     screen: Option<ScreenInfo>,
@@ -315,7 +321,10 @@ impl SlintBreakWindows {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
+        #[cfg(not(target_os = "linux"))]
         let monitors = enumerate_monitors();
+        #[cfg(target_os = "linux")]
+        let monitors = crate::linux_window::enumerate_monitors();
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         select_active_screen(&monitors, active_bounds)
     }
@@ -323,6 +332,12 @@ impl SlintBreakWindows {
     fn configure_short_card_handlers(&self, card: &ShortBreakCard) {
         let on_skip = Rc::clone(&self.callbacks.on_skip);
         card.on_close_clicked(move || on_skip());
+
+        let on_hold_game = Rc::clone(&self.callbacks.on_hold_game);
+        card.on_hold_game_clicked(move || on_hold_game());
+
+        let on_take_long = Rc::clone(&self.callbacks.on_start_long_break_now);
+        card.on_take_long_clicked(move || on_take_long());
 
         let active = Rc::clone(&self.break_active);
         card.window().on_close_requested(move || {
@@ -546,6 +561,7 @@ impl SlintBreakWindows {
                 state
                     .card
                     .set_close_label(self.strings.get("shortbreak.skip").into());
+                apply_game_actions(&state.card, &self.strings, state.game_actions);
             }
             Some(ActiveBreakWindow::Warning(state)) => {
                 state.card.set_font_family(font.into());
@@ -925,6 +941,17 @@ struct ShowWindowContext {
     announcement: String,
 }
 
+fn install_break_window_role_platform(window: &slint::Window) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux_window::install_break_window_role(window)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        install_break_window_subclass_and_style(window)
+    }
+}
+
 fn schedule_subclass_retry<C: ComponentHandle + 'static>(
     weak: Weak<C>,
     subclassed: Rc<Cell<bool>>,
@@ -942,7 +969,7 @@ fn schedule_subclass_retry<C: ComponentHandle + 'static>(
         let Some(card) = weak.upgrade() else {
             return;
         };
-        if install_break_window_subclass_and_style(card.window()) {
+        if install_break_window_role_platform(card.window()) {
             subclassed.set(true);
         } else {
             schedule_subclass_retry(weak, subclassed, gen_cell, generation, attempts_left - 1);
@@ -986,7 +1013,7 @@ fn show_card_window<C: ComponentHandle + 'static>(
     let print_latency = ctx.print_latency_on_first_paint;
 
     card.window().on_winit_window_event(move |win, event| {
-        if !subclassed_ev.get() && install_break_window_subclass_and_style(win) {
+        if !subclassed_ev.get() && install_break_window_role_platform(win) {
             subclassed_ev.set(true);
         }
         // Announce once the window is on screen (its first paint) and only for this generation.
@@ -1050,7 +1077,7 @@ fn show_card_window<C: ComponentHandle + 'static>(
         card.window().set_size(PhysicalSize::new(new_w, new_h));
     }
 
-    if install_break_window_subclass_and_style(card.window()) {
+    if install_break_window_role_platform(card.window()) {
         subclassed.set(true);
     } else {
         schedule_subclass_retry(
@@ -1061,6 +1088,15 @@ fn show_card_window<C: ComponentHandle + 'static>(
             200,
         );
     }
+}
+
+/// Sets the gentle game actions (and their labels) on a short-break card. A reused prewarmed card
+/// may still carry the last break's flags, so every show sets them.
+fn apply_game_actions(card: &ShortBreakCard, strings: &Strings, (hold, take_long): (bool, bool)) {
+    card.set_show_hold_game(hold);
+    card.set_hold_game_label(strings.get("games.holdThisGame").into());
+    card.set_show_take_long(take_long);
+    card.set_take_long_label(strings.get("games.takeLongBreak").into());
 }
 
 impl BreakWindows for SlintBreakWindows {
@@ -1165,6 +1201,10 @@ impl BreakWindows for SlintBreakWindows {
         card.set_heading(title.into());
         card.set_body(body.into());
         card.set_close_label(close_label.into());
+        let game_actions = gentle_card_actions(info.kind, info.surface);
+        apply_game_actions(&card, &self.strings, game_actions);
+        let hold_label = self.strings.get("games.holdThisGame");
+        let take_long_label = self.strings.get("games.takeLongBreak");
         card.set_dim_backdrop(false);
         card.set_progress(short_break_progress(
             info.total_duration,
@@ -1181,7 +1221,12 @@ impl BreakWindows for SlintBreakWindows {
         show_card_window(
             &card,
             ShowWindowContext {
-                announcement: break_announcement(&[title, body]),
+                announcement: break_announcement(&[
+                    title,
+                    body,
+                    if game_actions.1 { take_long_label } else { "" },
+                    if game_actions.0 { hold_label } else { "" },
+                ]),
                 ..self.show_window_ctx("short", prewarmed, due_at, screen, fullscreen, generation)
             },
             |c, _| {
@@ -1195,6 +1240,7 @@ impl BreakWindows for SlintBreakWindows {
         self.active = Some(ActiveBreakWindow::ShortBreak(ShortBreakState {
             card,
             exercise_id: info.exercise_id.clone(),
+            game_actions,
             scale,
             fullscreen,
             screen,

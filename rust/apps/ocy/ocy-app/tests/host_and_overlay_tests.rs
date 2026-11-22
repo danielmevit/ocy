@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use damt_overlay::{MonitorId, MonitorInfo};
 use damt_platform::{
-    Clock, PlatformServices, ScreenRect, SessionEvent, TaskbarThemeProvider, Unsupported,
+    Clock, ForegroundObservation, ForegroundProbe, PlatformServices, QUNS_BUSY, ScreenRect,
+    SessionEvent, TaskbarThemeProvider, Unsupported,
 };
 use ocy_app::coordinator::{BreakUiCoordinator, BreakWindows, SettingsWindow};
 use ocy_app::host::{AppHost, MonotonicTimeSource};
@@ -383,6 +384,119 @@ fn host_tray_left_click_shows_and_reactivates_settings_and_pause_from_tray_track
     let pres_resumed = host.tray().sink().last_presentation.as_ref().unwrap();
     assert!(!pres_resumed.pause_status.is_visible);
     assert!(!pres_resumed.pause_until_resumed.is_checked);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+struct ScriptedForeground {
+    observation: ForegroundObservation,
+    paths: Vec<String>,
+}
+
+impl ForegroundProbe for ScriptedForeground {
+    fn is_supported(&self) -> bool {
+        true
+    }
+
+    fn observe(&self) -> ForegroundObservation {
+        self.observation.clone()
+    }
+
+    fn game_bar_exe_paths(&self) -> Vec<String> {
+        self.paths.clone()
+    }
+
+    fn process_alive(&self, process_id: u32) -> bool {
+        process_id == 42
+    }
+}
+
+struct ScriptedPlatform {
+    foreground: ScriptedForeground,
+}
+
+impl PlatformServices for ScriptedPlatform {
+    fn foreground(&self) -> &dyn ForegroundProbe {
+        &self.foreground
+    }
+}
+
+#[test]
+fn hold_game_apis_report_false_without_a_game_and_persist_a_silent_exe() {
+    let dir = temp_dir("hold-game");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 21, 10, 0, 0).unwrap());
+    let clock_dyn: Arc<dyn Clock> = clock.clone();
+    let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
+    let engine = BreakEngine::new(
+        OcySettings::default(),
+        platform,
+        Arc::clone(&clock_dyn),
+        None,
+        None,
+        None,
+        None,
+    );
+    let snapshot = engine.snapshot();
+    let strings = Arc::new(Strings::from_embedded().unwrap());
+    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme(Some(true)));
+    let tray = TrayController::new(
+        presenter,
+        DummyTraySink::default(),
+        theme,
+        Arc::clone(&clock_dyn),
+        Some(AppTheme::Light),
+        &snapshot,
+    );
+    let coordinator =
+        BreakUiCoordinator::new(DummyBreakWindows::default(), DummySettingsWindow::default());
+    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+    let mut host = AppHost::new(engine, coordinator, tray, error_log);
+    assert!(!host.hold_current_game());
+    assert!(!host.hold_until_game_closes());
+
+    let game = ScriptedPlatform {
+        foreground: ScriptedForeground {
+            observation: ForegroundObservation {
+                notification_state: Some(QUNS_BUSY),
+                exe_name: Some("Demo.exe".to_owned()),
+                exe_path: Some(r"D:\Games\Demo\Demo.exe".to_owned()),
+                process_id: Some(42),
+            },
+            paths: vec![r"D:\Games\Demo\Demo.exe".to_owned()],
+        },
+    };
+    let engine = BreakEngine::new(
+        OcySettings::default(),
+        Arc::new(game),
+        Arc::clone(&clock_dyn),
+        None,
+        None,
+        None,
+        None,
+    );
+    let snapshot = engine.snapshot();
+    let strings = Arc::new(Strings::from_embedded().unwrap());
+    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme(Some(false)));
+    let tray = TrayController::new(
+        presenter,
+        DummyTraySink::default(),
+        theme,
+        Arc::clone(&clock_dyn),
+        Some(AppTheme::Dark),
+        &snapshot,
+    );
+    let coordinator =
+        BreakUiCoordinator::new(DummyBreakWindows::default(), DummySettingsWindow::default());
+    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+    let store = AppDataStore::new(&dir, clock_dyn);
+    let mut host = AppHost::with_store(engine, coordinator, tray, error_log, Some(store));
+    assert!(host.hold_current_game());
+    assert!(host.engine().settings().is_silent_game("demo.exe"));
+    let saved = fs::read_to_string(dir.join("settings.json")).expect("settings saved");
+    assert!(saved.contains("Demo.exe"));
+    assert!(host.hold_until_game_closes());
 
     let _ = fs::remove_dir_all(&dir);
 }

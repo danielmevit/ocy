@@ -11,6 +11,10 @@ authors.workspace = true
 name = "Ocy"
 path = "src/main.rs"
 
+[features]
+default = []
+store = ["damt-platform-win/store"]
+
 [dependencies]
 damt-app = { path = "../../../crates/damt-app" }
 damt-art = { path = "../../../crates/damt-art" }
@@ -29,6 +33,12 @@ slint.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = ["Win32_Globalization", "Win32_System_Console", "Win32_System_ProcessStatus", "Win32_UI_Accessibility"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+damt-platform-linux = { path = "../../../crates/damt-platform-linux" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+damt-platform-mac = { path = "../../../crates/damt-platform-mac" }
 
 [build-dependencies]
 damt-build.workspace = true

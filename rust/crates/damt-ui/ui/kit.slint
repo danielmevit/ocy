@@ -6,12 +6,14 @@ import { Theme } from "@app-theme/theme.slint";
 export enum ButtonKind { accent, outline, text }
 
 // Button with three classes: accent (filled), outline (1 px muted border), text (muted label only).
+// Accent labels are regular at rest and semibold on hover; the width is reserved for the semibold
+// label (a hidden measuring copy), so the button never changes size.
 export component Button inherits Rectangle {
     in property <string> text;
     in property <ButtonKind> kind: ButtonKind.outline;
     in property <bool> enabled: true;
     in property <length> font-size: Theme.font-size-label;
-    in property <int> font-weight: kind == ButtonKind.accent ? 600 : 400;
+    in property <int> font-weight: 400;
     in property <length> padding-x: kind == ButtonKind.accent ? 12px : kind == ButtonKind.outline ? 10px : 8px;
     in property <length> padding-y: 6px;
     in property <length> fixed-width: 0px;
@@ -21,9 +23,9 @@ export component Button inherits Rectangle {
     out property <bool> pressed: touch.pressed;
     callback clicked();
 
-    min-width: root.fixed-width > 0 ? root.fixed-width : label.preferred-width + 2 * root.padding-x;
+    min-width: root.fixed-width > 0 ? root.fixed-width : Math.max(label.preferred-width, bold-measure.preferred-width) + 2 * root.padding-x;
     max-width: root.fixed-width > 0 ? root.fixed-width : 100000px;
-    min-height: root.fixed-height > 0 ? root.fixed-height : label.preferred-height + 2 * root.padding-y;
+    min-height: root.fixed-height > 0 ? root.fixed-height : Math.max(label.preferred-height, bold-measure.preferred-height) + 2 * root.padding-y;
     max-height: root.fixed-height > 0 ? root.fixed-height : 100000px;
     horizontal-stretch: 0;
     vertical-stretch: 0;
@@ -43,10 +45,19 @@ export component Button inherits Rectangle {
     accessible-enabled: root.enabled;
     accessible-action-default => { if (root.enabled) { root.clicked(); } }
 
+    // Measures the semibold label so the hover weight never shifts the layout.
+    bold-measure := Text {
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: 600;
+        visible: false;
+        accessible-role: none;
+    }
+
     label := Text {
         text: root.text;
         font-size: root.font-size;
-        font-weight: root.font-weight;
+        font-weight: root.kind == ButtonKind.accent && root.enabled && touch.has-hover ? 600 : root.font-weight;
         font-italic: false;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -542,7 +553,8 @@ export component TabList inherits Rectangle {
                 Text {
                     text: item;
                     font-size: Theme.font-size-label;
-                    font-weight: i == root.selected ? 600 : 400;
+                    // White on the green: regular, semibold only while hovered (equal-width segments, no shift).
+                    font-weight: i == root.selected && seg.has-hover ? 600 : 400;
                     color: i == root.selected ? Theme.on-accent : Theme.text;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -586,6 +598,8 @@ export component PresetCard inherits Rectangle {
     in property <string> title;
     in property <string> summary;
     in property <bool> selected;
+    // Optional decorative glyph before the title (20 px); empty shows nothing.
+    in property <image> glyph;
     callback picked();
 
     horizontal-stretch: 1;
@@ -613,6 +627,13 @@ export component PresetCard inherits Rectangle {
         alignment: start;
         HorizontalLayout {
             spacing: 6px;
+            if root.glyph.width > 0 : Image {
+                source: root.glyph;
+                width: 20px;
+                height: 20px;
+                image-fit: contain;
+                accessible-role: none;
+            }
             Text {
                 text: root.title;
                 font-size: Theme.font-size-body;
@@ -953,9 +974,9 @@ export component Dropdown inherits Rectangle {
                 reject
             }
             flick := Flickable {
-                viewport-height: root.content-h;
-                viewport-width: self.width;
-                viewport-y <=> root.scroll-y;
+                content-height: root.content-h;
+                content-width: self.width;
+                content-y <=> root.scroll-y;
                 list := VerticalLayout {
                     padding: root.pad;
                     padding-right: root.pad + (root.list-scrolls ? 8px : 0px);

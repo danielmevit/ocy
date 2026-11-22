@@ -1,0 +1,35 @@
+[package]
+name = "damt-platform-mac"
+description = "macOS implementations of the damt-platform OS-service contracts (idle, focus, session, screens, theme, motion)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+damt-platform.workspace = true
+
+# macOS-only bindings; every version is pinned exactly (see docs/rust/LICENSES.md, all MIT).
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "=0.6.2"
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", features = ["NSRunningApplication", "NSWorkspace"] }
+objc2-core-graphics = { version = "=0.3.2", features = [
+    "CGDirectDisplay",
+    "CGError",
+    "CGEventSource",
+    "CGEventTypes",
+    "CGGeometry",
+] }
+objc2-foundation = { version = "=0.3.2", features = [
+    "NSDistributedNotificationCenter",
+    "NSNotification",
+    "NSOperation",
+    "NSString",
+    "NSUserDefaults",
+    "block2",
+] }
+
+[lints]
+workspace = true

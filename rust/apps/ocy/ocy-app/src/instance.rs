@@ -14,6 +14,9 @@ use crate::break_logic::CliArgs;
 /// `Local\xyz.damt.ocy.signal`, matching the C# 0.1 app.
 pub const APP_ID: &str = "xyz.damt.ocy";
 
+/// `desktop:StartupTask` `TaskId` declared in `packaging/windows/AppxManifest.xml`.
+pub const STARTUP_TASK_ID: &str = "OcyStartup";
+
 /// Error returned when `--instance-scope` is missing its value or contains disallowed characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstanceScopeError {

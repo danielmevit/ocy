@@ -371,6 +371,9 @@ fn headless_soak_3_cycles_drops_all_break_windows_and_art_cache_entries() {
         on_postpone_long_break: make_cb(&host_slot, |h| {
             let _ = h.postpone_long_break();
         }),
+        on_hold_game: make_cb(&host_slot, |h| {
+            let _ = h.hold_current_game_and_close_card();
+        }),
     };
 
     let slint_break_windows = SlintBreakWindows::new(

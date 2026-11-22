@@ -7,12 +7,16 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+store = ["windows/Services_Store"]
+
 [dependencies]
 damt-platform.workspace = true
 thiserror.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows.workspace = true
+windows = { workspace = true, features = ["ApplicationModel", "Win32_Storage_Packaging_Appx", "Win32_UI_Input_XboxController"] }
 
 [lints]
 workspace = true

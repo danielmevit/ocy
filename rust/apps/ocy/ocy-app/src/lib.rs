@@ -12,6 +12,10 @@ pub mod host;
 pub mod instance;
 pub mod language_choice;
 pub mod layout;
+pub mod license;
+#[cfg(target_os = "linux")]
+pub mod linux_window;
+pub mod mode_art;
 pub mod notifications;
 pub mod presets;
 pub mod scheduler;
@@ -27,4 +31,5 @@ pub mod tokens;
 pub mod tray;
 pub mod win32_window;
 
+pub use license::STORE_FEATURE_ENABLED;
 pub use notifications::STATUS_NOTIFICATIONS_SHIPPED;

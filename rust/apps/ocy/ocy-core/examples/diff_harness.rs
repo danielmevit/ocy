@@ -259,6 +259,8 @@ fn outcome_str(outcome: BreakOutcome) -> &'static str {
         BreakOutcome::Completed => "Completed",
         BreakOutcome::Skipped => "Skipped",
         BreakOutcome::Interrupted => "Interrupted",
+        BreakOutcome::Passed => "Passed",
+        BreakOutcome::MissedInGame => "MissedInGame",
     }
 }
 

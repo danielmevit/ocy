@@ -70,6 +70,8 @@ fn snapshot_working(until_short: Option<Duration>, until_long: Option<Duration>)
         strict_mode: false,
         time_until_long_break_warning: None,
         natural_hold: None,
+        poll_external: false,
+        game_in_front: false,
     }
 }
 
@@ -274,6 +276,35 @@ fn countdown_text_and_progress_match_csharp() {
             < 1e-6
     );
     assert!((long_break_progress(Duration::ZERO, Duration::from_secs(300)) - 1.0).abs() < 1e-6);
+}
+
+#[test]
+fn water_placeholder_art_reuses_the_stand_walk_illustration() {
+    let art = OcyArt::from_embedded().unwrap();
+
+    // The water reminder has no art of its own yet: it resolves to stand-walk's
+    // manifest entry and rasterises the same frames in both themes.
+    let water = art
+        .exercise_info("water")
+        .expect("water resolves to placeholder art");
+    let stand_walk = art.exercise_info("stand-walk").expect("stand-walk exists");
+    assert_eq!(water, stand_walk);
+
+    for theme in [Theme::Light, Theme::Dark] {
+        let water_img = art
+            .render_frozen("water", theme, SUGGESTION_ART_LOGICAL_PX, 1.5)
+            .unwrap_or_else(|| panic!("water placeholder renders for {theme:?}"))
+            .unwrap_or_else(|e| panic!("water placeholder rasterises for {theme:?}: {e}"));
+        let stand_img = art
+            .render_frozen("stand-walk", theme, SUGGESTION_ART_LOGICAL_PX, 1.5)
+            .unwrap()
+            .unwrap();
+        assert_eq!(water_img.size(), stand_img.size());
+    }
+
+    let (sequencer, frozen) = art.sequencer_for("water", false).expect("water sequencer");
+    let (frame, _) = frame_and_next_delay(&sequencer, Duration::ZERO, false, frozen);
+    assert!(frame >= 1);
 }
 
 #[test]
