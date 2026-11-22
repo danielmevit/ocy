@@ -9,7 +9,9 @@ use std::time::Duration;
 
 use damt_app::{Acquire, AppDataPaths, ErrorLog, SingleInstance, install_panic_hook};
 use damt_platform::{Clock, PlatformServices, SystemClock};
-use ocy_app::break_logic::{DemoBreak, build_demo_launch_plan, parse_cli_args};
+use ocy_app::break_logic::{
+    DemoBreak, build_demo_launch_plan, demo_license_is_honoured, parse_cli_args,
+};
 use ocy_app::coordinator::{BreakUiCoordinator, OverlayBreakWindows};
 use ocy_app::host::AppHost;
 use ocy_app::instance::{is_probe_mode, parse_instance_scope, resolve_instance_id};
@@ -302,6 +304,13 @@ fn main() -> ExitCode {
 
     let is_demo_or_probe = is_probe_mode(&cli);
     let is_isolated = is_demo_or_probe || instance_scope.is_some();
+    // `--demo-license` is only honoured in isolated runs of a Store build; otherwise it is
+    // ignored with one line on stderr (the flag alone never makes a run isolated).
+    if cli.demo_license.is_some() && !demo_license_is_honoured(is_isolated) {
+        #[cfg(windows)]
+        attach_parent_console_if_needed();
+        eprintln!("--demo-license needs an isolated demo run of the Store build");
+    }
     let temp_demo_dir = if is_isolated {
         Some(std::env::temp_dir().join(format!("ocy-demo-{}", std::process::id())))
     } else {
@@ -545,6 +554,13 @@ fn main() -> ExitCode {
     #[cfg(feature = "store")]
     if !is_isolated {
         settings_window.set_on_buy(Rc::new(store_license::trigger_purchase));
+    } else if cli.demo_license.is_some() {
+        // Honoured `--demo-license` run: Buy must be a logged no-op that never reaches
+        // `request_purchase_async`.
+        let demo_buy_log = error_log.clone();
+        settings_window.set_on_buy(Rc::new(move || {
+            demo_buy_log.log(Some("demo_purchase"), "demo: purchase skipped");
+        }));
     }
     let notifier: Rc<dyn damt_platform::Notifier> = if is_isolated {
         Rc::new(RecordingNotifier::new())
@@ -578,6 +594,14 @@ fn main() -> ExitCode {
         host.borrow_mut()
             .set_license_state(initial_license, clock.now().timestamp());
         store_license::refresh();
+    } else if let Some(demo) = cli.demo_license {
+        // Honoured `--demo-license` run: set the state directly, before any window can paint.
+        // Isolated runs never call `store_license::init`/`refresh` and the periodic recheck
+        // no-ops without a runtime, so no Microsoft Store query ever runs and `license.json`
+        // is never written; Buy is the logged no-op registered above.
+        let now = clock.now().timestamp();
+        let state = ocy_app::break_logic::demo_license_state(demo, now);
+        host.borrow_mut().set_license_state(state, now);
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]

@@ -505,6 +505,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Short),
             demo_in_secs: None,
             demo_settings: false,
+            demo_license: None,
             soak_cycles: None,
         }
     );
@@ -515,6 +516,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Warning),
             demo_in_secs: Some(5),
             demo_settings: false,
+            demo_license: None,
             soak_cycles: None,
         }
     );
@@ -525,6 +527,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: Some(DemoBreak::Long),
             demo_in_secs: Some(12),
             demo_settings: false,
+            demo_license: None,
             soak_cycles: None,
         }
     );
@@ -535,6 +538,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: true,
+            demo_license: None,
             soak_cycles: None,
         }
     );
@@ -545,6 +549,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: false,
+            demo_license: None,
             soak_cycles: None,
         }
     );
@@ -555,6 +560,7 @@ fn cli_flag_parsing_handles_report_memory_demo_break_demo_in_and_demo_settings()
             demo_break: None,
             demo_in_secs: None,
             demo_settings: false,
+            demo_license: None,
             soak_cycles: None,
         }
     );

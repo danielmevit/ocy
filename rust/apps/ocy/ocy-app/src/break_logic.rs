@@ -9,6 +9,7 @@ use jiff::{SignedDuration, Timestamp};
 use ocy_core::engine::{BreakKind, BreakSurface, EnginePhase, EngineSnapshot, EngineState};
 use ocy_core::settings::OcySettings;
 
+use crate::license::LicenseState;
 use crate::strings::Strings;
 
 /// Minimum interval between OS app-theme registry re-checks (matches tray 60 s cadence).
@@ -310,6 +311,83 @@ impl DemoBreak {
     }
 }
 
+/// Hidden `--demo-license <state>` value for lead verification of the Store trial UI on Windows.
+///
+/// The flag is only honoured when the run is already isolated (`is_probe_mode` in
+/// `instance.rs` or `--instance-scope`) and the binary is built with `--features store`
+/// ([`demo_license_is_honoured`]); it never makes a run isolated by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DemoLicense {
+    /// Active full (purchased) license.
+    Full,
+    /// Active trial with exactly 5 days left.
+    Trial,
+    /// Active trial ending in less than 24 hours, so the UI shows "1 day left".
+    TrialLastDay,
+    /// Expired trial (reminders suspended until purchased).
+    TrialEnded,
+    /// Unknown license state (behaves like an active trial).
+    Unknown,
+}
+
+impl DemoLicense {
+    /// Parses `"full"`, `"trial"`, `"trial-last-day"`, `"trial-ended"`, or `"unknown"`
+    /// (case-insensitive).
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        if value.eq_ignore_ascii_case("full") {
+            Some(Self::Full)
+        } else if value.eq_ignore_ascii_case("trial") {
+            Some(Self::Trial)
+        } else if value.eq_ignore_ascii_case("trial-last-day") {
+            Some(Self::TrialLastDay)
+        } else if value.eq_ignore_ascii_case("trial-ended") {
+            Some(Self::TrialEnded)
+        } else if value.eq_ignore_ascii_case("unknown") {
+            Some(Self::Unknown)
+        } else {
+            None
+        }
+    }
+}
+
+/// Returns `true` when a parsed `--demo-license` flag is honoured: the run is isolated
+/// (demo/probe flags or `--instance-scope`) and the binary is built with `--features store`.
+///
+/// Pure helper so the honoured-or-ignored decision can be tested; `main.rs` passes its own
+/// `is_isolated` and prints one stderr line when this returns `false`.
+#[must_use]
+pub const fn demo_license_is_honoured(is_isolated: bool) -> bool {
+    is_isolated && crate::license::STORE_FEATURE_ENABLED
+}
+
+/// Seconds left in the `--demo-license trial` demo trial (5 whole days).
+const DEMO_TRIAL_SECS: i64 = 5 * 86_400;
+/// Seconds left in the `--demo-license trial-last-day` demo trial (under 24 hours, so the UI
+/// shows "1 day left").
+const DEMO_TRIAL_LAST_DAY_SECS: i64 = 12 * 3_600;
+
+/// Maps a demo license value plus `now` to the [`LicenseState`] the demo run starts with.
+///
+/// Pure: `trial` gives `trial_days_left == 5`, `trial-last-day` gives `1` (less than 24 hours
+/// left), and `trial-ended` gives [`LicenseState::TrialExpired`].
+#[must_use]
+pub fn demo_license_state(demo: DemoLicense, now: Timestamp) -> LicenseState {
+    let trial_ends_in =
+        |secs: i64| Timestamp::from_second(now.as_second().saturating_add(secs)).unwrap_or(now);
+    match demo {
+        DemoLicense::Full => LicenseState::Full,
+        DemoLicense::Trial => LicenseState::Trial {
+            ends_at: trial_ends_in(DEMO_TRIAL_SECS),
+        },
+        DemoLicense::TrialLastDay => LicenseState::Trial {
+            ends_at: trial_ends_in(DEMO_TRIAL_LAST_DAY_SECS),
+        },
+        DemoLicense::TrialEnded => LicenseState::TrialExpired,
+        DemoLicense::Unknown => LicenseState::Unknown,
+    }
+}
+
 /// Parsed CLI flags for `Ocy`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct CliArgs {
@@ -317,6 +395,7 @@ pub struct CliArgs {
     pub demo_break: Option<DemoBreak>,
     pub demo_in_secs: Option<u64>,
     pub demo_settings: bool,
+    pub demo_license: Option<DemoLicense>,
     pub soak_cycles: Option<u32>,
 }
 
@@ -330,6 +409,12 @@ pub fn parse_cli_args(args: impl IntoIterator<Item = String>) -> CliArgs {
             out.report_memory = true;
         } else if arg == "--demo-settings" {
             out.demo_settings = true;
+        } else if arg == "--demo-license" {
+            if let Some(next) = iter.next() {
+                out.demo_license = DemoLicense::parse(&next);
+            }
+        } else if let Some(rest) = arg.strip_prefix("--demo-license=") {
+            out.demo_license = DemoLicense::parse(rest);
         } else if arg == "--demo-break" {
             if let Some(next) = iter.next() {
                 out.demo_break = DemoBreak::parse(&next);

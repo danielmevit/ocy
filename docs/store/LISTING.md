@@ -4,8 +4,10 @@ Field-by-field copy for Partner Center. The tone matches the website: calm, warm
 **No GitHub links anywhere in the listing** (owner rule: the Store version stands on its own).
 
 ## Product name
-**Ocy - Gentle Screen Breaks** (proposed; owner to confirm, then reserve it in Partner Center).
-Alternatives discussed: "Ocy - Gentle Eye & Screen Breaks", "Ocy - Gentle Screen Break Reminder".
+**Ocy - Screen Break Reminder** (owner's choice, 2026-11-22; reserve it in Partner Center).
+Earlier proposals: "Ocy - Gentle Screen Breaks", "Ocy - Gentle Eye & Screen Breaks", "Ocy - Gentle Screen Break
+Reminder". The name carries "break reminder" (the main search term); "eye" is covered by the description and
+keywords.
 The package DisplayName must match the reserved name (`OCY_STORE_DISPLAY_NAME`).
 
 ## Description* (required)

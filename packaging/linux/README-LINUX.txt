@@ -7,6 +7,27 @@ Extract this archive anywhere and run `./Ocy`:
 
   ./Ocy
 
+Needs
+-----
+Ocy loads its X11, Wayland, and font libraries at runtime (dlopen), so the host
+must provide them. Desktop distributions ship all of these by default; a plain
+server or minimal container may not.
+
+  Debian/Ubuntu:
+    sudo apt-get install libxkbcommon0 libxkbcommon-x11-0 libxcb1 \
+      libx11-6 libx11-xcb1 libxcursor1 libxi6 libwayland-client0 libfontconfig1
+
+  Fedora:
+    sudo dnf install libxkbcommon libxkbcommon-x11 libxcb \
+      libX11 libX11-xcb libXcursor libXi libwayland-client fontconfig
+
+  Arch:
+    sudo pacman -S --needed libxkbcommon libxcb libx11 libxcursor libxi \
+      wayland fontconfig
+
+(Arch ships libxkbcommon-x11.so.0 in `libxkbcommon` and libX11-xcb.so.1 in
+`libx11`; Fedora and Debian split them into the packages listed above.)
+
 Display server support
 ----------------------
 Ocy runs on both **X11** and **Wayland**:

@@ -49,12 +49,18 @@ Answer **No** to everything — no violence, no user-to-user interaction, no dat
 ## 5. Pricing and availability
 | Field | Value |
 |-------|-------|
-| Base price | **Free** |
+| Base price | **OWNER DECISION** — a paid price tier the owner chooses in Partner Center. It must **not** be Free: the listing promises "Try it free for 15 days, then buy it once", and the app has a Buy button (`StoreContext::RequestPurchaseAsync`), so the base price is the paid tier the owner picks |
+| Free trial | **15 days** |
 | Markets | **All markets** |
 | Visibility | **Public** |
 | Discoverability | Available in Store, discoverable |
 | Release schedule | **As soon as it passes certification** |
 | Device families | **Windows 10/11 Desktop** only |
+
+Field names above follow Microsoft's "Pricing and availability" documentation for Partner Center
+("Base price" = the price tier you pick per market or for all markets; "Free trial" = the trial
+length offered on top of the paid base price):
+<https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/price-and-availability>
 
 ## 6. System requirements
 | Requirement | Minimum | Recommended |
@@ -83,31 +89,17 @@ Answer **No** to everything — no violence, no user-to-user interaction, no dat
 | Startup task | `desktop:StartupTask` (`TaskId="OcyStartup"`, `Enabled="false"`, `DisplayName="Ocy"`) | Managed via `Windows.ApplicationModel.StartupTask` when packaged |
 
 ## 8. Store listing copy (no GitHub links)
-- **Short description:**
-  > Calm, offline break reminder for your eyes. Gives you brief eye exercises every few minutes and a full break every hour, without stealing focus or interrupting fullscreen apps.
-- **Description:**
-  > Ocy is a calm, light break reminder that helps you rest your eyes while working at your computer.
-  >
-  > It runs quietly in your system tray and nudges you with brief eye exercises every few minutes, plus a real break every hour so you can step away and stretch.
-  >
-  > What Ocy does:
-  > • Short breaks with gentle eye exercises in a small corner card (or dimmed screen if you prefer)
-  > • Hourly long breaks with a brief heads-up first, so you can finish a sentence or postpone
-  > • Counts active screen time only — pauses automatically when you step away or lock your PC
-  > • Defers breaks while you are in fullscreen video, games, or presentations
-  > • Never steals keyboard focus during short breaks or warnings
-  > • Tracks today's completed and skipped breaks with a 2-hour schedule timeline
-  > • Optional strict mode and customizable presets (Gentle, Balanced, Focused)
-  > • Optional launch at sign-in controlled cleanly through Windows Startup settings
-  >
-  > Good to know:
-  > • Works completely offline — no network connections, no telemetry, no account
-  > • Settings and daily statistics stay on your PC
-- **Keywords (up to 7):**
-  `eye break`, `break reminder`, `eye strain`, `20-20-20`, `posture`, `screen break`, `ergonomics`
-- **Copyright / Developed by:**
-  - Copyright: `© 2026 Daniel Mitev`
-  - Developed by: `Daniel Mevit — damt.xyz`
+`docs/store/LISTING.md` is the **single source** for the listing text: product name, description,
+short description, product features, "What's new in this version", keywords, copyright, category,
+privacy questionnaire, screenshots, and notes for certification. Paste from there; do not keep a
+second copy here (the copies had drifted — for example, the copy that used to live here claimed
+Ocy "defers breaks while you are in fullscreen video, games", while since 0.2.2 games get gentle
+cards at a calm moment instead).
+
+Still specific to this submission:
+- **Owner rule:** no GitHub repository URLs anywhere in the listing.
+- Enter the LISTING.md text once per language on the Store listing tab; the screenshots planned
+  in LISTING.md upload on the same tab.
 
 ## 9. Submission Options — `runFullTrust` justification (REQUIRED)
 Because `Ocy` declares `runFullTrust`, Partner Center will show a restricted-capability notice after upload. Paste this on the **Submission Options** page:
@@ -115,9 +107,31 @@ Because `Ocy` declares `runFullTrust`, Partner Center will show a restricted-cap
 > Ocy is a full-trust Win32 desktop application (written in Rust using the Slint UI toolkit, packaged as MSIX). It declares `runFullTrust` because that capability is required for a packaged Win32 executable to run outside the UWP AppContainer sandbox. Ocy runs in the Windows system tray, monitors local keyboard/mouse idle time (`GetLastInputInfo`) and fullscreen presentation state (`SHQueryUserNotificationState`) to time eye-rest breaks, renders non-activating break reminder windows, and stores user preferences, daily break counts, and the cached Store licence state locally in the user's AppData folder. Ocy itself contains no network code (the Store build queries the Microsoft Store for its licence through the built-in Windows `StoreContext` API), installs no drivers or background services, and collects or transmits no personal data.
 
 ## 10. Notes for certification (reviewer instructions)
-> Ocy starts minimized in the system tray (notification area) with no initial window. Click or right-click the Ocy sprout icon in the tray to open Settings, start a short or long break immediately ("Take a short break" / "Take a long break"), or pause reminders. All functionality works offline with no account or configuration required.
+> Ocy is a tray app: after install it starts in the notification area with no window. Left-click the Ocy sprout icon to open Settings. Right-click it for the menu: "Take a short break now", "Take a long break now", "Hold breaks until I close this game" (only shown while a game is running), "Pause for 1 hour", "Pause for 3 hours", "Pause until resumed", "Resume reminders", "Settings", "Quit Ocy". All functionality works offline with no account or configuration required. It has a 15-day free trial managed by the Microsoft Store licence.
 
-## 11. Build and upload steps (Windows)
+## 11. Checking the trial UI before submitting
+The Store build's trial UI (trial days left, "Your trial has ended.", the Buy button) can be opened
+on Windows without a real Store licence, using isolated demo runs. Build `Ocy.exe` with
+`--features store`, then run each state from a terminal:
+
+```powershell
+.\Ocy.exe --demo-settings --demo-license full            # paid: no trial UI in Settings
+.\Ocy.exe --demo-settings --demo-license trial          # "5 days left in your trial"
+.\Ocy.exe --demo-settings --demo-license trial-last-day # "1 day left in your trial"
+.\Ocy.exe --demo-settings --demo-license trial-ended    # "Your trial has ended." + "Buy Ocy"
+.\Ocy.exe --demo-settings --demo-license unknown        # unknown licence (behaves as an active trial)
+```
+
+- Both `--demo-license <state>` and `--demo-license=<state>` work; state names are
+  case-insensitive.
+- The flag is only honoured when the run is isolated (`--demo-settings` above makes it isolated)
+  and the binary is a Store build; otherwise it is ignored with one line on stderr.
+- Each run uses a fresh throwaway data dir: it never queries the Microsoft Store, never writes
+  `license.json`, and clicking Buy only writes "demo: purchase skipped" to the error log — the
+  purchase dialog never opens.
+- Each command opens the Settings window straight away; crop the window for review.
+
+## 12. Build and upload steps (Windows)
 1. Ensure Windows 10 SDK (for `makeappx.exe`, `makepri.exe`), Rust toolchain, and Python 3 are installed on Windows.
 2. Set the Partner Center identity environment variables in PowerShell:
    ```powershell

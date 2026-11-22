@@ -324,6 +324,8 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
   no fullscreen deferral; tray via SNI; document the differences in the README/Flathub description.
 - `--report-memory`/smoke runs on Linux; budget checks (idle RAM ≤ 15 MB must hold — the Flatpak sandbox
   adds nothing to the process itself). CI smoke + tarball build added in `.github/workflows/linux-smoke.yml` (`L3s`).
+- `L3s2`: the CI X11 job installs the dlopen runtime set (`libxkbcommon-x11-0` et al., run 45057118362 panicked
+  without it); `packaging/linux/README-LINUX.txt` documents the deb/rpm/arch runtime packages.
 **Effort:** 5–8 days.
 
 ### L4 — KDE pass

@@ -44,6 +44,19 @@ jobs:
             x11-utils \
             imagemagick \
             xterm
+          # Runtime libraries the release Ocy binary dlopens on X11 and Wayland
+          # (winit -> x11-dl/xkbcommon-dl, softbuffer -> x11rb/tiny-xlib/wayland-sys).
+          # The -dev packages above do not provide the X11/Wayland client runtime set.
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon0 \
+            libxkbcommon-x11-0 \
+            libxcb1 \
+            libx11-6 \
+            libx11-xcb1 \
+            libxcursor1 \
+            libxi6 \
+            libwayland-client0 \
+            libfontconfig1
 
       - name: Build release binary
         working-directory: rust
@@ -296,6 +309,7 @@ jobs:
           fi
 
       - name: Wayland headless Weston smoke (best effort)
+        if: always()
         continue-on-error: true
         shell: bash
         run: |
