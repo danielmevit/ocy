@@ -201,8 +201,10 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
   - Wayland per-output dim window assignment (`plan_wayland_dim_outputs`).
   - Headless soak/integration lifecycle (`SlintBreakWindows` + `OverlayBreakWindows` creating and closing overlays with 0 leaked windows).
 - **Needs a real desktop check (not run here; no GUI launched in WSLg):**
-  - X11 (GNOME on X11, KDE on X11, XFCE, and a tiling WM like i3): confirm `_NET_WM_WINDOW_TYPE_NOTIFICATION` + `_NET_WM_STATE_ABOVE`/`SKIP_TASKBAR`/`SKIP_PAGER` + `WM_HINTS.input=false` keep break cards above, off the taskbar/Alt+Tab, clickable without stealing focus, placed on the active monitor's corner/centre, and XShape edge frames render transparently without capturing clicks.
-  - Wayland (GNOME Mutter and KDE KWin): confirm cards never steal focus (`with_active(false)`), `LinuxDimOverlay` goes borderless fullscreen on every connected `wl_output`, `set_cursor_hittest(false)` makes dims click-through, and `LongBreakCard` stacks above the dim window so "End break" is visible and clickable.
+  - **CI smoke (`L3s`, `.github/workflows/linux-smoke.yml`):** `x11-smoke` launches `--demo-break short|warning|long`, `--demo-settings`, and `--report-memory` (asserting idle `private_mb` ≤ 15 MB) under `Xvfb` + `openbox` + a focused `xterm`, checks mapped windows, no focus theft, and `long` card-above-dim stacking in `_NET_CLIENT_LIST_STACKING`, uploads screenshots/logs (`ocy-linux-smoke`), and runs a best-effort headless `weston` check for `--demo-break short`; `tarball` builds and uploads `Ocy-<version>-linux-x86_64.tar.gz` + `.sha256` (`ocy-linux-tarball`).
+  - **Still needs a real GNOME / KDE / multi-monitor desktop pass:**
+    - X11 (GNOME on X11, KDE on X11, XFCE, and a tiling WM like i3): confirm `_NET_WM_WINDOW_TYPE_NOTIFICATION` + `_NET_WM_STATE_ABOVE`/`SKIP_TASKBAR`/`SKIP_PAGER` + `WM_HINTS.input=false` keep break cards above, off the taskbar/Alt+Tab, clickable without stealing focus, placed on the active monitor's corner/centre, and XShape edge frames render transparently without capturing clicks.
+    - Wayland (GNOME Mutter and KDE KWin): confirm cards never steal focus (`with_active(false)`), `LinuxDimOverlay` goes borderless fullscreen on every connected `wl_output`, `set_cursor_hittest(false)` makes dims click-through, `LongBreakCard` stacks above the dim window so "End break" is visible and clickable, and SNI tray / Mutter idle / Background portal autostart work in a real desktop session.
 
 ## 8. Autostart
 
@@ -321,7 +323,7 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
 - Wayland: no-activation cards, fullscreen dim per output with click-through input region, no edge frames,
   no fullscreen deferral; tray via SNI; document the differences in the README/Flathub description.
 - `--report-memory`/smoke runs on Linux; budget checks (idle RAM ≤ 15 MB must hold — the Flatpak sandbox
-  adds nothing to the process itself).
+  adds nothing to the process itself). CI smoke + tarball build added in `.github/workflows/linux-smoke.yml` (`L3s`).
 **Effort:** 5–8 days.
 
 ### L4 — KDE pass
