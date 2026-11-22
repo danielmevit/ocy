@@ -662,21 +662,39 @@ mod nix {
         }
 
         /// The owner of a file we just created is our effective uid, the same trick the
-        /// acquisition flow uses with the lock file.
+        /// acquisition flow uses with the lock file. Every call probes its own file: the tests
+        /// run in parallel threads of one process, so a shared path would race (one thread
+        /// deleting the file another is about to read, which once turned uid 0 into a wrong
+        /// fallback dir on macOS CI).
         fn test_uid() -> u32 {
-            let dir = std::env::temp_dir().join(format!("damt-uid-{}", std::process::id()));
-            let _ = std::fs::create_dir_all(&dir);
+            static PROBE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let probe = PROBE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let dir = std::env::temp_dir().join(format!("damt-uid-{}-{probe}", std::process::id()));
+            assert!(
+                std::fs::create_dir_all(&dir).is_ok(),
+                "create the uid probe dir"
+            );
             let file = dir.join("uid");
-            let _ = std::fs::write(&file, b"");
-            let uid = std::fs::metadata(&file).map_or(0, |metadata| metadata.uid());
-            let _ = std::fs::remove_file(&file);
+            assert!(
+                std::fs::write(&file, b"").is_ok(),
+                "write the uid probe file"
+            );
+            let uid = match std::fs::metadata(&file) {
+                Ok(metadata) => metadata.uid(),
+                Err(error) => panic!("read the uid probe metadata: {error}"),
+            };
+            let _ = std::fs::remove_dir_all(&dir);
             uid
         }
 
         /// A data dir whose socket path cannot fit in `sun_path`, forcing the per-user
         /// `/tmp` fallback (the `None` XDG dir keeps the test independent of the environment).
+        /// Each call gets its own dir: the tests that use it clean up with `remove_dir_all`,
+        /// which must never delete another test's lock file.
         fn long_data_dir() -> PathBuf {
-            PathBuf::from("/tmp").join("l".repeat(120))
+            static DIR: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let dir = DIR.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            PathBuf::from("/tmp").join(format!("{}-{dir}-{}", "l".repeat(120), std::process::id()))
         }
 
         #[test]
