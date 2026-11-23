@@ -27,19 +27,15 @@ def at(kind,cx,cy,w,rot=0,op=1,z=3):
 BX,BY=1360,500
 def ringb(r,a): return {"x":BX-r,"y":BY-r,"w":2*r,"h":2*r,"css":f"border-radius:50%;border:2px solid rgba(127,196,166,{a});"}
 CHD="repo/docs/store/screenshots/ocy-char-deep.svg"  # slide-only recolour (deep jade outline)
-def blob(cx,cy,w,h,rot,shape): return {"x":cx-w/2,"y":cy-h/2,"w":w,"h":h,"z":0,"css":f"background:rgba(255,255,255,.85);border-radius:{shape};transform:rotate({rot}deg);"}
+def blob(cx,cy,w,h,rot,shape): return {"x":cx-w/2,"y":cy-h/2,"w":w,"h":h,"z":0,"css":f"background:radial-gradient(circle at 40% 35%, #E4EFEA, #B9D6C9);opacity:.92;border-radius:{shape};transform:rotate({rot}deg);"}
 comps['R4c']={"label":"Orbit, two rings","hires":True,"art":[{"src":CHD,"x":BX-260,"y":BY-270,"width":520}],
-  "decor":[ringb(330,.36),ringb(430,.24),ringb(530,.13),
-           blob(1336,330,96,54,-16,"58% 42% 63% 37% / 55% 48% 52% 45%"),
-           blob(1404,320,92,50,12,"45% 55% 38% 62% / 60% 40% 60% 40%"),
-           blob(1290,300,24,17,-20,"60% 40% 50% 50%"),
-           blob(1450,296,18,14,30,"50% 50% 40% 60% / 55% 45% 55% 45%")],
-  "shots":[at("short",BX,175,380),at("warn",1700,650,340,2),at("game",1030,650,360,-2),
-           at("roll",BX,780,380,1),
+  "decor":[ringb(330,.36),ringb(430,.24),ringb(530,.13)],
+  "shots":[at("short",BX,175,380),at("warn",1700,720,340,2),at("game",1060,720,280,-2),
+           at("roll",BX,870,380,1),
            at("walk",1725,330,270,3,.82,2),at("long",1005,330,170,-3,.82,2)]}
 # The featured slide 01-hero = R4c on G.
 G=d['heroChar']['backgrounds']['G']
-d['slides'][0]={"id":"01-hero","layout":"hero","bg":G,"center":True,"brand":"repo/assets/icons/brand/ocy-sprout-light.svg","brandBig":True,"copyClass":"char",
+d['slides'][0]={"id":"01-hero","layout":"hero","bg":G,"center":True,"brand":"repo/docs/store/screenshots/sprout-light-dark-stem.svg","brandBig":True,"copyClass":"char",
   "headline":"Gentle breaks for your [eyes]","sub":"A small reminder to look away, and a real break every hour.","facts":["Offline","No account","Never steals focus"],
   **{k:v for k,v in comps['R4c'].items() if k in ("art","decor","shots")}}
 json.dump(d,open(p,'w'),indent=2,ensure_ascii=False); open(p,'a').write('\n')

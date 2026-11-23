@@ -6,7 +6,7 @@
       "layout": "hero",
       "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
       "center": true,
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "brandBig": true,
       "copyClass": "char",
       "headline": "Gentle breaks for your [eyes]",
@@ -45,38 +45,6 @@
           "w": 1060,
           "h": 1060,
           "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.13);"
-        },
-        {
-          "x": 1288.0,
-          "y": 303.0,
-          "w": 96,
-          "h": 54,
-          "z": 0,
-          "css": "background:rgba(255,255,255,.85);border-radius:58% 42% 63% 37% / 55% 48% 52% 45%;transform:rotate(-16deg);"
-        },
-        {
-          "x": 1358.0,
-          "y": 295.0,
-          "w": 92,
-          "h": 50,
-          "z": 0,
-          "css": "background:rgba(255,255,255,.85);border-radius:45% 55% 38% 62% / 60% 40% 60% 40%;transform:rotate(12deg);"
-        },
-        {
-          "x": 1278.0,
-          "y": 291.5,
-          "w": 24,
-          "h": 17,
-          "z": 0,
-          "css": "background:rgba(255,255,255,.85);border-radius:60% 40% 50% 50%;transform:rotate(-20deg);"
-        },
-        {
-          "x": 1441.0,
-          "y": 289.0,
-          "w": 18,
-          "h": 14,
-          "z": 0,
-          "css": "background:rgba(255,255,255,.85);border-radius:50% 50% 40% 60% / 55% 45% 55% 45%;transform:rotate(30deg);"
         }
       ],
       "shots": [
@@ -108,7 +76,7 @@
             156
           ],
           "x": 1530,
-          "y": 613,
+          "y": 683,
           "width": 340,
           "radius": 10,
           "card": true,
@@ -125,9 +93,9 @@
             716,
             256
           ],
-          "x": 850,
-          "y": 586,
-          "width": 360,
+          "x": 920,
+          "y": 670,
+          "width": 280,
           "radius": 10,
           "card": true,
           "rotate": -2,
@@ -144,7 +112,7 @@
             222
           ],
           "x": 1170,
-          "y": 721,
+          "y": 811,
           "width": 380,
           "radius": 10,
           "card": true,
@@ -195,7 +163,7 @@
       "layout": "light",
       "center": true,
       "copyClass": "big",
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "headline": "Rest your eyes with short [exercises]",
       "sub": "Every so often, one small hand-drawn exercise for a few seconds. Skipped one? Ocy won't judge. Change takes time.",
       "shots": [
@@ -242,7 +210,7 @@
       "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
       "center": true,
       "copyClass": "big",
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "headline": "A real [break] every hour",
       "sub": "Five minutes away from the screen, with a gentle heads-up a minute before. Postpone or skip when you must.",
       "shots": [
@@ -287,7 +255,7 @@
       "layout": "light",
       "center": true,
       "copyClass": "big",
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "headline": "Never interrupts your [focus]",
       "sub": "Presentations and videos hold your breaks. In games, a small card waits for a calm moment, never mid-fight.",
       "shots": [
@@ -340,7 +308,7 @@
       "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
       "center": true,
       "copyClass": "big",
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "headline": "Your rhythm, [your way]",
       "sub": "Gentle, Balanced or Focused, or set every value yourself. Some days are busier than others, and that's fine.",
       "facts": [
@@ -452,7 +420,7 @@
   "heroChar": {
     "_doc": "Character hero (V12d). Character = ocy-v1f blink-light-f1.svg (eyes open, no motion marks), unaltered. Render: render.mjs --hero-char.",
     "copy": {
-      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
       "brandBig": true,
       "copyClass": "char"
     },
@@ -1127,38 +1095,6 @@
             "w": 1060,
             "h": 1060,
             "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.13);"
-          },
-          {
-            "x": 1288.0,
-            "y": 303.0,
-            "w": 96,
-            "h": 54,
-            "z": 0,
-            "css": "background:rgba(255,255,255,.85);border-radius:58% 42% 63% 37% / 55% 48% 52% 45%;transform:rotate(-16deg);"
-          },
-          {
-            "x": 1358.0,
-            "y": 295.0,
-            "w": 92,
-            "h": 50,
-            "z": 0,
-            "css": "background:rgba(255,255,255,.85);border-radius:45% 55% 38% 62% / 60% 40% 60% 40%;transform:rotate(12deg);"
-          },
-          {
-            "x": 1278.0,
-            "y": 291.5,
-            "w": 24,
-            "h": 17,
-            "z": 0,
-            "css": "background:rgba(255,255,255,.85);border-radius:60% 40% 50% 50%;transform:rotate(-20deg);"
-          },
-          {
-            "x": 1441.0,
-            "y": 289.0,
-            "w": 18,
-            "h": 14,
-            "z": 0,
-            "css": "background:rgba(255,255,255,.85);border-radius:50% 50% 40% 60% / 55% 45% 55% 45%;transform:rotate(30deg);"
           }
         ],
         "shots": [
@@ -1190,7 +1126,7 @@
               156
             ],
             "x": 1530,
-            "y": 613,
+            "y": 683,
             "width": 340,
             "radius": 10,
             "card": true,
@@ -1207,9 +1143,9 @@
               716,
               256
             ],
-            "x": 850,
-            "y": 586,
-            "width": 360,
+            "x": 920,
+            "y": 670,
+            "width": 280,
             "radius": 10,
             "card": true,
             "rotate": -2,
@@ -1226,7 +1162,7 @@
               222
             ],
             "x": 1170,
-            "y": 721,
+            "y": 811,
             "width": 380,
             "radius": 10,
             "card": true,
