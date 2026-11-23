@@ -16,6 +16,7 @@ import {
   splitTemplateParts,
   t,
 } from '../lib/i18n';
+import { REPO_URL, STORE_URL } from '../lib/ocyData';
 
 interface Props {
   lang: string;
@@ -42,7 +43,6 @@ const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github
 const isIndexable = pageType !== '404';
 const canonicalUrl = isIndexable ? pageAbsoluteUrl(origin, base, lang, pageType) : undefined;
 const ogImageUrl = `${origin}${base}/assets/og.png`;
-const repoUrl = 'https://github.com/danielmevit/ocy';
 
 const availableLangs = getAvailableLanguages();
 const currentEndonym = languageEndonym(lang);
@@ -76,7 +76,9 @@ const themeLabels = {
 
 const langCode = (tag: string) => tag.split('-')[0].toUpperCase();
 
-const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'));
+const madeByParts = splitTemplateParts(rawTemplate(lang, 'footer.madeBy'));
+const copyrightParts = splitTemplateParts(rawTemplate(lang, 'footer.copyright'));
+const supportEmail = 'support@damt.xyz';
 ---
 
 <!DOCTYPE html>
@@ -153,8 +155,7 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
           <a class="nav-hide-sm" href={`${homeHref}#exercises`}>{t(lang, 'nav.exercises')}</a>
           <a class="nav-hide-sm" href={`${homeHref}#app`}>{t(lang, 'nav.theApp')}</a>
           <a class="nav-hide-sm" href={`${homeHref}#faq`}>{t(lang, 'nav.faq')}</a>
-          <a href={repoUrl}>{t(lang, 'nav.github')}</a>
-          <a class="nav-cta" href={`${repoUrl}/releases/latest`}>{t(lang, 'nav.download')}</a>
+          <a class="nav-cta" href={STORE_URL} aria-label={t(lang, 'nav.store')}><span class="cta-long">{t(lang, 'nav.store')}</span><span class="cta-short" aria-hidden="true">{t(lang, 'nav.storeShort')}</span></a>
           <details class="lang-menu" data-lang-menu>
             <summary class="lang-btn" aria-label={t(lang, 'nav.languageAria', { language: currentEndonym })}>
               <span class="lang-name">{currentEndonym}</span>
@@ -253,24 +254,37 @@ const footerCreditParts = splitTemplateParts(rawTemplate(lang, 'footer.credit'))
       })();
     </script>
 
-    <footer class="site-footer">
-      <div>
-        {footerCreditParts.map((part) =>
-          part.type === 'text' ? (
-            part.value
-          ) : part.name === 'author' ? (
-            <a href="https://github.com/danielmevit">Daniel Mevit</a>
-          ) : part.name === 'maker' ? (
-            <a href="https://damt.xyz">damt.xyz</a>
-          ) : null
-        )}
+    <footer class="site-footer" aria-label={t(lang, 'footer.aria')}>
+      <div class="footer-brand">
+        <a class="brand" href={homeHref}>
+          <img class="mascot-light" src={sproutLight} alt="" width="24" height="24" /><img class="mascot-dark" src={sproutDark} alt="" width="24" height="24" />
+          <span>{t(lang, 'brand.name')}</span>
+        </a>
+        <a class="slint-badge" href="https://slint.dev">
+          <img class="mascot-light" src={`${base}/assets/slint/MadeWithSlint-logo-dark.svg`} width="106" height="49" alt="Made with Slint" />
+          <img class="mascot-dark" src={`${base}/assets/slint/MadeWithSlint-logo-light.svg`} width="106" height="49" alt="Made with Slint" />
+        </a>
       </div>
-      <div class="footer-links">
-        <a href={repoUrl}>{t(lang, 'nav.github')}</a>
-        <a href={`${repoUrl}/releases`}>{t(lang, 'footer.releases')}</a>
-        <a href={`${repoUrl}/blob/main/CHANGELOG.md`}>{t(lang, 'footer.changelog')}</a>
-        <a href={`${repoUrl}/blob/main/LICENSE`}>{t(lang, 'footer.license')}</a>
-        <a href={privacyHref}>{t(lang, 'footer.privacy')}</a>
+      <div class="footer-group">
+        <h2 class="footer-head">{t(lang, 'footer.getOcy')}</h2>
+        <ul>
+          <li><a href={STORE_URL}>{t(lang, 'footer.store')}</a></li>
+          <li><a href={REPO_URL}>{t(lang, 'footer.source')}</a></li>
+        </ul>
+      </div>
+      <div class="footer-group">
+        <h2 class="footer-head">{t(lang, 'footer.help')}</h2>
+        <ul>
+          <li><span class="footer-label">{t(lang, 'footer.support')}</span> <a href={`mailto:${supportEmail}`}>{supportEmail}</a></li>
+          <li><a href={privacyHref}>{t(lang, 'footer.privacy')}</a></li>
+        </ul>
+      </div>
+      <div class="footer-group">
+        <h2 class="footer-head">{t(lang, 'footer.about')}</h2>
+        <ul>
+          <li>{madeByParts.map((part) => part.type === 'text' ? part.value : part.name === 'maker' ? <a href="https://damt.xyz">damt.xyz</a> : null)}</li>
+          <li>{copyrightParts.map((part) => part.type === 'text' ? part.value : part.name === 'author' ? 'damt.xyz' : null)}</li>
+        </ul>
       </div>
     </footer>
       <script is:inline>

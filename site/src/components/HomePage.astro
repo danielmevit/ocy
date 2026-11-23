@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ExerciseMascot from './ExerciseMascot.astro';
 import ArtFrame from './ArtFrame.astro';
-import { readAppVersion, readExercises } from '../lib/ocyData';
+import { STORE_URL, readAppVersion, readExercises } from '../lib/ocyData';
 import { readPngSize } from '../lib/pngSize';
 import { pageAbsoluteUrl, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
 import trayActiveL from '../../../assets/icons/tray/light/tray-active.svg?url';
@@ -57,8 +57,6 @@ const marks = QPLACES.map(([x, y, rot, sc], i) => ({ t: `translate(${x} ${y}) ro
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
-const repoUrl = 'https://github.com/danielmevit/ocy';
-const releasesUrl = `${repoUrl}/releases/latest`;
 const canonicalUrl = pageAbsoluteUrl(origin, base, lang, 'home');
 
 const moments = [
@@ -137,17 +135,14 @@ const defaultsRows = [
 ];
 
 const install1Parts = splitTemplateParts(rawTemplate(lang, 'home.install.1.body'));
-const install2Parts = splitTemplateParts(rawTemplate(lang, 'home.install.2.body'));
-const faq2Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.2.a'));
 const faq3Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.3.a'));
 
-const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostart' | 'smartscreen' }> = [
+const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostart' }> = [
   { id: 1, q: t(lang, 'home.faq.1.q'), a: t(lang, 'home.faq.1.a') },
   {
     id: 2,
     q: t(lang, 'home.faq.2.q'),
-    a: t(lang, 'home.faq.2.a', { action: t(lang, 'home.faq.2.actionPlain'), github: t(lang, 'nav.github') }),
-    kind: 'smartscreen',
+    a: t(lang, 'home.faq.2.a'),
   },
   {
     id: 3,
@@ -175,10 +170,9 @@ const softwareLd = {
   operatingSystem: 'Windows 10, Windows 11',
   softwareVersion: version,
   url: canonicalUrl,
-  downloadUrl: releasesUrl,
+  downloadUrl: STORE_URL,
+  installUrl: STORE_URL,
   license: 'https://www.gnu.org/licenses/agpl-3.0.html',
-  isAccessibleForFree: true,
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   author: { '@type': 'Person', name: 'Daniel Mevit', url: 'https://github.com/danielmevit' },
   publisher: { '@type': 'Organization', name: 'damt.xyz', url: 'https://damt.xyz' },
 };
@@ -212,17 +206,16 @@ const faqLd = {
           {t(lang, 'home.hero.sub')}
         </p>
       </div>
+      <div class="hero-cta">
       <div class="btn-row">
-        <a class="btn btn-accent" data-label={t(lang, 'home.hero.downloadCta')} href={releasesUrl}>{t(lang, 'home.hero.downloadCta')}</a>
-        <a class="btn btn-outline" href={repoUrl}>{t(lang, 'home.hero.githubCta')}</a>
+        <a class="btn btn-accent" data-label={t(lang, 'home.hero.storeCta')} href={STORE_URL}>{t(lang, 'home.hero.storeCta')}</a>
+        <a class="btn btn-outline" href="#works">{t(lang, 'nav.howItWorks')}</a>
+      </div>
+      <p class="hero-trial">{t(lang, 'home.hero.trial')}</p>
       </div>
       <p class="hero-meta">
         {t(lang, 'home.hero.meta', { version })}
       </p>
-      <a class="slint-badge" href="https://slint.dev">
-        <img class="mascot-light" src={`${base}/assets/slint/MadeWithSlint-logo-dark.svg`} width="106" height="49" alt="Made with Slint" />
-        <img class="mascot-dark" src={`${base}/assets/slint/MadeWithSlint-logo-light.svg`} width="106" height="49" alt="Made with Slint" />
-      </a>
     </div>
 
     <div class="hero-stage">
@@ -417,10 +410,8 @@ const faqLd = {
           {install1Parts.map((part) =>
             part.type === 'text' ? (
               part.value
-            ) : part.name === 'zip' ? (
-              <code>Ocy-{version}-win-x64.zip</code>
-            ) : part.name === 'releases' ? (
-              <a href={releasesUrl}>{t(lang, 'home.install.1.releases')}</a>
+            ) : part.name === 'store' ? (
+              <a href={STORE_URL}>{t(lang, 'home.install.1.store')}</a>
             ) : null
           )}
         </p>
@@ -428,15 +419,7 @@ const faqLd = {
       <li class="step">
         <span class="step-num" aria-hidden="true">2</span>
         <h3>{t(lang, 'home.install.2.title')}</h3>
-        <p>
-          {install2Parts.map((part) =>
-            part.type === 'text' ? (
-              part.value
-            ) : part.name === 'exe' ? (
-              <code>Ocy.exe</code>
-            ) : null
-          )}
-        </p>
+        <p>{t(lang, 'home.install.2.body')}</p>
       </li>
       <li class="step">
         <span class="step-num" aria-hidden="true">3</span>
@@ -478,18 +461,6 @@ const faqLd = {
                     <strong>{t(lang, 'home.faq.3.setting')}</strong>
                   ) : part.name === 'appdata' ? (
                     <code>%APPDATA%\Ocy</code>
-                  ) : null
-                )}
-              </p>
-            ) : item.kind === 'smartscreen' ? (
-              <p>
-                {faq2Parts.map((part) =>
-                  part.type === 'text' ? (
-                    part.value
-                  ) : part.name === 'action' ? (
-                    <strong>{t(lang, 'home.faq.2.action')}</strong>
-                  ) : part.name === 'github' ? (
-                    <a href={repoUrl}>{t(lang, 'nav.github')}</a>
                   ) : null
                 )}
               </p>

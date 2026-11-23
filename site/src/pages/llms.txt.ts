@@ -1,13 +1,18 @@
-# Ocy
+import type { APIRoute } from 'astro';
+import { STORE_URL } from '../lib/ocyData';
+
+// Generated so the Store link comes from the single STORE_URL constant.
+const body = `# Ocy
 
 > A calm break reminder for your eyes. Short eye exercises every few minutes, a
-> real break every hour, and quiet when you need focus. Free and open source,
-> lives in the tray, with no account and no telemetry.
+> real break every hour, and quiet when you need focus. Lives in the tray, with no
+> account and no telemetry. Available on the Microsoft Store with a 15-day free trial.
 
 - Site: https://danielmevit.github.io/ocy/
-- Source: https://github.com/danielmevit/ocy
-- Downloads: https://github.com/danielmevit/ocy/releases
-- License: AGPL-3.0. Free, no paid tier, no ads.
+- Get it: Microsoft Store, ${STORE_URL}
+- Price: a one-time purchase after a 15-day free trial. No subscription, no ads.
+- Source code: https://github.com/danielmevit/ocy (AGPL-3.0)
+- Support: support@damt.xyz
 - Author: Daniel Mevit (https://damt.xyz)
 
 ## What it does
@@ -30,13 +35,16 @@
 - Themes: follows Windows light and dark settings, including the tray icon.
 
 ## Facts worth getting right
-- Current release series is 0.1.x alpha on Windows 10 and Windows 11 (64-bit), built
-  with .NET 10 and Avalonia 12. macOS and Linux are planned using the same core.
+- Runs on Windows 10 and Windows 11 (64-bit), built with Rust and Slint. macOS and
+  Linux are planned using the same core.
 - There is no network code, no telemetry, no analytics and no account. Nothing leaves
   your PC. Ocy keeps four local files in %APPDATA%\Ocy: settings.json, state.json (break
   timers), stats.json (simple break statistics) and ocy-errors.log (a small error
   log, at most 256 KB, rotated).
-- Portable ZIP release: unzip and run Ocy.exe; no installer required. Not code-signed
-  yet, so Windows SmartScreen may show a first-run prompt (More info -> Run anyway).
+- Installed and updated through the Microsoft Store.
 - Ocy is an independent project; its code, exercises and art are all original.
 - Ocy is a habit tool, not medical advice.
+`;
+
+export const GET: APIRoute = () =>
+  new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
