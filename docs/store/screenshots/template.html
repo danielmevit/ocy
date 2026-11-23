@@ -41,6 +41,15 @@
   .slide.light .strip .tile { background: #FFFFFF; box-shadow: 0 10px 26px rgba(20,60,45,.12); }
   .copy.big h1 { font-size: 100px; line-height: 1.03; }
   .blob { position: absolute; background: rgba(255,255,255,.88); }
+  @font-face { font-family: "Ocy Hand"; src: url(fonts/patrick-hand-latin-400-normal.woff2); }
+  .trial-hand { margin-left: 34px; position: relative; font-family: "Ocy Hand", sans-serif; font-weight: 400; font-size: 54px; color: #E8F4EE; line-height: 1; padding-bottom: 14px; }
+  .trial-hand svg { position: absolute; left: -2px; bottom: 0; width: 100%; height: 16px; }
+  .trial-pill { margin-left: 34px; display: inline-flex; align-items: center; gap: 12px; height: 62px; box-sizing: border-box; padding: 0 26px 3px 20px;
+    border-radius: 999px; background: #14573E; color: #FFFFFF; font-size: 28px; font-weight: 600; line-height: 1; letter-spacing: 0;
+    box-shadow: inset 0 0 0 1.5px rgba(163,199,184,.45), 0 8px 20px rgba(8,36,26,.25); }
+  .trial-pill svg { width: 32px; height: 32px; margin-top: 3px; }
+  .mosaic { position: absolute; display: grid; z-index: 0; pointer-events: none; }
+  .mosaic img { width: 100%; height: 100%; display: block; object-fit: cover; filter: saturate(.55); }
   .badge { display: inline-flex; align-items: center; height: 46px; box-sizing: border-box; padding: 0 20px 2px; margin-bottom: 26px;
     border-radius: 999px; background: #F2F7F4; color: #14573E; font-size: 24px; font-weight: 600; line-height: 1; }
   .langs { position: absolute; display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; }
@@ -99,12 +108,16 @@ window.renderSlide = function (s) {
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const h = esc(s.headline).replace(/\[(.+?)\]/g, '<span class="k">$1</span>');
   let html = `<div class="slide ${s.layout || ''}"${s.bg ? ` style="background:${s.bg}"` : ''}${s.center ? ' data-center="1"' : ''}><div class="copy ${s.copyClass || ''}">`;
-  if (s.brand) html += `<div class="brand ${s.brandBig ? 'big' : ''}"><img src="${s.brand}" alt="">Ocy</div>`;
+  const trial = !s.trial ? '' : s.trial.style === 'hand'
+    ? `<span class="trial-hand">${esc(s.trial.text)}<svg viewBox="0 0 300 16" preserveAspectRatio="none"><path d="M4 9 C 60 3, 120 13, 180 7 S 270 5, 296 9" fill="none" stroke="#E8F4EE" stroke-width="3.2" stroke-linecap="round"/></svg></span>`
+    : `<span class="trial-pill"><svg viewBox="0 0 28 28" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="22" height="19.5" rx="4"/><path d="M3 11h22M9 3v5M19 3v5"/><text x="14" y="21.6" text-anchor="middle" font-size="9.5" font-weight="700" fill="#FFFFFF" stroke="none" font-family="Ocy Segoe UI, Segoe UI, sans-serif">15</text></svg>${esc(s.trial.text)}</span>`;
+  if (s.brand) html += `<div class="brand ${s.brandBig ? 'big' : ''}"><img src="${s.brand}" alt="">Ocy${trial}</div>`;
   if (s.badge) html += `<div><span class="badge">${esc(s.badge)}</span></div>`;
   html += `<h1>${h}</h1>`;
   if (s.sub) html += `<div class="sub">${esc(s.sub)}</div>`;
   if (s.facts) html += `<div class="facts">${s.facts.map(f => `<span>${esc(f)}</span>`).join('')}</div>`;
   html += `</div>`;
+  if (s.mosaic) { const m = s.mosaic; html += `<div class="mosaic" style="left:${m.x}px;top:${m.y}px;width:${m.cols * m.cw}px;height:${m.rows * m.ch}px;grid-template-columns:repeat(${m.cols},${m.cw}px);grid-auto-rows:${m.ch}px;opacity:${m.opacity};${m.mask ? `-webkit-mask-image:${m.mask};mask-image:${m.mask};` : ''}">${m.files.map(f => `<img src="${f}" alt="">`).join('')}</div>`; }
   for (const d of s.decor || []) html += `<div class="decor" style="left:${d.x}px;top:${d.y}px;width:${d.w}px;height:${d.h}px;z-index:${d.z || 0};${d.css || ''}"></div>`;
   for (const a of s.art || []) html += `<div class="art ${a.tile ? 'tile' : ''}" style="left:${a.x}px;top:${a.y}px;width:${a.width}px;z-index:${a.z || 1};transform:rotate(${a.rotate || 0}deg)"><img src="${a.src}" alt=""></div>`;
   for (const sh of s.shots || []) {

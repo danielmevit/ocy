@@ -22,12 +22,21 @@ const only = arg('--only');
 mkdirSync(out, { recursive: true });
 
 const url = p => pathToFileURL(p.replace(/^caps\//, caps + '/').replace(/^repo\//, repo + '/')).href;
-const { slides: baseSlides, variantB = null, heroVariants = [], heroVariants2 = [], heroChar = null, heroRight = null } = JSON.parse(readFileSync(join(here, 'slides.json'), 'utf8'));
+const { slides: baseSlides, variantB = null, variants = {}, heroVariants = [], heroVariants2 = [], heroChar = null, heroRight = null } = JSON.parse(readFileSync(join(here, 'slides.json'), 'utf8'));
 // --variant-b: also render the languages slide with flags (ocy-languages-B-*.png).
-const slides = process.argv.includes('--variant-b') && variantB ? [variantB] : baseSlides;
+// --variants <key>: render variants[key] (full slide objects) at 1080p into <out>/hero-variants/<id>.png plus a <key>.png sheet.
+const vKey = arg('--variants');
+const escHtml = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+if (vKey && !Object.prototype.hasOwnProperty.call(variants, vKey)) {
+  console.error(`unknown --variants key: ${vKey} (known: ${Object.keys(variants).join(', ')})`);
+  process.exit(2);
+}
+const slides = vKey ? variants[vKey] : process.argv.includes('--variant-b') && variantB ? [variantB] : baseSlides;
 const languages = JSON.parse(readFileSync(join(here, 'languages.json'), 'utf8'));
 for (const s of slides) {
   if (s.langs) s.langs.items = languages.map(l => ({ ...l, flagSrc: s.langs.flags ? url(`repo/docs/store/screenshots/flags/${l.flag}.svg`) : null }));
+  if (s.mosaic) { const fl = languages.map(l => l.flag); const n = s.mosaic.cols * s.mosaic.rows;
+    s.mosaic.files = Array.from({ length: n }, (_, i) => url(`repo/docs/store/screenshots/flags/${fl[(i * 7) % fl.length]}.svg`)); }
   if (s.brand) s.brand = url(s.brand);
   for (const sh of s.shots || []) sh.src = url(sh.src);
   for (const a of s.art || []) a.src = url(a.src);
@@ -48,6 +57,26 @@ const fontCss = existsSync(join(winFonts, 'segoeui.ttf')) ? `
     .map(([k, f]) => `@font-face { font-family: "Ocy ${k}"; src: url(${pathToFileURL(join(winFonts, f)).href}); }`).join('\n')}` : '';
 
 const browser = await chromium.launch({ args: ['--allow-file-access-from-files'] });
+if (vKey) {
+  const dir = join(out, 'hero-variants'); mkdirSync(dir, { recursive: true });
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  await page.goto(pathToFileURL(join(here, 'template.html')).href);
+  if (fontCss) await page.addStyleTag({ content: fontCss });
+  const files = [];
+  for (const s of slides) {
+    await page.evaluate(x => window.renderSlide(x), s);
+    await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))).then(() => document.fonts.ready).then(() => window.centerSlide && window.centerSlide()));
+    const f = join(dir, `${s.id}.png`); await page.screenshot({ path: f }); files.push([s.label || s.id, f]); console.log(f);
+  }
+  const w = files.length > 2 ? 620 : 900;
+  const sheet = await browser.newPage({ viewport: { width: files.length * (w + 20) + 20, height: 100 } });
+  await sheet.goto(pathToFileURL(join(here, 'template.html')).href);
+  await sheet.evaluate(h => { document.documentElement.innerHTML = h; }, `<style>body{margin:0;padding:20px;background:#1d2120;font:20px sans-serif;color:#dfe7e3;display:grid;grid-template-columns:repeat(${files.length},${w}px);gap:20px}
+    figure{margin:0}img{width:${w}px;display:block}figcaption{padding-top:6px}</style>${files.map(([t, f]) => `<figure><img src="${escHtml(pathToFileURL(f).href)}"><figcaption>${escHtml(t)}</figcaption></figure>`).join('')}`);
+  await sheet.evaluate(() => Promise.all([...document.images].map(i => i.decode())));
+  await sheet.screenshot({ path: join(dir, `${vKey}.png`), fullPage: true }); console.log(join(dir, `${vKey}.png`));
+  await browser.close(); process.exit(0);
+}
 
 // --hero-variants: render the hero with each heroVariants[].bg into <out>/hero-variants/, plus a labelled sheet.
 // Apply a chosen variant to every slide by giving each slide that "bg".
@@ -81,7 +110,7 @@ if (rightMode || process.argv.includes('--hero-char')) {
     }
     rows.push(row);
   }
-  const cells = rows.flat().map(([t, f]) => `<figure><img src="${pathToFileURL(f).href}"><figcaption>${t}</figcaption></figure>`).join('');
+  const cells = rows.flat().map(([t, f]) => `<figure><img src="${escHtml(pathToFileURL(f).href)}"><figcaption>${escHtml(t)}</figcaption></figure>`).join('');
   const sheet = await browser.newPage({ viewport: { width: 1700, height: 100 } });
   await sheet.goto(pathToFileURL(join(here, 'template.html')).href);
   await sheet.evaluate(h => { document.documentElement.innerHTML = h; }, `<style>body{margin:0;padding:20px;background:#1d2120;font:20px sans-serif;color:#dfe7e3;display:grid;grid-template-columns:repeat(3,540px);gap:20px}
@@ -104,7 +133,7 @@ if (v2 || process.argv.includes('--hero-variants')) {
     const file = join(dir, `hero-${v.id}.png`); await page.screenshot({ path: file }); files.push([v, file]); console.log(file);
   }
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const cells = files.map(([v, f]) => `<figure><img src="${pathToFileURL(f).href}"><figcaption><b>${v.id}</b> ${esc(v.desc)}</figcaption></figure>`).join('');
+  const cells = files.map(([v, f]) => `<figure><img src="${escHtml(pathToFileURL(f).href)}"><figcaption><b>${escHtml(v.id)}</b> ${escHtml(v.desc)}</figcaption></figure>`).join('');
   const sheet = await browser.newPage({ viewport: { width: 1660, height: 100 } });
   await sheet.goto(pathToFileURL(join(here, 'template.html')).href);
   await sheet.evaluate(h => { document.documentElement.innerHTML = h; }, `<style>body{margin:0;padding:24px;background:#1d2120;font:17px sans-serif;color:#dfe7e3;display:grid;grid-template-columns:repeat(2,794px);gap:24px}
@@ -135,7 +164,7 @@ for (const scale of [2, 1]) {
 if (!only) {
   const page = await browser.newPage({ viewport: { width: 1640, height: 100 } });
   await page.goto(pathToFileURL(join(here, 'template.html')).href);
-  const cells = done.map(f => `<figure><img src="${pathToFileURL(f).href}"><figcaption>${f.split('/').pop()}</figcaption></figure>`).join('');
+  const cells = done.map(f => `<figure><img src="${escHtml(pathToFileURL(f).href)}"><figcaption>${escHtml(f.split('/').pop())}</figcaption></figure>`).join('');
   await page.evaluate(h => { document.documentElement.innerHTML = h; }, `<style>body{margin:0;padding:20px;background:#202322;font:14px sans-serif;color:#ccc;display:grid;grid-template-columns:repeat(2,790px);gap:20px}
     figure{margin:0}img{width:790px;display:block}figcaption{padding-top:6px}</style>${cells}`);
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode())));

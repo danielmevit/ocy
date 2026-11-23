@@ -38,6 +38,6 @@ for sh in comps['R4c']['shots']: sh['opacity']=0.82
 # The featured slide 01-hero = R4c on G.
 G=d['heroChar']['backgrounds']['G']
 d['slides'][0]={"id":"01-hero","layout":"hero","bg":G,"center":True,"brand":"repo/docs/store/screenshots/sprout-light-dark-stem.svg","brandBig":True,"copyClass":"char",
-  "headline":"Gentle breaks for your [eyes]","sub":"A small reminder to look away, and a real break every hour.","facts":["Offline, no account","Never steals focus","40 languages"],"badge":"15-day free trial",
+  "headline":"Gentle breaks for your [eyes]","sub":"A small reminder to look away, and a real break every hour.","facts":["Offline, no account","Never steals focus","40 languages"],"trial":{"style":"hand","text":"15-day free trial"},
   **{k:v for k,v in comps['R4c'].items() if k in ("art","decor","shots")}}
 json.dump(d,open(p,'w'),indent=2,ensure_ascii=False); open(p,'a').write('\n')
