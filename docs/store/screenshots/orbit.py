@@ -32,7 +32,9 @@ comps['R4c']={"label":"Orbit, two rings","hires":True,"art":[{"src":CHD,"x":BX-2
   "decor":[ringb(330,.36),ringb(430,.24),ringb(530,.13)],
   "shots":[at("short",BX,175,380),at("warn",1700,720,340,2),at("game",1060,720,280,-2),
            at("roll",BX,870,380,1),
-           at("walk",1725,330,270,3,.82,2),at("long",1005,330,170,-3,.82,2)]}
+           at("walk",1725,330,270,3,.82,2),at("long",995,320,200,-3,.82,2)]}
+# V12s: every hero card uses the outer cards' soft 0.82 opacity (owner).
+for sh in comps['R4c']['shots']: sh['opacity']=0.82
 # The featured slide 01-hero = R4c on G.
 G=d['heroChar']['backgrounds']['G']
 d['slides'][0]={"id":"01-hero","layout":"hero","bg":G,"center":True,"brand":"repo/docs/store/screenshots/sprout-light-dark-stem.svg","brandBig":True,"copyClass":"char",

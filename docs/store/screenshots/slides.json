@@ -64,7 +64,7 @@
           "card": true,
           "rotate": 0,
           "z": 3,
-          "opacity": 1
+          "opacity": 0.82
         },
         {
           "src": "caps/light/warning.png",
@@ -82,7 +82,7 @@
           "card": true,
           "rotate": 2,
           "z": 3,
-          "opacity": 1
+          "opacity": 0.82
         },
         {
           "src": "caps/games/light/gentle-short.png",
@@ -100,7 +100,7 @@
           "card": true,
           "rotate": -2,
           "z": 3,
-          "opacity": 1
+          "opacity": 0.82
         },
         {
           "src": "caps/light/short-roll.png",
@@ -118,7 +118,7 @@
           "card": true,
           "rotate": 1,
           "z": 3,
-          "opacity": 1
+          "opacity": 0.82
         },
         {
           "src": "caps/games/light/gentle-long.png",
@@ -147,9 +147,9 @@
             960,
             728
           ],
-          "x": 920,
-          "y": 266,
-          "width": 170,
+          "x": 895,
+          "y": 244,
+          "width": 200,
           "radius": 10,
           "card": true,
           "rotate": -3,
@@ -1114,7 +1114,7 @@
             "card": true,
             "rotate": 0,
             "z": 3,
-            "opacity": 1
+            "opacity": 0.82
           },
           {
             "src": "caps/light/warning.png",
@@ -1132,7 +1132,7 @@
             "card": true,
             "rotate": 2,
             "z": 3,
-            "opacity": 1
+            "opacity": 0.82
           },
           {
             "src": "caps/games/light/gentle-short.png",
@@ -1150,7 +1150,7 @@
             "card": true,
             "rotate": -2,
             "z": 3,
-            "opacity": 1
+            "opacity": 0.82
           },
           {
             "src": "caps/light/short-roll.png",
@@ -1168,7 +1168,7 @@
             "card": true,
             "rotate": 1,
             "z": 3,
-            "opacity": 1
+            "opacity": 0.82
           },
           {
             "src": "caps/games/light/gentle-long.png",
@@ -1197,9 +1197,9 @@
               960,
               728
             ],
-            "x": 920,
-            "y": 266,
-            "width": 170,
+            "x": 895,
+            "y": 244,
+            "width": 200,
             "radius": 10,
             "card": true,
             "rotate": -3,
