@@ -87,3 +87,13 @@ export function readExercises(lang = 'en'): ExerciseItem[] {
     };
   });
 }
+
+/**
+ * The one place the Microsoft Store link lives. Every CTA, the footer, JSON-LD and llms.txt use it.
+ * For now this is the publisher page; swap in the product link once the Store listing is live
+ * (the publisher name may also change to damt.xyz).
+ */
+export const STORE_URL = 'https://apps.microsoft.com/search/publisher?name=Mevit&hl=en-US';
+
+/** Source code. Linked only low-key from the footer and the privacy page. */
+export const REPO_URL = 'https://github.com/danielmevit/ocy';
