@@ -12,10 +12,11 @@
       "headline": "Gentle breaks for your [eyes]",
       "sub": "A small reminder to look away, and a real break every hour.",
       "facts": [
-        "Offline",
-        "No account",
-        "Never steals focus"
+        "Offline, no account",
+        "Never steals focus",
+        "40 languages"
       ],
+      "badge": "15-day free trial",
       "art": [
         {
           "src": "repo/docs/store/screenshots/ocy-char-deep.svg",
@@ -351,6 +352,20 @@
           "z": 2
         }
       ]
+    },
+    {
+      "id": "06-languages",
+      "layout": "light",
+      "center": true,
+      "copyClass": "big",
+      "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
+      "headline": "Speaks [your language]",
+      "sub": "40 languages, written natively. Ocy follows your Windows language, or you pick one yourself.",
+      "langs": {
+        "x": 900,
+        "y": 200,
+        "w": 920
+      }
     }
   ],
   "heroVariants": [
@@ -1208,6 +1223,21 @@
           }
         ]
       }
+    }
+  },
+  "variantB": {
+    "id": "languages-B",
+    "layout": "light",
+    "center": true,
+    "copyClass": "big",
+    "brand": "repo/docs/store/screenshots/sprout-light-dark-stem.svg",
+    "headline": "Speaks [your language]",
+    "sub": "40 languages, written natively. Ocy follows your Windows language, or you pick one yourself.",
+    "langs": {
+      "x": 900,
+      "y": 200,
+      "w": 930,
+      "flags": true
     }
   }
 }

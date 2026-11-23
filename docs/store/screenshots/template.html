@@ -41,6 +41,20 @@
   .slide.light .strip .tile { background: #FFFFFF; box-shadow: 0 10px 26px rgba(20,60,45,.12); }
   .copy.big h1 { font-size: 100px; line-height: 1.03; }
   .blob { position: absolute; background: rgba(255,255,255,.88); }
+  .badge { display: inline-flex; align-items: center; height: 46px; box-sizing: border-box; padding: 0 20px 2px; margin-bottom: 26px;
+    border-radius: 999px; background: #F2F7F4; color: #14573E; font-size: 24px; font-weight: 600; line-height: 1; }
+  .langs { position: absolute; display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; }
+  .langs .lp { display: inline-flex; align-items: center; gap: 12px; height: 56px; box-sizing: border-box; padding: 0 22px 2px;
+    border-radius: 999px; background: #FFFFFF; color: #14573E; font-size: 26px; font-weight: 600; line-height: 1;
+    box-shadow: 0 8px 22px rgba(20,60,45,.10), 0 1px 3px rgba(20,60,45,.08); }
+  .langs .lp img { width: 32px; height: 24px; border-radius: 4px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); margin-top: 2px; }
+  /* Native scripts: Windows UI fonts for each (loaded by render.mjs), then free fallbacks. */
+  .lp:lang(ja) { font-family: "Ocy JA", "Yu Gothic UI", "Noto Sans JP", sans-serif; }
+  .lp:lang(zh-Hans) { font-family: "Ocy SC", "Microsoft YaHei UI", "Noto Sans SC", sans-serif; }
+  .lp:lang(zh-Hant) { font-family: "Ocy TC", "Microsoft JhengHei UI", "Noto Sans TC", sans-serif; }
+  .lp:lang(ko) { font-family: "Ocy KO", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+  .lp:lang(th) { font-family: "Ocy TH", "Leelawadee UI", "Noto Sans Thai", sans-serif; }
+  .lp:lang(hi) { font-family: "Ocy HI", "Nirmala UI", "Noto Sans Devanagari", sans-serif; }
   .copy { position: absolute; left: 120px; top: 112px; width: 760px; }
   .copy.wide { width: 1680px; }
   .brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 600; margin-bottom: 44px; color: var(--ink); }
@@ -66,6 +80,9 @@
     box-shadow: 0 10px 26px rgba(8,36,26,.25); }
   .copy.char h1 { font-size: 108px; line-height: 1.02; }
   .copy.char .sub { font-size: 36px; }
+  .copy.char { width: 800px; }
+  .copy.char .facts { gap: 12px; }
+  .copy.char .facts span { font-size: 25px; height: 54px; padding: 0 22px 3px; }
   .shot .frame { overflow: hidden; border-radius: var(--r, 0px); position: relative; }
   .shot.card .frame { box-shadow: 0 30px 80px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.25); }
   .shot img { display: block; position: absolute; }
@@ -83,6 +100,7 @@ window.renderSlide = function (s) {
   const h = esc(s.headline).replace(/\[(.+?)\]/g, '<span class="k">$1</span>');
   let html = `<div class="slide ${s.layout || ''}"${s.bg ? ` style="background:${s.bg}"` : ''}${s.center ? ' data-center="1"' : ''}><div class="copy ${s.copyClass || ''}">`;
   if (s.brand) html += `<div class="brand ${s.brandBig ? 'big' : ''}"><img src="${s.brand}" alt="">Ocy</div>`;
+  if (s.badge) html += `<div><span class="badge">${esc(s.badge)}</span></div>`;
   html += `<h1>${h}</h1>`;
   if (s.sub) html += `<div class="sub">${esc(s.sub)}</div>`;
   if (s.facts) html += `<div class="facts">${s.facts.map(f => `<span>${esc(f)}</span>`).join('')}</div>`;
@@ -98,6 +116,8 @@ window.renderSlide = function (s) {
       <img src="${sh.src}" style="left:${-cx * k}px;top:${-cy * k}px;width:${sh.srcW * k}px"></div></div>`;
   }
   for (const l of s.labels || []) html += `<div class="label ${l.cls || ''}" style="left:${l.x}px;top:${l.y}px;z-index:${l.z || 3}">${esc(l.text)}</div>`;
+  if (s.langs) html += `<div class="langs" style="left:${s.langs.x}px;top:${s.langs.y}px;width:${s.langs.w}px">${s.langs.items.map(l =>
+    `<span class="lp" lang="${l.tag}">${l.flagSrc ? `<img src="${l.flagSrc}" alt="">` : ''}${esc(l.name)}</span>`).join('')}</div>`;
   if (s.strip) html += `<div class="strip" style="left:${s.strip.x}px;top:${s.strip.y}px">${s.strip.files.map(f => `<div class="tile"><img src="${f}"></div>`).join('')}</div>`;
   document.getElementById('root').innerHTML = html;
 };
@@ -110,7 +130,7 @@ window.centerSlide = function () {
   const box = els => { const r = els.map(e => e.getBoundingClientRect()); return [Math.min(...r.map(x => x.top)), Math.max(...r.map(x => x.bottom))]; };
   const shift = (els, [t, b]) => { const d = Math.round(540 - (t + b) / 2); for (const e of els) e.style.top = (parseFloat(getComputedStyle(e).top) + d) + 'px'; };
   const copy = [...slide.querySelectorAll('.copy')];
-  const ui = [...slide.querySelectorAll('.art, .shot, .label, .strip, .decor')];
+  const ui = [...slide.querySelectorAll('.art, .shot, .label, .strip, .decor, .langs')];
   if (copy.length) shift(copy, box(copy));
   if (ui.length) shift(ui, box(ui));
 };

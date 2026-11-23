@@ -22,8 +22,12 @@ const only = arg('--only');
 mkdirSync(out, { recursive: true });
 
 const url = p => pathToFileURL(p.replace(/^caps\//, caps + '/').replace(/^repo\//, repo + '/')).href;
-const { slides, heroVariants = [], heroVariants2 = [], heroChar = null, heroRight = null } = JSON.parse(readFileSync(join(here, 'slides.json'), 'utf8'));
+const { slides: baseSlides, variantB = null, heroVariants = [], heroVariants2 = [], heroChar = null, heroRight = null } = JSON.parse(readFileSync(join(here, 'slides.json'), 'utf8'));
+// --variant-b: also render the languages slide with flags (ocy-languages-B-*.png).
+const slides = process.argv.includes('--variant-b') && variantB ? [variantB] : baseSlides;
+const languages = JSON.parse(readFileSync(join(here, 'languages.json'), 'utf8'));
 for (const s of slides) {
+  if (s.langs) s.langs.items = languages.map(l => ({ ...l, flagSrc: s.langs.flags ? url(`repo/docs/store/screenshots/flags/${l.flag}.svg`) : null }));
   if (s.brand) s.brand = url(s.brand);
   for (const sh of s.shots || []) sh.src = url(sh.src);
   for (const a of s.art || []) a.src = url(a.src);
@@ -39,7 +43,9 @@ const winFonts = '/mnt/c/Windows/Fonts';
 const fontCss = existsSync(join(winFonts, 'segoeui.ttf')) ? `
   @font-face { font-family: "Ocy Segoe UI"; font-weight: 400; src: url(${pathToFileURL(join(winFonts, 'segoeui.ttf')).href}); }
   @font-face { font-family: "Ocy Segoe UI"; font-weight: 600; src: url(${pathToFileURL(join(winFonts, 'seguisb.ttf')).href}); }
-  @font-face { font-family: "Ocy Segoe UI"; font-weight: 700; src: url(${pathToFileURL(join(winFonts, 'segoeuib.ttf')).href}); }` : '';
+  @font-face { font-family: "Ocy Segoe UI"; font-weight: 700; src: url(${pathToFileURL(join(winFonts, 'segoeuib.ttf')).href}); }
+  ${[['JA', 'YuGothM.ttc'], ['SC', 'msyh.ttc'], ['TC', 'msjh.ttc'], ['KO', 'malgun.ttf'], ['TH', 'LeelawUI.ttf'], ['HI', 'Nirmala.ttc']]
+    .map(([k, f]) => `@font-face { font-family: "Ocy ${k}"; src: url(${pathToFileURL(join(winFonts, f)).href}); }`).join('\n')}` : '';
 
 const browser = await chromium.launch({ args: ['--allow-file-access-from-files'] });
 
