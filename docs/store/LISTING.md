@@ -4,7 +4,10 @@ Field-by-field copy for Partner Center. The tone matches the website: calm, warm
 **No GitHub links anywhere in the listing** (owner rule: the Store version stands on its own).
 
 ## Product name
-**Ocy - Screen Break Reminder** (owner's choice, 2026-11-22; reserve it in Partner Center).
+**Launch name: Ocy** (reserved in Partner Center, 2026-11-22). **Target listing name: Ocy - Screen Break
+Reminder** (owner's choice). Partner Center still showed it as unavailable after the duplicate product was removed.
+Reserve it in the same "Ocy" product once it frees up, then switch the listing name and the package DisplayName in
+the next update (same app, identity and users).
 Earlier proposals: "Ocy - Gentle Screen Breaks", "Ocy - Gentle Eye & Screen Breaks", "Ocy - Gentle Screen Break
 Reminder". The name carries "break reminder" (the main search term); "eye" is covered by the description and
 keywords.

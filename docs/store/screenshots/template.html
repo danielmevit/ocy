@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ocy Store slide</title>
+<style>
+  /* Segoe UI is the app's own font on Windows; render.mjs points these at C:\Windows\Fonts when present.
+     Fallbacks work headless on Linux. */
+  :root {
+    --jade: #2F7D62;          /* brand jade (light) */
+    --jade-dark: #348267;     /* brand jade fill on dark */
+    --tint: #A3C7B8;          /* small text on dark */
+    --key: #8FD1B3;           /* highlighted keyword on dark (AA+ on --bg-1) */
+    --bg-0: #0F1C17;          /* deep jade-black */
+    --bg-1: #16291F;
+    --bg-2: #1E3A2E;
+    --ink: #F2F5F3;
+    --muted: #C3D3CB;
+    --font: "Ocy Segoe UI", "Segoe UI", "Ubuntu Sans", "DejaVu Sans", sans-serif;
+  }
+  html, body { margin: 0; padding: 0; }
+  body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg-0); font-family: var(--font); color: var(--ink); }
+  .slide { position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    background:
+      radial-gradient(1100px 760px at 78% 34%, rgba(52,130,103,.42), transparent 70%),
+      radial-gradient(900px 700px at 8% 0%, rgba(52,130,103,.20), transparent 70%),
+      linear-gradient(160deg, var(--bg-1), var(--bg-0) 75%); }
+  .slide.hero {
+    background:
+      radial-gradient(1000px 800px at 80% 30%, rgba(255,255,255,.12), transparent 70%),
+      linear-gradient(150deg, #348267 0%, #2F7D62 45%, #1F5A45 100%); }
+  /* Light (white-ish) slides: brand light UI surface, dark jade text. */
+  .slide.light { background: radial-gradient(1100px 800px at 75% 45%, #E3EFE9, transparent 70%), linear-gradient(160deg, #F6F7F5, #EDF3F0); color: #14573E; }
+  .slide.light h1 { color: #14573E; }
+  .slide.light h1 .k { color: #2F7D62; }
+  .slide.light .sub { color: #2E4A40; }
+  .slide.light .brand { color: #14573E; }
+  .slide.light .brand img { background: none; padding: 0; }
+  .slide.light .shot.card .frame { box-shadow: 0 26px 60px rgba(20,60,45,.18), 0 3px 10px rgba(20,60,45,.10); }
+  .slide.light .label { color: #2F6B55; }
+  .slide.light .strip .tile { background: #FFFFFF; box-shadow: 0 10px 26px rgba(20,60,45,.12); }
+  .copy.big h1 { font-size: 100px; line-height: 1.03; }
+  .blob { position: absolute; background: rgba(255,255,255,.88); }
+  .copy { position: absolute; left: 120px; top: 112px; width: 760px; }
+  .copy.wide { width: 1680px; }
+  .brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 600; margin-bottom: 44px; color: var(--ink); }
+  .brand img { width: 52px; height: 52px; padding: 8px; border-radius: 18px; background: #F2F7F4; }
+  h1 { margin: 0; font-size: 92px; line-height: 1.04; font-weight: 700; letter-spacing: -0.015em; }
+  h1 .k { color: var(--key); }
+  .hero h1 .k { color: #CDEBDD; }
+  .sub { margin-top: 30px; font-size: 36px; line-height: 1.35; color: var(--muted); max-width: 720px; }
+  .hero .sub { color: #F2F7F4; }
+  .facts { margin-top: 44px; display: flex; flex-wrap: wrap; gap: 14px; }
+  .facts span { font-size: 28px; font-weight: 600; padding: 12px 24px; border-radius: 999px;
+    background: rgba(255,255,255,.10); border: 1.5px solid rgba(255,255,255,.28); color: var(--ink); }
+  .hero .facts span { background: rgba(10,40,30,.28); }
+  .shot { position: absolute; }
+  .art { position: absolute; }
+  .art.tile { background: #F2F7F4; border-radius: 28px; padding: 18px; box-shadow: 0 24px 60px rgba(8,36,26,.30); }
+  .art.tile img { filter: none; }
+  .decor { position: absolute; }
+  .label.time { color: #FFFFFF; font-size: 30px; font-weight: 600; }
+  .art img { display: block; width: 100%; height: auto; filter: drop-shadow(0 24px 40px rgba(10,40,30,.30)); }
+  .brand.big { gap: 24px; font-size: 76px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 48px; }
+  .brand.big img { width: 76px; height: 76px; padding: 14px; border-radius: 28px;
+    box-shadow: 0 10px 26px rgba(8,36,26,.25); }
+  .copy.char h1 { font-size: 108px; line-height: 1.02; }
+  .copy.char .sub { font-size: 36px; }
+  .shot .frame { overflow: hidden; border-radius: var(--r, 0px); position: relative; }
+  .shot.card .frame { box-shadow: 0 30px 80px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.25); }
+  .shot img { display: block; position: absolute; }
+  .label { position: absolute; font-size: 26px; font-weight: 600; color: var(--tint); letter-spacing: .01em; }
+  .strip { position: absolute; display: flex; gap: 22px; }
+  .strip .tile { width: 132px; height: 132px; border-radius: 28px; background: #E9F1ED; display: grid; place-items: center; }
+  .strip .tile img { width: 112px; height: 112px; }
+</style>
+</head>
+<body><div id="root"></div>
+<script>
+// Called by render.mjs with one slide from slides.json. Headline markup: [word] = the highlighted keyword.
+window.renderSlide = function (s) {
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const h = esc(s.headline).replace(/\[(.+?)\]/g, '<span class="k">$1</span>');
+  let html = `<div class="slide ${s.layout || ''}"${s.bg ? ` style="background:${s.bg}"` : ''}${s.center ? ' data-center="1"' : ''}><div class="copy ${s.copyClass || ''}">`;
+  if (s.brand) html += `<div class="brand ${s.brandBig ? 'big' : ''}"><img src="${s.brand}" alt="">Ocy</div>`;
+  html += `<h1>${h}</h1>`;
+  if (s.sub) html += `<div class="sub">${esc(s.sub)}</div>`;
+  if (s.facts) html += `<div class="facts">${s.facts.map(f => `<span>${esc(f)}</span>`).join('')}</div>`;
+  html += `</div>`;
+  for (const d of s.decor || []) html += `<div class="decor" style="left:${d.x}px;top:${d.y}px;width:${d.w}px;height:${d.h}px;z-index:${d.z || 0};${d.css || ''}"></div>`;
+  for (const a of s.art || []) html += `<div class="art ${a.tile ? 'tile' : ''}" style="left:${a.x}px;top:${a.y}px;width:${a.width}px;z-index:${a.z || 1};transform:rotate(${a.rotate || 0}deg)"><img src="${a.src}" alt=""></div>`;
+  for (const sh of s.shots || []) {
+    // crop = [x, y, w, h] in source pixels (captures are 2x); width = display width in CSS px.
+    const [cx, cy, cw, ch] = sh.crop;
+    const k = sh.width / cw;
+    html += `<div class="shot ${sh.card ? 'card' : ''}" style="left:${sh.x}px;top:${sh.y}px;z-index:${sh.z || 1};transform:rotate(${sh.rotate || 0}deg);opacity:${sh.opacity ?? 1}">
+      <div class="frame" style="--r:${(sh.radius || 0)}px;width:${sh.width}px;height:${Math.round(ch * k)}px">
+      <img src="${sh.src}" style="left:${-cx * k}px;top:${-cy * k}px;width:${sh.srcW * k}px"></div></div>`;
+  }
+  for (const l of s.labels || []) html += `<div class="label ${l.cls || ''}" style="left:${l.x}px;top:${l.y}px;z-index:${l.z || 3}">${esc(l.text)}</div>`;
+  if (s.strip) html += `<div class="strip" style="left:${s.strip.x}px;top:${s.strip.y}px">${s.strip.files.map(f => `<div class="tile"><img src="${f}"></div>`).join('')}</div>`;
+  document.getElementById('root').innerHTML = html;
+};
+
+// Vertical centring (slide "center": true): shift the text column and the UI group so each is centred on y=540.
+// Run after fonts and images are ready (render.mjs does).
+window.centerSlide = function () {
+  const slide = document.querySelector('.slide');
+  if (!slide || !slide.dataset.center) return;
+  const box = els => { const r = els.map(e => e.getBoundingClientRect()); return [Math.min(...r.map(x => x.top)), Math.max(...r.map(x => x.bottom))]; };
+  const shift = (els, [t, b]) => { const d = Math.round(540 - (t + b) / 2); for (const e of els) e.style.top = (parseFloat(getComputedStyle(e).top) + d) + 'px'; };
+  const copy = [...slide.querySelectorAll('.copy')];
+  const ui = [...slide.querySelectorAll('.art, .shot, .label, .strip, .decor')];
+  if (copy.length) shift(copy, box(copy));
+  if (ui.length) shift(ui, box(ui));
+};
+</script>
+</body>
+</html>

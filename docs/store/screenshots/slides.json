@@ -1,0 +1,1277 @@
+{
+  "_doc": "Ocy Store slides. Canvas 1920x1080 CSS px, rendered at 2x (3840x2160). Paths: caps/ = readme_screens captures dir, repo/ = repo root. crop = [x,y,w,h] in capture pixels; srcW = capture width. Keep key content above y=720.",
+  "slides": [
+    {
+      "id": "01-hero",
+      "layout": "hero",
+      "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
+      "center": true,
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brandBig": true,
+      "copyClass": "char",
+      "headline": "Gentle breaks for your [eyes]",
+      "sub": "A small reminder to look away, and a real break every hour.",
+      "facts": [
+        "Offline",
+        "No account",
+        "Never steals focus"
+      ],
+      "art": [
+        {
+          "src": "repo/docs/store/screenshots/ocy-char-deep.svg",
+          "x": 1100,
+          "y": 230,
+          "width": 520
+        }
+      ],
+      "decor": [
+        {
+          "x": 1030,
+          "y": 170,
+          "w": 660,
+          "h": 660,
+          "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.36);"
+        },
+        {
+          "x": 930,
+          "y": 70,
+          "w": 860,
+          "h": 860,
+          "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.24);"
+        },
+        {
+          "x": 830,
+          "y": -30,
+          "w": 1060,
+          "h": 1060,
+          "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.13);"
+        },
+        {
+          "x": 1288.0,
+          "y": 303.0,
+          "w": 96,
+          "h": 54,
+          "z": 0,
+          "css": "background:rgba(255,255,255,.85);border-radius:58% 42% 63% 37% / 55% 48% 52% 45%;transform:rotate(-16deg);"
+        },
+        {
+          "x": 1358.0,
+          "y": 295.0,
+          "w": 92,
+          "h": 50,
+          "z": 0,
+          "css": "background:rgba(255,255,255,.85);border-radius:45% 55% 38% 62% / 60% 40% 60% 40%;transform:rotate(12deg);"
+        },
+        {
+          "x": 1278.0,
+          "y": 291.5,
+          "w": 24,
+          "h": 17,
+          "z": 0,
+          "css": "background:rgba(255,255,255,.85);border-radius:60% 40% 50% 50%;transform:rotate(-20deg);"
+        },
+        {
+          "x": 1441.0,
+          "y": 289.0,
+          "w": 18,
+          "h": 14,
+          "z": 0,
+          "css": "background:rgba(255,255,255,.85);border-radius:50% 50% 40% 60% / 55% 45% 55% 45%;transform:rotate(30deg);"
+        }
+      ],
+      "shots": [
+        {
+          "src": "caps/light/short-break.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            192
+          ],
+          "x": 1170,
+          "y": 124,
+          "width": 380,
+          "radius": 10,
+          "card": true,
+          "rotate": 0,
+          "z": 3,
+          "opacity": 1
+        },
+        {
+          "src": "caps/light/warning.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            156
+          ],
+          "x": 1530,
+          "y": 613,
+          "width": 340,
+          "radius": 10,
+          "card": true,
+          "rotate": 2,
+          "z": 3,
+          "opacity": 1
+        },
+        {
+          "src": "caps/games/light/gentle-short.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            256
+          ],
+          "x": 850,
+          "y": 586,
+          "width": 360,
+          "radius": 10,
+          "card": true,
+          "rotate": -2,
+          "z": 3,
+          "opacity": 1
+        },
+        {
+          "src": "caps/light/short-roll.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            222
+          ],
+          "x": 1170,
+          "y": 721,
+          "width": 380,
+          "radius": 10,
+          "card": true,
+          "rotate": 1,
+          "z": 3,
+          "opacity": 1
+        },
+        {
+          "src": "caps/games/light/gentle-long.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            256
+          ],
+          "x": 1590,
+          "y": 282,
+          "width": 270,
+          "radius": 10,
+          "card": true,
+          "rotate": 3,
+          "z": 2,
+          "opacity": 0.82
+        },
+        {
+          "src": "caps/light/long-break.png",
+          "srcW": 1280,
+          "crop": [
+            160,
+            156,
+            960,
+            728
+          ],
+          "x": 920,
+          "y": 266,
+          "width": 170,
+          "radius": 10,
+          "card": true,
+          "rotate": -3,
+          "z": 2,
+          "opacity": 0.82
+        }
+      ]
+    },
+    {
+      "id": "02-exercises",
+      "layout": "light",
+      "center": true,
+      "copyClass": "big",
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "headline": "Rest your eyes with short [exercises]",
+      "sub": "Every so often, one small hand-drawn exercise for a few seconds. Skipped one? Ocy won't judge. Change takes time.",
+      "shots": [
+        {
+          "src": "caps/light/short-break.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            192
+          ],
+          "x": 960,
+          "y": 200,
+          "width": 840,
+          "radius": 20,
+          "card": true,
+          "rotate": 0,
+          "z": 2
+        }
+      ],
+      "labels": [
+        {
+          "x": 960,
+          "y": 500,
+          "text": "Blink, look far away, roll your eyes, palming and more"
+        }
+      ],
+      "strip": {
+        "x": 960,
+        "y": 550,
+        "files": [
+          "repo/assets/illustrations/ocy-v1f/svg/blink-light-f2.svg",
+          "repo/assets/illustrations/ocy-v1f/svg/look-left-right-light-f1.svg",
+          "repo/assets/illustrations/ocy-v1f/svg/close-tight-light-f2.svg",
+          "repo/assets/illustrations/ocy-v1f/svg/figure-eight-light-f3.svg",
+          "repo/assets/illustrations/ocy-v1f/svg/palming-light-f1.svg"
+        ]
+      }
+    },
+    {
+      "id": "03-long-break",
+      "layout": "hero",
+      "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
+      "center": true,
+      "copyClass": "big",
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "headline": "A real [break] every hour",
+      "sub": "Five minutes away from the screen, with a gentle heads-up a minute before. Postpone or skip when you must.",
+      "shots": [
+        {
+          "src": "caps/dark/long-break.png",
+          "srcW": 1280,
+          "crop": [
+            160,
+            156,
+            960,
+            728
+          ],
+          "x": 1000,
+          "y": 120,
+          "width": 760,
+          "radius": 20,
+          "card": true,
+          "rotate": 0,
+          "z": 1
+        },
+        {
+          "src": "caps/light/warning.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            156
+          ],
+          "x": 900,
+          "y": 720,
+          "width": 540,
+          "radius": 14,
+          "card": true,
+          "rotate": -2,
+          "z": 3
+        }
+      ]
+    },
+    {
+      "id": "04-focus",
+      "layout": "light",
+      "center": true,
+      "copyClass": "big",
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "headline": "Never interrupts your [focus]",
+      "sub": "Presentations and videos hold your breaks. In games, a small card waits for a calm moment, never mid-fight.",
+      "shots": [
+        {
+          "src": "caps/games/light/settings-games-list.png",
+          "srcW": 1120,
+          "crop": [
+            28,
+            862,
+            1064,
+            360
+          ],
+          "x": 960,
+          "y": 150,
+          "width": 860,
+          "radius": 20,
+          "card": true,
+          "rotate": 0,
+          "z": 1
+        },
+        {
+          "src": "caps/games/light/gentle-short.png",
+          "srcW": 784,
+          "crop": [
+            34,
+            34,
+            716,
+            256
+          ],
+          "x": 1060,
+          "y": 520,
+          "width": 700,
+          "radius": 14,
+          "card": true,
+          "rotate": 1,
+          "z": 2
+        }
+      ],
+      "labels": [
+        {
+          "x": 1060,
+          "y": 476,
+          "text": "One click keeps a game silent"
+        }
+      ]
+    },
+    {
+      "id": "05-rhythm",
+      "layout": "hero",
+      "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)",
+      "center": true,
+      "copyClass": "big",
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "headline": "Your rhythm, [your way]",
+      "sub": "Gentle, Balanced or Focused, or set every value yourself. Some days are busier than others, and that's fine.",
+      "facts": [
+        "40 languages",
+        "Light and dark themes"
+      ],
+      "shots": [
+        {
+          "src": "caps/dark/settings.png",
+          "srcW": 1120,
+          "crop": [
+            0,
+            0,
+            1120,
+            520
+          ],
+          "x": 980,
+          "y": 150,
+          "width": 760,
+          "radius": 20,
+          "card": true,
+          "rotate": 0,
+          "z": 1
+        },
+        {
+          "src": "caps/light/settings.png",
+          "srcW": 1120,
+          "crop": [
+            0,
+            0,
+            1120,
+            520
+          ],
+          "x": 1080,
+          "y": 540,
+          "width": 680,
+          "radius": 20,
+          "card": true,
+          "rotate": 0,
+          "z": 2
+        }
+      ]
+    }
+  ],
+  "heroVariants": [
+    {
+      "id": "A",
+      "desc": "Flat #2F7D62 (reference)",
+      "bg": "#2F7D62"
+    },
+    {
+      "id": "B",
+      "desc": "Linear 135°: #348267 top-left to #2F7D62, a touch of #2B735A bottom-right",
+      "bg": "linear-gradient(135deg, #348267 0%, #2F7D62 55%, #2B735A 100%)"
+    },
+    {
+      "id": "C",
+      "desc": "Radial #348267 glow behind the headline, #2F7D62, slightly deeper #29715A edges",
+      "bg": "radial-gradient(1200px 900px at 26% 36%, #378669 0%, #2F7D62 50%, #286F57 100%)"
+    },
+    {
+      "id": "D",
+      "desc": "Vertical: #2F7D62 at the top (content) to deeper #276B53 at the bottom",
+      "bg": "linear-gradient(180deg, #2F7D62 0%, #2F7D62 45%, #276B53 100%)"
+    },
+    {
+      "id": "E",
+      "desc": "#2F7D62 base with a soft art-green #63A189 light pool behind the app (top-right)",
+      "bg": "radial-gradient(900px 700px at 74% 34%, rgba(99,161,137,.8), rgba(99,161,137,0) 70%), #2F7D62"
+    },
+    {
+      "id": "F",
+      "desc": "Gentle mesh: #348267 top-left, cooler #2B7A6A bottom-right, on #2F7D62",
+      "bg": "radial-gradient(1100px 800px at 15% 15%, rgba(52,130,103,.9), transparent 70%), radial-gradient(1200px 900px at 90% 90%, rgba(43,122,106,.95), transparent 70%), #2F7D62"
+    }
+  ],
+  "heroVariants2": [
+    {
+      "id": "G",
+      "desc": "Diagonal sweep: mint-jade #4FA585 corner, #2F7D62, deep #1F5A46 bottom-right",
+      "bg": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)"
+    },
+    {
+      "id": "H",
+      "desc": "Spotlight: light jade #5FAF8F glow behind the UI, #2F7D62, deep #1E5443 vignette",
+      "bg": "radial-gradient(1500px 1050px at 70% 48%, #5FAF8F 0%, #469B7B 30%, #2F7D62 58%, #1E5443 100%)"
+    },
+    {
+      "id": "I",
+      "desc": "Vertical: light #6DB396 band at the top, #2F7D62 mid, deep #22604B bottom",
+      "bg": "linear-gradient(180deg, #6DB396 0%, #4A9A7C 16%, #2F7D62 34%, #2F7D62 58%, #1F5A46 100%)"
+    },
+    {
+      "id": "J",
+      "desc": "Horizontal: deep #22604B behind the text to bright #45A07F behind the UI",
+      "bg": "linear-gradient(90deg, #22604B 0%, #2A7059 35%, #2F7D62 55%, #45A07F 100%)"
+    },
+    {
+      "id": "K",
+      "desc": "Aurora: #2F7D62 with two soft, large mint #7FC4A6 light shapes",
+      "bg": "radial-gradient(900px 380px at 70% 18%, rgba(127,196,166,.55), transparent 70%), radial-gradient(1100px 420px at 40% 100%, rgba(127,196,166,.45), transparent 70%), radial-gradient(700px 500px at 100% 70%, rgba(127,196,166,.30), transparent 70%), #2F7D62"
+    },
+    {
+      "id": "L",
+      "desc": "Jade to teal-jade sweep, #2F7D62 to #2A8A7E, with a soft light bloom",
+      "bg": "radial-gradient(800px 600px at 78% 40%, rgba(163,199,184,.40), transparent 70%), linear-gradient(120deg, #2B735A 0%, #2F7D62 35%, #2A8A7E 100%)"
+    }
+  ],
+  "heroChar": {
+    "_doc": "Character hero (V12d). Character = ocy-v1f blink-light-f1.svg (eyes open, no motion marks), unaltered. Render: render.mjs --hero-char.",
+    "copy": {
+      "brand": "repo/assets/icons/brand/ocy-sprout-light.svg",
+      "brandBig": true,
+      "copyClass": "char"
+    },
+    "backgrounds": {
+      "G": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)"
+    },
+    "compositions": {
+      "busy": {
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1110,
+            "y": 330,
+            "width": 360
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 880,
+            "y": 110,
+            "width": 600,
+            "radius": 12,
+            "card": true,
+            "rotate": -3,
+            "z": 2
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1420,
+            "y": 360,
+            "width": 440,
+            "radius": 12,
+            "card": true,
+            "rotate": 3,
+            "z": 2
+          },
+          {
+            "src": "caps/games/light/gentle-short.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 1400,
+            "y": 730,
+            "width": 470,
+            "radius": 12,
+            "card": true,
+            "rotate": 2,
+            "z": 2
+          },
+          {
+            "src": "caps/games/light/gentle-long.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 870,
+            "y": 760,
+            "width": 500,
+            "radius": 12,
+            "card": true,
+            "rotate": -2,
+            "z": 2
+          }
+        ]
+      },
+      "mid": {
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1180,
+            "y": 300,
+            "width": 480
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 900,
+            "y": 120,
+            "width": 680,
+            "radius": 12,
+            "card": true,
+            "rotate": -3,
+            "z": 2
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1300,
+            "y": 700,
+            "width": 560,
+            "radius": 12,
+            "card": true,
+            "rotate": 3,
+            "z": 2
+          }
+        ]
+      },
+      "clean": {
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1140,
+            "y": 200,
+            "width": 560
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1320,
+            "y": 760,
+            "width": 560,
+            "radius": 12,
+            "card": true,
+            "rotate": 3,
+            "z": 2
+          }
+        ]
+      }
+    }
+  },
+  "heroRight": {
+    "_doc": "V12g right-side concepts. Render: render.mjs --hero-right. Times on R5 match the Settings timeline capture (short 15:00, long 15:30).",
+    "backgrounds": {
+      "G": "linear-gradient(135deg, #4FA585 0%, #2F7D62 30%, #2A7259 60%, #1F5A46 100%)"
+    },
+    "compositions": {
+      "R1": {
+        "label": "Speech bubble",
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1330,
+            "y": 430,
+            "width": 420
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 960,
+            "y": 200,
+            "width": 660,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 2
+          }
+        ],
+        "decor": [
+          {
+            "x": 1440,
+            "y": 356,
+            "w": 40,
+            "h": 40,
+            "z": 3,
+            "css": "background:#fff;transform:rotate(45deg);border-radius:4px;"
+          }
+        ]
+      },
+      "R2": {
+        "label": "Desktop moment",
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1560,
+            "y": 96,
+            "width": 190,
+            "z": 0
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1300,
+            "y": 600,
+            "width": 520,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 3
+          }
+        ],
+        "decor": [
+          {
+            "x": 920,
+            "y": 230,
+            "w": 940,
+            "h": 560,
+            "z": 1,
+            "css": "border-radius:26px;border:18px solid #17392D;box-sizing:border-box;background:linear-gradient(160deg,#E3EEE8,#C9DDD3);box-shadow:0 30px 70px rgba(8,36,26,.35);overflow:hidden;"
+          },
+          {
+            "x": 1000,
+            "y": 310,
+            "w": 420,
+            "h": 300,
+            "z": 2,
+            "css": "border-radius:18px;background:rgba(255,255,255,.55);filter:blur(10px);"
+          },
+          {
+            "x": 1450,
+            "y": 300,
+            "w": 320,
+            "h": 170,
+            "z": 2,
+            "css": "border-radius:18px;background:rgba(255,255,255,.45);filter:blur(10px);"
+          },
+          {
+            "x": 1330,
+            "y": 790,
+            "w": 80,
+            "h": 50,
+            "z": 1,
+            "css": "background:#17392D;"
+          },
+          {
+            "x": 1240,
+            "y": 836,
+            "w": 260,
+            "h": 18,
+            "z": 1,
+            "css": "background:#17392D;border-radius:9px;"
+          }
+        ]
+      },
+      "R3": {
+        "label": "Flip-book",
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/look-left-right-light-f1.svg",
+            "x": 920,
+            "y": 200,
+            "width": 250,
+            "tile": true,
+            "rotate": -6,
+            "z": 1
+          },
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/look-left-right-light-f2.svg",
+            "x": 1150,
+            "y": 180,
+            "width": 250,
+            "tile": true,
+            "rotate": 0,
+            "z": 2
+          },
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/look-left-right-light-f3.svg",
+            "x": 1380,
+            "y": 200,
+            "width": 250,
+            "tile": true,
+            "rotate": 6,
+            "z": 3
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1000,
+            "y": 560,
+            "width": 660,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 4
+          }
+        ]
+      },
+      "R4": {
+        "label": "Orbit",
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1250,
+            "y": 340,
+            "width": 300
+          }
+        ],
+        "decor": [
+          {
+            "x": 1170,
+            "y": 270,
+            "w": 460,
+            "h": 460,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.4);"
+          },
+          {
+            "x": 1060,
+            "y": 160,
+            "w": 680,
+            "h": 680,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.28);"
+          },
+          {
+            "x": 950,
+            "y": 50,
+            "w": 900,
+            "h": 900,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.16);"
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1120,
+            "y": 130,
+            "width": 560,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 2
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 900,
+            "y": 640,
+            "width": 430,
+            "radius": 12,
+            "card": true,
+            "rotate": -4,
+            "z": 2
+          },
+          {
+            "src": "caps/games/light/gentle-short.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 1430,
+            "y": 620,
+            "width": 400,
+            "radius": 12,
+            "card": true,
+            "rotate": 4,
+            "z": 2
+          }
+        ]
+      },
+      "R5": {
+        "label": "Rhythm",
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1158,
+            "y": 120,
+            "width": 90
+          }
+        ],
+        "decor": [
+          {
+            "x": 1203,
+            "y": 215,
+            "w": 0,
+            "h": 560,
+            "z": 0,
+            "css": "border-left:4px dotted rgba(255,255,255,.55);"
+          }
+        ],
+        "labels": [
+          {
+            "x": 1020,
+            "y": 270,
+            "text": "15:00",
+            "cls": "time"
+          },
+          {
+            "x": 1020,
+            "y": 435,
+            "text": "15:29",
+            "cls": "time"
+          },
+          {
+            "x": 1020,
+            "y": 600,
+            "text": "15:30",
+            "cls": "time"
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1260,
+            "y": 230,
+            "width": 540,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 2
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1260,
+            "y": 410,
+            "width": 480,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 2
+          },
+          {
+            "src": "caps/light/long-break.png",
+            "srcW": 1280,
+            "crop": [
+              160,
+              156,
+              960,
+              728
+            ],
+            "x": 1260,
+            "y": 540,
+            "width": 330,
+            "radius": 12,
+            "card": true,
+            "rotate": 0,
+            "z": 2
+          }
+        ]
+      },
+      "R4b": {
+        "label": "Orbit, one ring",
+        "hires": true,
+        "art": [
+          {
+            "src": "repo/assets/illustrations/ocy-v1f/svg/blink-light-f1.svg",
+            "x": 1270.0,
+            "y": 370.0,
+            "width": 260
+          }
+        ],
+        "decor": [
+          {
+            "x": 1200,
+            "y": 310,
+            "w": 400,
+            "h": 400,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.4);"
+          },
+          {
+            "x": 1080,
+            "y": 190,
+            "w": 640,
+            "h": 640,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.26);"
+          },
+          {
+            "x": 960,
+            "y": 70,
+            "w": 880,
+            "h": 880,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.14);"
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1220,
+            "y": 162,
+            "width": 360,
+            "radius": 10,
+            "card": true,
+            "rotate": 0,
+            "z": 2,
+            "opacity": 1
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1551,
+            "y": 385,
+            "width": 300,
+            "radius": 10,
+            "card": true,
+            "rotate": 3,
+            "z": 2,
+            "opacity": 1
+          },
+          {
+            "src": "caps/games/light/gentle-long.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 1441,
+            "y": 658,
+            "width": 330,
+            "radius": 10,
+            "card": true,
+            "rotate": 2,
+            "z": 2,
+            "opacity": 1
+          },
+          {
+            "src": "caps/light/long-break.png",
+            "srcW": 1280,
+            "crop": [
+              160,
+              156,
+              960,
+              728
+            ],
+            "x": 1069,
+            "y": 622,
+            "width": 250,
+            "radius": 10,
+            "card": true,
+            "rotate": -2,
+            "z": 2,
+            "opacity": 1
+          },
+          {
+            "src": "caps/games/light/gentle-short.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 925,
+            "y": 359,
+            "width": 330,
+            "radius": 10,
+            "card": true,
+            "rotate": -3,
+            "z": 2,
+            "opacity": 1
+          }
+        ]
+      },
+      "R4c": {
+        "label": "Orbit, two rings",
+        "hires": true,
+        "art": [
+          {
+            "src": "repo/docs/store/screenshots/ocy-char-deep.svg",
+            "x": 1100,
+            "y": 230,
+            "width": 520
+          }
+        ],
+        "decor": [
+          {
+            "x": 1030,
+            "y": 170,
+            "w": 660,
+            "h": 660,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.36);"
+          },
+          {
+            "x": 930,
+            "y": 70,
+            "w": 860,
+            "h": 860,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.24);"
+          },
+          {
+            "x": 830,
+            "y": -30,
+            "w": 1060,
+            "h": 1060,
+            "css": "border-radius:50%;border:2px solid rgba(127,196,166,0.13);"
+          },
+          {
+            "x": 1288.0,
+            "y": 303.0,
+            "w": 96,
+            "h": 54,
+            "z": 0,
+            "css": "background:rgba(255,255,255,.85);border-radius:58% 42% 63% 37% / 55% 48% 52% 45%;transform:rotate(-16deg);"
+          },
+          {
+            "x": 1358.0,
+            "y": 295.0,
+            "w": 92,
+            "h": 50,
+            "z": 0,
+            "css": "background:rgba(255,255,255,.85);border-radius:45% 55% 38% 62% / 60% 40% 60% 40%;transform:rotate(12deg);"
+          },
+          {
+            "x": 1278.0,
+            "y": 291.5,
+            "w": 24,
+            "h": 17,
+            "z": 0,
+            "css": "background:rgba(255,255,255,.85);border-radius:60% 40% 50% 50%;transform:rotate(-20deg);"
+          },
+          {
+            "x": 1441.0,
+            "y": 289.0,
+            "w": 18,
+            "h": 14,
+            "z": 0,
+            "css": "background:rgba(255,255,255,.85);border-radius:50% 50% 40% 60% / 55% 45% 55% 45%;transform:rotate(30deg);"
+          }
+        ],
+        "shots": [
+          {
+            "src": "caps/light/short-break.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              192
+            ],
+            "x": 1170,
+            "y": 124,
+            "width": 380,
+            "radius": 10,
+            "card": true,
+            "rotate": 0,
+            "z": 3,
+            "opacity": 1
+          },
+          {
+            "src": "caps/light/warning.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              156
+            ],
+            "x": 1530,
+            "y": 613,
+            "width": 340,
+            "radius": 10,
+            "card": true,
+            "rotate": 2,
+            "z": 3,
+            "opacity": 1
+          },
+          {
+            "src": "caps/games/light/gentle-short.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 850,
+            "y": 586,
+            "width": 360,
+            "radius": 10,
+            "card": true,
+            "rotate": -2,
+            "z": 3,
+            "opacity": 1
+          },
+          {
+            "src": "caps/light/short-roll.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              222
+            ],
+            "x": 1170,
+            "y": 721,
+            "width": 380,
+            "radius": 10,
+            "card": true,
+            "rotate": 1,
+            "z": 3,
+            "opacity": 1
+          },
+          {
+            "src": "caps/games/light/gentle-long.png",
+            "srcW": 784,
+            "crop": [
+              34,
+              34,
+              716,
+              256
+            ],
+            "x": 1590,
+            "y": 282,
+            "width": 270,
+            "radius": 10,
+            "card": true,
+            "rotate": 3,
+            "z": 2,
+            "opacity": 0.82
+          },
+          {
+            "src": "caps/light/long-break.png",
+            "srcW": 1280,
+            "crop": [
+              160,
+              156,
+              960,
+              728
+            ],
+            "x": 920,
+            "y": 266,
+            "width": 170,
+            "radius": 10,
+            "card": true,
+            "rotate": -3,
+            "z": 2,
+            "opacity": 0.82
+          }
+        ]
+      }
+    }
+  }
+}
