@@ -1,7 +1,7 @@
 name: Deploy Ocy site to Pages
 
 # Builds the Astro site in site/ and publishes it to
-# https://danielmevit.github.io/ocy/
+# https://ocy.damt.xyz/ (custom domain; danielmevit.github.io/ocy/ redirects)
 #
 # Hardening: every action is pinned to a full commit SHA (the tag is in the comment), and the
 # write/OIDC permissions are granted only to the deploy job, which uses GitHub's own action.
@@ -68,7 +68,7 @@ jobs:
       - name: Ping IndexNow with the sitemap URLs
         env:
           KEY: "f4de0bbca0b8b8776eb5486d7a6140b6"
-          BASE: "https://danielmevit.github.io/ocy"
+          BASE: "https://ocy.damt.xyz"
         run: |
           set -uo pipefail
           for i in $(seq 1 18); do
@@ -78,7 +78,7 @@ jobs:
           urls=$(curl -fsS "$BASE/sitemap.xml" | grep -oE '<loc>[^<]+</loc>' | sed -E 's#</?loc>##g' | jq -R . | jq -s .)
           echo "URLs in sitemap: $(echo "$urls" | jq length)"
           jq -n --arg key "$KEY" --arg loc "$BASE/$KEY.txt" --argjson urls "$urls" \
-            '{host: "danielmevit.github.io", key: $key, keyLocation: $loc, urlList: $urls}' > body.json
+            '{host: "ocy.damt.xyz", key: $key, keyLocation: $loc, urlList: $urls}' > body.json
           code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST "https://api.indexnow.org/indexnow" \
             -H 'Content-Type: application/json; charset=utf-8' --data @body.json || echo 000)
           echo "IndexNow HTTP $code"; cat resp.txt 2>/dev/null || true
