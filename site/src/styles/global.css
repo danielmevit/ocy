@@ -482,6 +482,13 @@ html { scroll-padding-top: 76px; }
   border: 1px solid transparent; border-radius: var(--radius-btn); background: none; color: var(--muted); cursor: pointer;
 }
 .theme-btn:hover { color: var(--text); border-color: var(--border); }
+/* Source code on GitHub: a functional icon link, same hit area and colours as the theme button. */
+.nav-links a.gh-btn {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-btn); color: var(--muted);
+}
+.nav-links a.gh-btn:hover { color: var(--text); border-color: var(--border); }
+.gh-glyph { width: 19px; height: 19px; }
 .theme-glyph { width: 22px; height: 22px; }
 .theme-glyph .ink { stroke-width: 1.7; }
 .theme-glyph g { display: none; }
@@ -527,7 +534,7 @@ html { scroll-padding-top: 76px; }
 .lang-check { width: 12px; height: 12px; flex: none; color: var(--accent-text); }
 
 /* Focus rings for the header controls. */
-.lang-btn:focus-visible, .lang-list a:focus-visible, .theme-btn:focus-visible {
+.lang-btn:focus-visible, .lang-list a:focus-visible, .theme-btn:focus-visible, .gh-btn:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .lang-list a:focus-visible { outline-offset: -2px; }
