@@ -39,7 +39,7 @@ const {
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const origin = (Astro.site ? Astro.site.toString() : 'https://danielmevit.github.io').replace(/\/$/, '');
+const origin = (Astro.site ? Astro.site.toString() : 'https://ocy.damt.xyz').replace(/\/$/, '');
 const isIndexable = pageType !== '404';
 const canonicalUrl = isIndexable ? pageAbsoluteUrl(origin, base, lang, pageType) : undefined;
 const ogImageUrl = `${origin}${base}/assets/og.png`;

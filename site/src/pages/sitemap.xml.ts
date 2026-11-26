@@ -16,7 +16,7 @@ const INDEXABLE_PAGES: Array<{
 ];
 
 export const GET: APIRoute = ({ site }) => {
-  const origin = site ? site.toString().replace(/\/$/, '') : 'https://danielmevit.github.io';
+  const origin = site ? site.toString().replace(/\/$/, '') : 'https://ocy.damt.xyz';
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const langs = getAvailableLanguages();
   const lastmod = new Date().toISOString().slice(0, 10);

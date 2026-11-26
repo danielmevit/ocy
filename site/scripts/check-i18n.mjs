@@ -7,8 +7,8 @@ const siteDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(siteDir, '..');
 const i18nDir = path.join(siteDir, 'src', 'i18n');
 const distDir = path.join(siteDir, 'dist');
-const origin = 'https://danielmevit.github.io';
-const base = '/ocy';
+const origin = 'https://ocy.damt.xyz';
+const base = '';
 
 const errors = [];
 const fail = (msg) => errors.push(msg);

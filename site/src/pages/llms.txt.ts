@@ -8,7 +8,7 @@ const body = `# Ocy
 > real break every hour, and quiet when you need focus. Lives in the tray, with no
 > account and no telemetry. Available on the Microsoft Store with a 15-day free trial.
 
-- Site: https://danielmevit.github.io/ocy/
+- Site: https://ocy.damt.xyz/
 - Get it: Microsoft Store, ${STORE_URL}
 - Price: a one-time purchase after a 15-day free trial. No subscription, no ads.
 - Source code: https://github.com/danielmevit/ocy (AGPL-3.0)
