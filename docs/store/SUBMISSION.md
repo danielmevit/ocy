@@ -32,9 +32,9 @@ Do **not** commit Partner Center identity strings or certificates into the repos
 | Category | **Productivity** (alternative: **Health & fitness**) |
 | Subcategory | (leave blank) |
 | Secondary category | (optional; leave blank) |
-| Privacy policy URL | `https://danielmevit.github.io/ocy/privacy/` |
-| Website | `https://danielmevit.github.io/ocy/` |
-| Support contact info | Use a support email address (or a contact page on `https://danielmevit.github.io/ocy/`) — **do not** use a GitHub repository link |
+| Privacy policy URL | `https://ocy.damt.xyz/privacy/` |
+| Website | `https://ocy.damt.xyz/` |
+| Support contact info | Use a support email address (or a contact page on `https://ocy.damt.xyz/`) — **do not** use a GitHub repository link |
 
 **Product declarations** (checkboxes):
 - Uses the Microsoft commerce platform for purchases — **yes** for the paid + 15-day free trial Store listing (`StoreContext::RequestPurchaseAsync`)

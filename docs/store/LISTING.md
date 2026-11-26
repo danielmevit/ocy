@@ -85,7 +85,7 @@ medical app.
 ## Privacy questionnaire
 - Ocy collects no personal data and has no network code of its own.
 - The Store version asks the Microsoft Store for its licence (trial or purchased) through Windows.
-- Privacy policy URL: `https://danielmevit.github.io/ocy/privacy/`
+- Privacy policy URL: `https://ocy.damt.xyz/privacy/`
 
 ## Screenshots
 Planned 3840×2160 set, in the style of the Laydown set (brand slide first, closing slide last), covering every

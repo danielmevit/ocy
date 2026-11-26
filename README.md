@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://danielmevit.github.io/ocy/">Website</a> ·
+  <a href="https://ocy.damt.xyz/">Website</a> ·
   <a href="https://github.com/danielmevit/ocy/releases/latest">Download</a> ·
   <a href="#how-it-decides-when-to-remind-you">How it works</a> ·
   <a href="#faq">FAQ</a> ·
@@ -195,9 +195,9 @@ professional.
 
 ## Languages
 
-The app and the [website](https://danielmevit.github.io/ocy/) are available in 40 languages. The app follows your
+The app and the [website](https://ocy.damt.xyz/) are available in 40 languages. The app follows your
 Windows language, or you can pick one in Settings. Each website language has its own address, for example
-[Deutsch](https://danielmevit.github.io/ocy/de/) or [日本語](https://danielmevit.github.io/ocy/ja/).
+[Deutsch](https://ocy.damt.xyz/de/) or [日本語](https://ocy.damt.xyz/ja/).
 
 ## Roadmap
 
