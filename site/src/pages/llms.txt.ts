@@ -14,6 +14,10 @@ const body = `# Ocy
 - Source code: https://github.com/danielmevit/ocy (AGPL-3.0)
 - Support: support@damt.xyz
 - Author: Daniel Mevit (https://damt.xyz)
+- Development: built by damt.xyz with extensive use of generative AI tools (code, tests, documentation,
+  translations, website, store listing and marketing materials, maintenance),
+  steered by a real person who decides what is released.
+  Ocy itself runs no AI model and has no network code.
 
 ## What it does
 - Short breaks: every 10 minutes (configurable 2–60 min) a small card on your active
@@ -28,7 +32,7 @@ const body = `# Ocy
   next break. An absence at least as long as a break counts as that break.
 - Fullscreen pause: pauses break reminders while fullscreen apps, games or
   presentations are active (on by default).
-- Animations: twelve hand-drawn exercises played as stepped frames; they hold still when
+- Animations: twelve exercises in a hand-drawn style, played as stepped frames; they hold still when
   Windows animation effects are turned off.
 - Tray controls: pause for 1 hour, 3 hours or until resumed, take a long break now,
   or open live-applying Settings.

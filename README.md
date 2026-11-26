@@ -224,6 +224,14 @@ Issues and ideas are welcome. Before a larger change, open an issue so we can ag
 stay at 0 warnings, and new behaviour needs tests. Project conventions are in [AGENTS.md](AGENTS.md) and
 [docs/](docs/).
 
+## Development & AI disclosure
+
+Ocy is designed, directed and maintained by [damt.xyz](https://damt.xyz) with extensive use of generative AI tools, from start to finish: most of the application code and tests, the documentation, the translations, the website, the store listing and other marketing materials, and ongoing maintenance.
+
+This applies only to how Ocy is made and marketed. At runtime Ocy uses no AI model, and it has no network code at all.
+
+Throughout, a real person steers the work and decides what is released.
+
 ## Licence
 
 [GNU Affero General Public License v3.0](LICENSE). Ocy is built with [Slint](https://slint.dev) under its GPL-3.0
