@@ -31,7 +31,7 @@ const pageDescription = t(lang, 'notFound.meta.description');
 
     <div class="btn-row" style="margin-top: 20px;">
       <a class="btn btn-accent" data-label={t(lang, 'notFound.homeCta')} href={homeHref}>{t(lang, 'notFound.homeCta')}</a>
-      <a class="btn btn-outline" href={STORE_URL}>{t(lang, 'notFound.storeCta')}</a>
+      <a class="btn btn-outline btn-store" aria-label={t(lang, 'notFound.storeCta')} href={STORE_URL}><img class="store-logo" src="/ms-store.svg" alt="" width="20" height="20" />Microsoft Store</a>
     </div>
   </section>
 </BaseLayout>
