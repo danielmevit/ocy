@@ -17,7 +17,7 @@ use damt_platform::{
 use jiff::SignedDuration;
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::{GamesMode, OcySettings};
+use ocy_core::settings::{GamesMode, OcySettings, UsageStatsConsent};
 use ocy_core::statistics::StatisticsData;
 use ocy_core::time::Paused;
 
@@ -91,6 +91,8 @@ pub struct SettingsValues {
     pub games_hold: bool,
     /// Exe names that always hold breaks, in stored order.
     pub games_silent: Vec<String>,
+    /// Anonymous usage stats consent (General switch and the one-time ask card).
+    pub usage_stats: UsageStatsConsent,
 }
 
 impl SettingsValues {
@@ -126,6 +128,7 @@ impl SettingsValues {
             status_notifications: settings.status_notifications,
             games_hold: settings.games_mode == GamesMode::Hold,
             games_silent: settings.games_silent.clone(),
+            usage_stats: settings.usage_stats,
         }
     }
 
@@ -159,6 +162,7 @@ impl SettingsValues {
             GamesMode::Gentle
         };
         updated.games_silent.clone_from(&self.games_silent);
+        updated.usage_stats = self.usage_stats;
 
         if autostart_supported {
             updated.start_with_system = self.start_with_system;
@@ -232,6 +236,13 @@ pub struct SettingsTexts {
     pub try_long_label: String,
     pub water_nudges_label: String,
     pub water_nudges_help: String,
+    pub usage_stats_label: String,
+    pub usage_stats_help: String,
+    pub usage_stats_link: String,
+    pub usage_stats_ask_title: String,
+    pub usage_stats_ask_body: String,
+    pub usage_stats_share_label: String,
+    pub usage_stats_decline_label: String,
     pub strict_label: String,
     pub strict_help: String,
     pub inactivity_label: String,
@@ -319,6 +330,13 @@ impl SettingsTexts {
             try_long_label: strings.get("settings.tryLongBreak").to_owned(),
             water_nudges_label: strings.get("settings.waterNudges.label").to_owned(),
             water_nudges_help: strings.get("settings.waterNudges.help").to_owned(),
+            usage_stats_label: strings.get("settings.usageStats.label").to_owned(),
+            usage_stats_help: strings.get("settings.usageStats.help").to_owned(),
+            usage_stats_link: strings.get("settings.usageStats.link").to_owned(),
+            usage_stats_ask_title: strings.get("settings.usageStats.ask.title").to_owned(),
+            usage_stats_ask_body: strings.get("settings.usageStats.ask.body").to_owned(),
+            usage_stats_share_label: strings.get("settings.usageStats.ask.share").to_owned(),
+            usage_stats_decline_label: strings.get("settings.usageStats.ask.decline").to_owned(),
             strict_label: strings.get("settings.strictMode.label").to_owned(),
             strict_help: strings.get("settings.strictMode.help").to_owned(),
             inactivity_label: strings.get("settings.inactivityTracking.label").to_owned(),

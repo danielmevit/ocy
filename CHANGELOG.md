@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-11-27
+
+Optional, anonymous usage stats, so Ocy can get better for everyone. Nothing is sent unless you say yes.
+
+### Added
+- **Optional anonymous usage stats.** Settings asks once whether Ocy may send a short summary once a day: the day's
+  break counts and your break settings, plus the app version, system version and language. It is anonymous, nothing
+  personal is included, and nothing is sent unless you choose **Share stats**. **No thanks** is just as easy.
+  - Change your mind any time in Settings → General → **Share anonymous usage stats**. Turning it off deletes the
+    random ID from your PC.
+  - Exactly what is sent, and what never is: https://ocy.damt.xyz/privacy/#usage-stats
+
+### Changed
+- Ocy's website now lives at https://ocy.damt.xyz/.
+
+### Behind the scenes
+- More groundwork for Linux and macOS versions. They are not ready to use yet.
+
 ## 0.2.2 — 2026-11-22
 
 Gentle breaks in games, a glass of water now and then, and a Settings header that shows your rhythm.

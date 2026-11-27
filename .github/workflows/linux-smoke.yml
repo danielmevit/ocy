@@ -431,6 +431,11 @@ jobs:
 
       - name: Build release binary
         working-directory: rust
+        # PostHog key compiled in via option_env! in ocy-app's usage_stats.rs.
+        # Absent/empty secret -> build_key() is None -> usage stats stay off.
+        # Only the tarball (release artifact) gets the key, not the smoke job's build.
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
         run: cargo build --release --locked -p ocy-app
 
       - name: Assemble tarball and sha256

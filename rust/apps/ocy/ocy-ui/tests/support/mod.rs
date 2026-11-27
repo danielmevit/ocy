@@ -808,6 +808,13 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_try_long_label(s("settings.tryLongBreak"));
     ui.set_water_nudges_label(s("settings.waterNudges.label"));
     ui.set_water_nudges_help(s("settings.waterNudges.help"));
+    ui.set_usage_stats_label(s("settings.usageStats.label"));
+    ui.set_usage_stats_help(s("settings.usageStats.help"));
+    ui.set_usage_stats_link(s("settings.usageStats.link"));
+    ui.set_usage_stats_ask_title(s("settings.usageStats.ask.title"));
+    ui.set_usage_stats_ask_body(s("settings.usageStats.ask.body"));
+    ui.set_usage_stats_share_label(s("settings.usageStats.ask.share"));
+    ui.set_usage_stats_decline_label(s("settings.usageStats.ask.decline"));
     ui.set_strict_label(s("settings.strictMode.label"));
     ui.set_strict_help(s("settings.strictMode.help"));
     ui.set_inactivity_label(s("settings.inactivityTracking.label"));
@@ -1021,5 +1028,45 @@ fn settings_v2_shot(state: V2State, dark: bool) -> Result<Rgba, String> {
         } else {
             state.height
         }
+    }))
+}
+
+// ---- Usage stats consent (AN2 review set) ----
+
+/// Consent state for a review render: the ask card, after "No thanks", after "Share stats".
+#[derive(Debug, Clone, Copy)]
+pub enum ConsentState {
+    Ask,
+    /// The ask with two long (English) button labels: a layout stress test for long languages.
+    AskLongLabels,
+    Declined,
+    Granted,
+}
+
+/// Settings V2 with the usage stats UI enabled (as in a build with a stats key), General open.
+/// The buttons are clicked through the real Slint handlers so the after-states come from the UI.
+pub fn consent_shot(
+    lang: &str,
+    dark: bool,
+    state: ConsentState,
+    width: f32,
+) -> Result<Rgba, String> {
+    let ui = settings_v2(lang, dark)?;
+    let window = take_window()?;
+    ui.set_show_usage_stats(true);
+    ui.set_usage_stats_on(false);
+    ui.set_usage_stats_ask(true);
+    ui.set_general_open(true);
+    match state {
+        ConsentState::Ask => {}
+        ConsentState::AskLongLabels => {
+            ui.set_usage_stats_share_label("Share my anonymous usage statistics".into());
+            ui.set_usage_stats_decline_label("No thank you, do not share".into());
+        }
+        ConsentState::Declined => ui.invoke_choose_usage_stats(false),
+        ConsentState::Granted => ui.invoke_choose_usage_stats(true),
+    }
+    Ok(render(&window, width, || {
+        640f32.max(ui.get_content_height().ceil())
     }))
 }

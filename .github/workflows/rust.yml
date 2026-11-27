@@ -98,6 +98,10 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - name: Build release binary
         working-directory: rust
+        # PostHog key compiled in via option_env! in ocy-app's usage_stats.rs.
+        # Absent/empty secret -> build_key() is None -> usage stats stay off.
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
         run: cargo build -p ocy-app --release --locked
       - name: Check Ocy.exe size budget (<= 15 MB)
         shell: pwsh

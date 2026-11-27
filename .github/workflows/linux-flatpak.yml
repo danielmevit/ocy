@@ -60,6 +60,66 @@ jobs:
           /tmp/flatpak-cargo-venv/bin/python /tmp/flatpak-cargo-generator.py rust/Cargo.lock -o packaging/linux/cargo-sources.json
           rm -rf /tmp/flatpak-cargo-venv /tmp/flatpak-cargo-generator.py
 
+      - name: Inject PostHog key into the Flatpak manifest
+        # flatpak-builder does not pass host env into the sandboxed build, and the manifest is
+        # static. Only when the secret is non-empty, write the key into the ocy module's
+        # build-options.env of the runner's workspace copy of the manifest (never committed).
+        # The key is read from the environment only; never echoed, never inline in the script.
+        shell: bash
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OCY_POSTHOG_KEY:-}" ]; then
+            echo "OCY_POSTHOG_KEY is not set; building the Flatpak bundle without a usage stats key."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os
+          import pathlib
+
+          manifest_path = pathlib.Path("packaging/linux/xyz.damt.ocy.yml")
+          key = os.environ["OCY_POSTHOG_KEY"]
+          text = manifest_path.read_text(encoding="utf-8")
+
+          try:
+              import yaml
+          except ImportError:
+              yaml = None
+
+          if yaml is not None:
+              data = yaml.safe_load(text)
+              module = next(m for m in data["modules"] if m.get("name") == "ocy")
+              options = module.setdefault("build-options", {})
+              env = options.setdefault("env", {})
+              if isinstance(env, dict):
+                  env["OCY_POSTHOG_KEY"] = key
+              elif isinstance(env, list):
+                  options["env"] = [
+                      entry for entry in env if not entry.startswith("OCY_POSTHOG_KEY=")
+                  ] + [f"OCY_POSTHOG_KEY={key}"]
+              else:
+                  raise SystemExit("ocy module build-options.env is neither a mapping nor a list")
+              manifest_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+          else:
+              import re
+
+              if re.fullmatch(r"[A-Za-z0-9_\-]+", key) is None:
+                  raise SystemExit("OCY_POSTHOG_KEY has characters that cannot be written safely")
+              lines = text.splitlines(keepends=True)
+              matches = [
+                  index
+                  for index, line in enumerate(lines)
+                  if line.strip() == 'CARGO_NET_OFFLINE: "true"'
+              ]
+              if len(matches) != 1:
+                  raise SystemExit("did not find the ocy module env block exactly once")
+              anchor = lines[matches[0]]
+              indent = anchor[: len(anchor) - len(anchor.lstrip())]
+              lines.insert(matches[0] + 1, f"{indent}OCY_POSTHOG_KEY: \"{key}\"\n")
+              manifest_path.write_text("".join(lines), encoding="utf-8")
+          PY
+
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
         with:

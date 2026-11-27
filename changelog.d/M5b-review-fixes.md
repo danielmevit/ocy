@@ -1,1 +1,0 @@
-- macOS: opening Settings makes the Settings window itself key after activating Ocy, instead of relying on whichever window AppKit reports as key.

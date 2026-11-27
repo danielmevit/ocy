@@ -26,6 +26,10 @@ jobs:
 
       - name: Build macOS app
         timeout-minutes: 30
+        # PostHog key compiled in via option_env! in ocy-app's usage_stats.rs; build_app.sh
+        # inherits the environment (no env scrubbing). Absent/empty secret -> stats stay off.
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
         run: bash packaging/macos/build_app.sh | tee macos-build.log
 
       - name: Find app and archive

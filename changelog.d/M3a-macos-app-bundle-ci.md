@@ -1,1 +1,0 @@
-- Added macOS universal app bundling and CI smoke probes for break-card visibility, focus, and window levels.

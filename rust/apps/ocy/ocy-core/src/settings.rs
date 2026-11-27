@@ -39,6 +39,44 @@ impl GamesMode {
     }
 }
 
+/// User consent for the anonymous usage statistics feature.
+///
+/// Missing, null, and unrecognised values deserialize as [`UsageStatsConsent::NotAsked`], so an
+/// old settings file (or a future value an older build does not know) never fails the load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UsageStatsConsent {
+    /// The user has not been asked yet (default; also used when the build has no analytics key).
+    #[default]
+    NotAsked,
+    /// The user opted in; anonymous daily summaries may be sent.
+    Granted,
+    /// The user declined (or opted out); nothing is sent and any install record is deleted.
+    Declined,
+}
+
+impl UsageStatsConsent {
+    fn is_not_asked(consent: &Self) -> bool {
+        matches!(consent, Self::NotAsked)
+    }
+}
+
+fn deserialize_usage_stats_consent<'de, D>(deserializer: D) -> Result<UsageStatsConsent, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let consent = match value {
+        serde_json::Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "granted" => UsageStatsConsent::Granted,
+            "declined" => UsageStatsConsent::Declined,
+            _ => UsageStatsConsent::NotAsked,
+        },
+        _ => UsageStatsConsent::NotAsked,
+    };
+    Ok(consent)
+}
+
 fn deserialize_games_mode<'de, D>(deserializer: D) -> Result<GamesMode, D::Error>
 where
     D: Deserializer<'de>,
@@ -332,6 +370,14 @@ pub struct OcySettings {
         deserialize_with = "deserialize_games_silent"
     )]
     pub games_silent: Vec<String>,
+    /// Consent for anonymous usage statistics. Omitted from JSON while [`UsageStatsConsent::NotAsked`],
+    /// so files written with the default stay byte-identical to older versions'.
+    #[serde(
+        default,
+        skip_serializing_if = "UsageStatsConsent::is_not_asked",
+        deserialize_with = "deserialize_usage_stats_consent"
+    )]
+    pub usage_stats: UsageStatsConsent,
 }
 
 impl OcySettings {
@@ -390,6 +436,7 @@ impl Default for OcySettings {
             language: "en".to_owned(),
             games_mode: GamesMode::Gentle,
             games_silent: Vec::new(),
+            usage_stats: UsageStatsConsent::NotAsked,
         }
     }
 }

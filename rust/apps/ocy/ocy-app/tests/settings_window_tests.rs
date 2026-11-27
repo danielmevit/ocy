@@ -25,7 +25,7 @@ use ocy_app::tray::{
 };
 use ocy_core::engine::{BreakEngine, BreakInfo, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::OcySettings;
+use ocy_core::settings::{OcySettings, UsageStatsConsent};
 use ocy_core::time::FakeClock;
 
 fn temp_dir(name: &str) -> PathBuf {
@@ -466,6 +466,7 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
         games_mode: ocy_core::settings::GamesMode::Hold,
         games_silent: vec!["Demo.exe".to_owned()],
         water_nudges: false,
+        usage_stats: ocy_core::settings::UsageStatsConsent::NotAsked,
     };
 
     // When autostart is supported, start_with_system is loaded from platform autostart state.
@@ -2173,4 +2174,33 @@ fn games_mode_and_silent_list_round_trip_through_settings_values() {
     let applied = values.apply_to(&original, true);
     assert_eq!(applied.games_mode, ocy_core::settings::GamesMode::Hold);
     assert_eq!(applied.games_silent, vec!["cs2.exe".to_owned()]);
+}
+
+#[test]
+fn usage_stats_consent_round_trips_through_settings_values() {
+    for consent in [
+        UsageStatsConsent::NotAsked,
+        UsageStatsConsent::Granted,
+        UsageStatsConsent::Declined,
+    ] {
+        let original = OcySettings {
+            usage_stats: consent,
+            ..OcySettings::default()
+        };
+        let values = SettingsValues::from_settings(&original, true, true);
+        assert_eq!(values.usage_stats, consent);
+        // A save from the window keeps the consent it showed, so a later save never undoes a
+        // choice made in the ask card or the General switch.
+        let saved = values.apply_to(&OcySettings::default(), true);
+        assert_eq!(saved.usage_stats, consent);
+    }
+}
+
+#[test]
+fn usage_stats_texts_come_from_the_string_table() {
+    let texts = SettingsTexts::from_strings(&Strings::from_language("en"), "0.0.0");
+    assert_eq!(texts.usage_stats_label, "Share anonymous usage stats");
+    assert_eq!(texts.usage_stats_share_label, "Share stats");
+    assert_eq!(texts.usage_stats_decline_label, "No thanks");
+    assert!(!texts.usage_stats_link.is_empty());
 }

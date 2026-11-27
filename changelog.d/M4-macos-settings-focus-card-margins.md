@@ -1,1 +1,0 @@
-- macOS: activate Ocy when Settings opens and keep card margins transparent instead of adding a dark native-shadow rectangle.

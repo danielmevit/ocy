@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Short eye exercises every few minutes, a real break every hour, and quiet when you need focus.</b><br/>
-  Free and open source. Lives in the tray. No account, no telemetry, nothing leaves your PC.
+  Free and open source. Lives in the tray. No account, works offline, optional anonymous usage stats.
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://danielmevit.github.io/ocy/">Website</a> ·
+  <a href="https://ocy.damt.xyz/">Website</a> ·
   <a href="https://github.com/danielmevit/ocy/releases/latest">Download</a> ·
   <a href="#how-it-decides-when-to-remind-you">How it works</a> ·
   <a href="#faq">FAQ</a> ·
@@ -157,7 +157,9 @@ looking at the screen.
 
 ## Privacy
 
-No account, no telemetry, no ads and no network code. Ocy works fully offline, and nothing leaves your PC.
+No account and no ads. Ocy works fully offline and keeps its files on your PC. The only thing it can send is an
+anonymous daily summary of its own break counts and settings, and only if you turn on usage stats in Settings. Full
+details: [ocy.damt.xyz/privacy](https://ocy.damt.xyz/privacy/#usage-stats).
 
 ## FAQ
 
@@ -176,7 +178,8 @@ Settings.
 
 **Is it free?** Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.
 
-**Does it need the internet?** No. Ocy has no network code at all. It works fully offline and never phones home.
+**Does it need the internet?** No. Ocy works fully offline. If you turn on the optional anonymous usage stats, it sends one small summary a day
+when you're online.
 
 **Does it slow my PC down?** No. About 3.7 MB of memory while it waits, about 5–6 MB during a break, and it checks in
 about six times a minute. The whole app is one 12 MB file.
@@ -195,9 +198,9 @@ professional.
 
 ## Languages
 
-The app and the [website](https://danielmevit.github.io/ocy/) are available in 40 languages. The app follows your
+The app and the [website](https://ocy.damt.xyz/) are available in 40 languages. The app follows your
 Windows language, or you can pick one in Settings. Each website language has its own address, for example
-[Deutsch](https://danielmevit.github.io/ocy/de/) or [日本語](https://danielmevit.github.io/ocy/ja/).
+[Deutsch](https://ocy.damt.xyz/de/) or [日本語](https://ocy.damt.xyz/ja/).
 
 ## Roadmap
 
@@ -223,6 +226,14 @@ The C# 0.1.x source (`src/`, `Ocy.slnx`) stays in the repo for reference.
 Issues and ideas are welcome. Before a larger change, open an issue so we can agree on the approach. The build must
 stay at 0 warnings, and new behaviour needs tests. Project conventions are in [AGENTS.md](AGENTS.md) and
 [docs/](docs/).
+
+## Development & AI disclosure
+
+Ocy is designed, directed and maintained by [damt.xyz](https://damt.xyz) with extensive use of generative AI tools, from start to finish: most of the application code and tests, the documentation, the translations, the website, the store listing and other marketing materials, and ongoing maintenance.
+
+This applies only to how Ocy is made and marketed. At runtime Ocy uses no AI model.
+
+Throughout, a real person steers the work and decides what is released.
 
 ## Licence
 

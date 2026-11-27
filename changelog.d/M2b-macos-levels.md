@@ -1,1 +1,0 @@
-- M2b-macos-levels: Raised macOS `BreakCard` window level to `1001` (`NSScreenSaverWindowLevel + 1`) via pure `damt_platform_mac::pure::window_level_for_role` so break cards always render strictly above `Dim` (`1000`) and `EdgeFrame` (`3`), and documented Slint/winit `makeKeyAndOrderFront` / `canBecomeKeyWindow` Mac-tester checks in `docs/rust/MACOS.md`.

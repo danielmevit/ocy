@@ -30,6 +30,7 @@ pub mod timeline;
 pub mod today;
 pub mod tokens;
 pub mod tray;
+pub mod usage_stats;
 pub mod win32_window;
 
 pub use license::STORE_FEATURE_ENABLED;

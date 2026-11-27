@@ -408,6 +408,10 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         let events = self.engine.update_settings(updated);
         let snapshot = self.engine.snapshot();
         let live_settings = self.engine.settings().clone();
+        // The in-memory settings are the single source of truth for usage-stats consent:
+        // keep the analytics record and the sender's consent mirror in step after every
+        // save. `apply_consent_from_settings` is a no-op without an installed manager.
+        crate::usage_stats::apply_consent_from_settings(&live_settings);
         if live_settings.language != self.last_language_setting {
             self.last_language_setting = live_settings.language.clone();
             self.tray.set_language(&live_settings.language);

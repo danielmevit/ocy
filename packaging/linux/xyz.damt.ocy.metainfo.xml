@@ -20,11 +20,16 @@
   <developer id="xyz.damt">
     <name>Daniel Mevit</name>
   </developer>
-  <url type="homepage">https://danielmevit.github.io/ocy/</url>
+  <url type="homepage">https://ocy.damt.xyz/</url>
   <url type="vcs-browser">https://github.com/danielmevit/ocy</url>
   <url type="bugtracker">https://github.com/danielmevit/ocy/issues</url>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.0" date="2026-11-27">
+      <description>
+        <p>Optional, anonymous usage stats (off unless you say yes) and more Linux groundwork.</p>
+      </description>
+    </release>
     <release version="0.2.2" date="2026-11-22">
       <description>
         <p>Early Linux Flatpak packaging release.</p>

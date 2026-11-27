@@ -16,6 +16,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const homeHref = pageHref(base, lang, 'home');
 
 const storedIntroParts = splitTemplateParts(rawTemplate(lang, 'privacy.stored.intro'));
+const usageOffParts = splitTemplateParts(rawTemplate(lang, 'privacy.usage.off'));
+const supportEmail = 'support@damt.xyz';
 const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource.body'));
 ---
 
@@ -36,6 +38,29 @@ const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource
       {t(lang, 'privacy.lede')}
     </p>
 
+    <article class="prose-card prose-usage" id="usage-stats" aria-labelledby="usage-stats-heading">
+      <h2 id="usage-stats-heading">{t(lang, 'privacy.usage.heading')}</h2>
+      <p>{t(lang, 'privacy.usage.intro')}</p>
+      <p>{t(lang, 'privacy.usage.listIntro')}</p>
+      <ul class="usage-list">
+        <li>{t(lang, 'privacy.usage.item.counts')}</li>
+        <li>{t(lang, 'privacy.usage.item.settings')}</li>
+        <li>{t(lang, 'privacy.usage.item.system')}</li>
+        <li>{t(lang, 'privacy.usage.item.id')}</li>
+      </ul>
+      <p>{t(lang, 'privacy.usage.never')}</p>
+      <p>{t(lang, 'privacy.usage.where')}</p>
+      <p>
+        {usageOffParts.map((part) =>
+          part.type === 'text' ? (
+            part.value
+          ) : part.name === 'support' ? (
+            <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
+          ) : null
+        )}
+      </p>
+    </article>
+
     <div class="prose-grid">
       <article class="prose-card">
         <h2>{t(lang, 'privacy.stored.heading')}</h2>
@@ -53,6 +78,7 @@ const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource
           <li><code>state.json</code><span>{t(lang, 'privacy.stored.state')}</span></li>
           <li><code>stats.json</code><span>{t(lang, 'privacy.stored.stats')}</span></li>
           <li><code>ocy-errors.log</code><span>{t(lang, 'privacy.stored.errors')}</span></li>
+          <li><code>usage-stats.json</code><span>{t(lang, 'privacy.stored.usage')}</span></li>
         </ul>
         <p>{t(lang, 'privacy.stored.outro')}</p>
       </article>
@@ -65,6 +91,13 @@ const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource
       <article class="prose-card">
         <h2>{t(lang, 'privacy.website.heading')}</h2>
         <p>{t(lang, 'privacy.website.body')}</p>
+      </article>
+
+      <article class="prose-card">
+        <h2>{t(lang, 'privacy.ai.heading')}</h2>
+        <p>{t(lang, 'privacy.ai.body1')}</p>
+        <p>{t(lang, 'privacy.ai.body2')}</p>
+        <p>{t(lang, 'privacy.ai.body3')}</p>
       </article>
 
       <article class="prose-card">

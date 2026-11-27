@@ -33,6 +33,8 @@ finish-args:
   # xdg-dbus-proxy matches exact bus names unless ".*" is specified.
   - --talk-name=org.gnome.Mutter.IdleMonitor
   # Settings portal (color-scheme) needs no finish-args.
+  # Anonymous opt-in usage stats (PostHog batch): outbound HTTPS only, opt-in, no listener.
+  - --share=network
 
 modules:
   - name: ocy

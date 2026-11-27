@@ -594,6 +594,24 @@ fn main() -> ExitCode {
         *slot.borrow_mut() = Some(Rc::downgrade(&host));
     });
 
+    // Anonymous usage stats (opt-in, off by default): a no-key build installs nothing at
+    // all. The sender thread sleeps ~1 minute before its first attempt, so startup is never
+    // blocked and never sends before the user has been asked (AN2 asks; nothing is due until
+    // consent becomes Granted).
+    if !is_isolated {
+        // The manager and handle are installed process-wide (usage_stats::global), so AN2's
+        // Settings toggle can reach them; the local binding only proves the build has a key.
+        let _usage_stats = ocy_app::usage_stats::start_from_build(
+            data_dir.clone(),
+            Arc::clone(&clock),
+            error_log.clone(),
+        );
+        // Settings load: apply the loaded consent once, so the mirror and the install
+        // record reflect the persisted state from the very first sender attempt. Every
+        // later consent change arrives through `AppHost::save_settings`.
+        ocy_app::usage_stats::apply_consent_from_settings(host.borrow().engine().settings());
+    }
+
     #[cfg(feature = "store")]
     if !is_isolated {
         let cache_path = data_dir.join(ocy_app::license::LICENSE_CACHE_FILE_NAME);

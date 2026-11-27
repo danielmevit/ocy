@@ -41,7 +41,7 @@ What you get:
 
 Good to know:
 
-• No account, no ads, no tracking. Ocy has no network code of its own and keeps its few files on your PC
+• No account, no ads. Works offline. Optional anonymous usage stats, off unless you turn them on
 • Tiny: about 4 MB of memory while it waits
 • Try it free for 15 days, then buy it once. No subscription
 
@@ -75,6 +75,7 @@ quiet when you need focus. Never steals focus. No account, no ads, no tracking.
 - Ocy speaks 40 languages
 - Calmer defaults: a short break every 25 minutes
 - An occasional reminder to drink a glass of water during long breaks
+- Optional anonymous usage stats, off unless you turn them on in Settings
 - Gentle in games: breaks come as a small card in a calm moment, and "Not during this game" keeps any game silent
 
 ## Keywords (up to 7)
@@ -88,9 +89,10 @@ Productivity (subcategory: none). Optionally Health & fitness as a secondary cat
 medical app.
 
 ## Privacy questionnaire
-- Ocy collects no personal data and has no network code of its own.
+- Off by default. Only if the user opts in (Settings), Ocy sends one anonymous daily summary of break counts and
+  settings to PostHog (EU region), with a random install ID. No names, files, window titles, apps used or IP addresses.
 - The Store version asks the Microsoft Store for its licence (trial or purchased) through Windows.
-- Privacy policy URL: `https://danielmevit.github.io/ocy/privacy/`
+- Privacy policy URL: `https://ocy.damt.xyz/privacy/`
 
 ## Screenshots
 Planned 3840×2160 set, in the style of the Laydown set (brand slide first, closing slide last), covering every
@@ -99,4 +101,6 @@ feature. To be produced after the final mode illustrations.
 ## Notes for certification
 Ocy is a tray app: after install it starts in the notification area with no window. Left-click the sprout icon to
 open Settings. Breaks appear on schedule; to see one immediately, right-click the tray icon and choose "Take a short
-break now". It has a 15-day trial managed by the Store licence.
+break now". It has a 15-day trial managed by the Store licence. Ocy sends nothing by default: only after the user
+opts in to the anonymous usage stats in Settings (left-click the tray icon) does it send one anonymous daily summary
+to PostHog (EU region). Turning the switch off stops it and deletes the random ID.

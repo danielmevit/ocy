@@ -32,14 +32,15 @@ Do **not** commit Partner Center identity strings or certificates into the repos
 | Category | **Productivity** (alternative: **Health & fitness**) |
 | Subcategory | (leave blank) |
 | Secondary category | (optional; leave blank) |
-| Privacy policy URL | `https://danielmevit.github.io/ocy/privacy/` |
-| Website | `https://danielmevit.github.io/ocy/` |
-| Support contact info | Use a support email address (or a contact page on `https://danielmevit.github.io/ocy/`) — **do not** use a GitHub repository link |
+| Privacy policy URL | `https://ocy.damt.xyz/privacy/` |
+| Website | `https://ocy.damt.xyz/` |
+| Support contact info | Use a support email address (or a contact page on `https://ocy.damt.xyz/`) — **do not** use a GitHub repository link |
 
 **Product declarations** (checkboxes):
 - Uses the Microsoft commerce platform for purchases — **yes** for the paid + 15-day free trial Store listing (`StoreContext::RequestPurchaseAsync`)
 - Depends on non-Microsoft drivers or NT services — **no**
-- Accesses, collects, or transmits personal information — **no**. *Privacy note:* The Store build (`--features store`) asks the Microsoft Store for its licence and handles purchases through Windows (`Windows.Services.Store.StoreContext`); Ocy itself contains no network code, telemetry, or analytics and caches only the local licence state in `%APPDATA%\Ocy\license.json`.
+- Accesses, collects, or transmits personal information — **yes**. Privacy policy URL: `https://ocy.damt.xyz/privacy/`. *Privacy note:* Since 0.3.0, only if the user opts in (Settings), Ocy sends one anonymous daily summary of break counts and settings, with a random install ID, to PostHog (EU region); it is off by default. The Store build (`--features store`) also asks the Microsoft Store for its licence and handles purchases through Windows (`Windows.Services.Store.StoreContext`) and caches the local licence state in `%APPDATA%\Ocy\license.json`.
+- What's new in 0.3.0 (privacy-relevant): optional anonymous usage stats, off unless the user turns them on (see `docs/store/LISTING.md`).
 - Is a screen reader / accessibility tool — **no**
 - Uses a Bluetooth/USB peripheral — **no**
 
@@ -104,10 +105,10 @@ Still specific to this submission:
 ## 9. Submission Options — `runFullTrust` justification (REQUIRED)
 Because `Ocy` declares `runFullTrust`, Partner Center will show a restricted-capability notice after upload. Paste this on the **Submission Options** page:
 
-> Ocy is a full-trust Win32 desktop application (written in Rust using the Slint UI toolkit, packaged as MSIX). It declares `runFullTrust` because that capability is required for a packaged Win32 executable to run outside the UWP AppContainer sandbox. Ocy runs in the Windows system tray, monitors local keyboard/mouse idle time (`GetLastInputInfo`) and fullscreen presentation state (`SHQueryUserNotificationState`) to time eye-rest breaks, renders non-activating break reminder windows, and stores user preferences, daily break counts, and the cached Store licence state locally in the user's AppData folder. Ocy itself contains no network code (the Store build queries the Microsoft Store for its licence through the built-in Windows `StoreContext` API), installs no drivers or background services, and collects or transmits no personal data.
+> Ocy is a full-trust Win32 desktop application (written in Rust using the Slint UI toolkit, packaged as MSIX). It declares `runFullTrust` because that capability is required for a packaged Win32 executable to run outside the UWP AppContainer sandbox. Ocy runs in the Windows system tray, monitors local keyboard/mouse idle time (`GetLastInputInfo`) and fullscreen presentation state (`SHQueryUserNotificationState`) to time eye-rest breaks, renders non-activating break reminder windows, and stores user preferences, daily break counts, and the cached Store licence state locally in the user's AppData folder. The Store build queries the Microsoft Store for its licence through the built-in Windows `StoreContext` API. Ocy installs no drivers or background services, and sends nothing by default: only if the user opts in to the optional anonymous usage stats in Settings does it send one anonymous daily summary to PostHog (EU region).
 
 ## 10. Notes for certification (reviewer instructions)
-> Ocy is a tray app: after install it starts in the notification area with no window. Left-click the Ocy sprout icon to open Settings. Right-click it for the menu: "Take a short break now", "Take a long break now", "Hold breaks until I close this game" (only shown while a game is running), "Pause for 1 hour", "Pause for 3 hours", "Pause until resumed", "Resume reminders", "Settings", "Quit Ocy". All functionality works offline with no account or configuration required. It has a 15-day free trial managed by the Microsoft Store licence.
+> Ocy is a tray app: after install it starts in the notification area with no window. Left-click the Ocy sprout icon to open Settings. Right-click it for the menu: "Take a short break now", "Take a long break now", "Hold breaks until I close this game" (only shown while a game is running), "Pause for 1 hour", "Pause for 3 hours", "Pause until resumed", "Resume reminders", "Settings", "Quit Ocy". All functionality works offline with no account or configuration required. Optional anonymous usage stats are off by default and can be turned on or off in Settings. It has a 15-day free trial managed by the Microsoft Store licence.
 
 ## 11. Checking the trial UI before submitting
 The Store build's trial UI (trial days left, "Your trial has ended.", the Buy button) can be opened
