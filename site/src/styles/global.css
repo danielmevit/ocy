@@ -222,6 +222,15 @@ html { scroll-padding-top: 76px; }
 .btn-store .store-logo { display: block; width: 20px; height: 20px; flex: none; }
 .btn-store { white-space: nowrap; }
 .btn-outline.btn-store { gap: 8px; }
+/* Microsoft Store logo on the page background: Microsoft's light-badge logo (blue bag) on light, its dark-badge
+   logo (white bag) on dark. On the green fill the white bag is used in both themes. */
+.store-logo.on-dark { display: none; }
+:root[data-theme="dark"] .store-logo.on-light { display: none; }
+:root[data-theme="dark"] .store-logo.on-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .store-logo.on-light { display: none; }
+  :root:not([data-theme="light"]) .store-logo.on-dark { display: block; }
+}
 .btn-store .store-row { display: inline-flex; align-items: center; gap: 8px; }
 .btn-store[data-label]::after { padding-left: 28px; }
 .btn-outline { color: var(--text); border-color: var(--border); background: transparent; }
