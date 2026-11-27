@@ -13,6 +13,7 @@ PY
 )"
 
 export MACOSX_DEPLOYMENT_TARGET="11.0"
+export CARGO_ENCODED_RUSTFLAGS="$(printf '%s\037%s\037%s\037%s' "--remap-path-prefix=$ROOT=ocy" "--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=cargo" "--remap-path-prefix=${CARGO_TARGET_DIR:-$ROOT/rust/target}=target" "--remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=rustup")"
 
 cd rust
 rustup target add aarch64-apple-darwin x86_64-apple-darwin

@@ -7,7 +7,9 @@
 
 pub mod art;
 pub mod break_logic;
+pub mod build_id;
 pub mod coordinator;
+pub mod crash_reports;
 pub mod host;
 pub mod instance;
 pub mod language_choice;

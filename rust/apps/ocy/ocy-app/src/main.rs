@@ -295,6 +295,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let demo_language = parse_demo_language(&raw_args);
+    // Test-only crash trigger (cargo feature `crash-test`): parsed before the args are
+    // consumed; honoured only in isolated runs (checked right after `is_isolated`).
+    #[cfg(feature = "crash-test")]
+    let crash_test = ocy_app::crash_reports::parse_crash_test(&raw_args);
     let cli = parse_cli_args(raw_args);
 
     #[cfg(windows)]
@@ -304,6 +308,14 @@ fn main() -> ExitCode {
 
     let is_demo_or_probe = is_probe_mode(&cli);
     let is_isolated = is_demo_or_probe || instance_scope.is_some();
+    // The deliberate-crash trigger may never run against the user's real data folder.
+    #[cfg(feature = "crash-test")]
+    if crash_test.is_some() && !is_isolated {
+        #[cfg(windows)]
+        attach_parent_console_if_needed();
+        eprintln!("--crash-test needs an isolated data folder (--instance-scope or a demo run)");
+        return ExitCode::FAILURE;
+    }
     // `--demo-license` is only honoured in isolated runs of a Store build; otherwise it is
     // ignored with one line on stderr (the flag alone never makes a run isolated).
     if cli.demo_license.is_some() && !demo_license_is_honoured(is_isolated) {
@@ -321,6 +333,16 @@ fn main() -> ExitCode {
         .unwrap_or_else(|| AppDataPaths::new(APP_DATA_DIR_NAME).data_dir());
     let error_log = ErrorLog::new(&data_dir, ERROR_LOG_PREFIX);
     install_panic_hook(error_log.clone());
+    // Crash-report capture (CR1): local reports only, nothing is ever sent here. The
+    // panic hook chains with the damt-app hook installed above (both run). Isolated
+    // demo runs skip the capture entirely unless --crash-test asked for a crash.
+    #[cfg(feature = "crash-test")]
+    let crash_capture = !is_isolated || crash_test.is_some();
+    #[cfg(not(feature = "crash-test"))]
+    let crash_capture = !is_isolated;
+    if crash_capture {
+        ocy_app::crash_reports::install(data_dir.clone());
+    }
 
     let instance_id = resolve_instance_id(&cli, instance_scope.as_deref(), std::process::id());
     let mut single_instance_guard = match SingleInstance::acquire(&instance_id) {
@@ -610,6 +632,21 @@ fn main() -> ExitCode {
         // record reflect the persisted state from the very first sender attempt. Every
         // later consent change arrives through `AppHost::save_settings`.
         ocy_app::usage_stats::apply_consent_from_settings(host.borrow().engine().settings());
+    }
+
+    // Crash reports (CR1): apply the loaded crash-report consent once (the host's
+    // in-memory settings are the single source of truth; every later change arrives
+    // through `AppHost::save_settings`), then convert any native raw record a previous
+    // crashed run left behind. Both are no-ops without an installed crash store.
+    ocy_app::crash_reports::apply_crash_consent_from_settings(host.borrow().engine().settings());
+    let _ = ocy_app::crash_reports::convert_native_pending();
+
+    // With the feature on, the deliberate crash works in release builds too (the real
+    // abort path, stripped exe); the hooks above have already written the report by the
+    // time the process dies.
+    #[cfg(feature = "crash-test")]
+    if let Some(kind) = crash_test {
+        ocy_app::crash_reports::run_crash_test(kind);
     }
 
     #[cfg(feature = "store")]

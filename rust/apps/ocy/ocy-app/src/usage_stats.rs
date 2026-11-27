@@ -236,7 +236,7 @@ impl Environment {
     }
 }
 
-const fn platform_tag() -> &'static str {
+pub(crate) const fn platform_tag() -> &'static str {
     if cfg!(target_os = "windows") {
         "windows"
     } else if cfg!(target_os = "linux") {
@@ -249,7 +249,7 @@ const fn platform_tag() -> &'static str {
 }
 
 /// Distribution channel: `store`/`direct` (Windows), `flatpak`/`linux` (Linux), `macos`.
-fn channel_tag() -> &'static str {
+pub(crate) fn channel_tag() -> &'static str {
     if cfg!(target_os = "windows") {
         if cfg!(feature = "store") {
             "store"
@@ -272,7 +272,7 @@ fn channel_tag() -> &'static str {
 }
 
 /// Coarse OS version, never containing host or user names.
-fn os_version() -> String {
+pub(crate) fn os_version() -> String {
     if cfg!(target_os = "windows") {
         windows_version().unwrap_or_else(|| "unknown".to_owned())
     } else if cfg!(target_os = "linux") {

@@ -83,4 +83,6 @@ lto = "fat"
 codegen-units = 1
 opt-level = 3
 strip = true
+debug = "limited"
+split-debuginfo = "packed"
 panic = "abort"

@@ -102,7 +102,16 @@ jobs:
         # Absent/empty secret -> build_key() is None -> usage stats stay off.
         env:
           OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
-        run: cargo build -p ocy-app --release --locked
+        shell: pwsh
+        run: |
+          $separator = [char]31
+          $rustflags = @(
+            "--remap-path-prefix=$($env:CARGO_HOME)=cargo"
+            "--remap-path-prefix=$($env:GITHUB_WORKSPACE)=ocy"
+            "--remap-path-prefix=$($env:RUSTUP_HOME)=rustup"
+          ) -join $separator
+          $env:CARGO_ENCODED_RUSTFLAGS = $rustflags
+          cargo build -p ocy-app --release --locked
       - name: Check Ocy.exe size budget (<= 15 MB)
         shell: pwsh
         run: |
@@ -117,6 +126,13 @@ jobs:
             Write-Error ("Ocy.exe exceeds 15 MiB budget: {0} bytes > {1} bytes" -f $bytes, $budgetBytes)
             exit 1
           }
+          $pdbPath = Join-Path (Split-Path $exePath -Parent) "Ocy.pdb"
+          if (-not (Test-Path $pdbPath)) {
+            Write-Error ("Missing matching PDB: $pdbPath")
+          }
+          $pdb = Get-Item $pdbPath
+          $pdbMib = [math]::Round($pdb.Length / 1MB, 2)
+          Write-Host ("Ocy.pdb size: {0} bytes ({1} MiB)" -f $pdb.Length, $pdbMib)
       - name: Generate third-party notices
         run: python rust/tools/notices.py --out "${{ runner.temp }}/THIRD-PARTY-NOTICES.txt"
       - name: Build deterministic release zip
@@ -132,4 +148,11 @@ jobs:
           path: |
             dist/*.zip
             dist/*.zip.sha256
+          if-no-files-found: error
+      - name: Upload Windows PDB symbols
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-win-x64-pdb
+          path: |
+            rust/target/release/Ocy.pdb
           if-no-files-found: error

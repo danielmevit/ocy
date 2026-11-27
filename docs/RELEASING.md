@@ -24,7 +24,9 @@ key as `None`, which disables the whole feature: no thread, no network, no Setti
   this repository. Test, smoke, and PR builds never see it (forks get no secrets anyway).
 - **Local Store builds.** Set the same environment variable before building:
   `OCY_POSTHOG_KEY=<key> cargo build -p ocy-app --release --features store` (or build without
-  it for an inert binary).
+  it for an inert binary). For release builds that must not contain build-machine paths, remap
+  the Cargo registry, workspace, and rustup sources too:
+  `OCY_POSTHOG_KEY=<key> CARGO_ENCODED_RUSTFLAGS="$(printf '%s\037%s\037%s\037%s' "--remap-path-prefix=$CARGO_HOME=cargo" "--remap-path-prefix=/mnt/d=ocy" "--remap-path-prefix=$CARGO_TARGET_DIR=target" "--remap-path-prefix=$HOME/.rustup=rustup")" cargo xwin build --release -p ocy-app --features store --target x86_64-pc-windows-msvc`
 - **Rotating the key.** Reset the project API key in PostHog (project settings) → update the
   `OCY_POSTHOG_KEY` repository secret → the next release picks it up. Already-released builds
   keep the old key baked in, so their events stop being accepted once PostHog revokes it;

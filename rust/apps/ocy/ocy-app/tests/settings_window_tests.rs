@@ -467,6 +467,7 @@ fn settings_values_round_trip_and_preserve_non_ui_fields() {
         games_silent: vec!["Demo.exe".to_owned()],
         water_nudges: false,
         usage_stats: ocy_core::settings::UsageStatsConsent::NotAsked,
+        crash_reports: ocy_core::settings::CrashReportsConsent::Ask,
     };
 
     // When autostart is supported, start_with_system is loaded from platform autostart state.

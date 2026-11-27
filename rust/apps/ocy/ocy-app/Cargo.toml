@@ -14,6 +14,9 @@ path = "src/main.rs"
 [features]
 default = []
 store = ["damt-platform-win/store"]
+# Test-only crash trigger (`--crash-test panic|native`), also usable in release builds so
+# the real abort path can be exercised. Never enabled in release artifacts.
+crash-test = []
 
 [dependencies]
 damt-app = { path = "../../../crates/damt-app" }
@@ -37,8 +40,12 @@ uuid = { version = "=1.29.3", features = ["v4", "v5"] }
 windows = { workspace = true, features = [
     "Win32_Globalization",
     "Win32_System_Console",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_IO",
+    "Win32_System_Kernel",
     "Win32_System_ProcessStatus",
     "Win32_UI_Accessibility",
+    "Win32_Storage_FileSystem",
     "Wdk_System_SystemServices",
 ] }
 
