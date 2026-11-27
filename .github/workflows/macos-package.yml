@@ -32,6 +32,9 @@ jobs:
           OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
         run: bash packaging/macos/build_app.sh | tee macos-build.log
 
+      - name: Check the binary for leaked build-machine paths
+        run: python3 rust/tools/path_leak_check.py packaging/macos/dist/Ocy.app/Contents/MacOS/Ocy
+
       - name: Find app and archive
         id: package
         shell: bash

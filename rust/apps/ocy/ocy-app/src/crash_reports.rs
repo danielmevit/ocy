@@ -537,6 +537,12 @@ pub struct CrashReport {
     pub platform: String,
     pub os_version: String,
     pub channel: String,
+    /// The executable's PDB build ID (`GUID-age`, Windows only, CR2b's `build_id` module);
+    /// matches the archived `.pdb`, so a stack trace can be resolved to source lines.
+    /// Absent (and omitted from the report file and the event) on other platforms or when
+    /// the PE debug record has no CodeView RSDS entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_id: Option<String>,
 }
 
 impl CrashReport {
@@ -555,6 +561,7 @@ impl CrashReport {
             platform: platform_tag().to_owned(),
             os_version: os_version(),
             channel: channel_tag().to_owned(),
+            build_id: crate::build_id::current_pdb_build_id(),
         }
     }
 
@@ -673,7 +680,7 @@ pub fn exception_event_json(report: &CrashReport) -> serde_json::Value {
             serde_json::Value::Object(value)
         })
         .collect();
-    serde_json::json!({
+    let mut event = serde_json::json!({
         "event": "$exception",
         "distinct_id": report.report_id,
         "timestamp": event_timestamp(report.crashed_at),
@@ -698,7 +705,19 @@ pub fn exception_event_json(report: &CrashReport) -> serde_json::Value {
                 },
             }],
         },
-    })
+    });
+    // The PDB build ID (Windows only, CR2b) joins the event properties when present, so
+    // the stack's module offsets can be resolved against the archived `.pdb`. Omitted on
+    // other platforms — and so absent from `preview_text` byte for byte too.
+    if let Some(build_id) = &report.build_id
+        && let Some(properties) = event["properties"].as_object_mut()
+    {
+        properties.insert(
+            "build_id".into(),
+            serde_json::Value::String(build_id.clone()),
+        );
+    }
+    event
 }
 
 /// The exact text that would be sent (pretty-printed), byte for byte what CR2a posts
@@ -1200,7 +1219,8 @@ pub fn install(data_dir: impl Into<PathBuf>) {
 /// Host hook: applies the crash-report consent from the in-memory `OcySettings` (the single
 /// source of truth, persisted through `AppHost::save_settings`). On `Never`, all pending
 /// reports are deleted and the hooks stop writing. Also refreshes the scrubber's known
-/// values from the settings (silent-game names).
+/// values from the settings (silent-game names). On `Always` the sender (CR2a) is woken so
+/// due reports do not wait for the next hourly slot; a no-op without an installed sender.
 pub fn apply_crash_consent_from_settings(settings: &OcySettings) {
     CONSENT.store(consent_to_u8(settings.crash_reports), Ordering::Release);
     refresh_scrubber_from_settings(settings);
@@ -1208,6 +1228,9 @@ pub fn apply_crash_consent_from_settings(settings: &OcySettings) {
         && let Some(store) = STORE.get()
     {
         store.delete_all();
+    }
+    if settings.crash_reports == CrashReportsConsent::Always {
+        crate::crash_sender::wake();
     }
 }
 
@@ -1396,6 +1419,7 @@ mod tests {
             platform: "windows".to_owned(),
             os_version: "10.0.22621".to_owned(),
             channel: "direct".to_owned(),
+            build_id: None,
         };
         report.message = scrubber.scrub(
             "crash while Minesweeper X was running for alice: \
@@ -1419,12 +1443,42 @@ mod tests {
     }
 
     #[test]
+    fn event_and_report_carry_the_pdb_build_id_when_present() {
+        let scrubber = sentinel_scrubber();
+        let mut report = fixed_report(&scrubber);
+        report.build_id = Some("12345678-90AB-CDEF-1122-334455667788-1".to_owned());
+
+        // The event gains exactly one property, and the preview text follows it byte for
+        // byte (CR2b's build ID, CR2a's byte-identity promise).
+        let event = exception_event_json(&report);
+        assert_eq!(
+            event["properties"]["build_id"],
+            "12345678-90AB-CDEF-1122-334455667788-1"
+        );
+        assert_eq!(
+            event.to_string().matches("build_id").count(),
+            1,
+            "exactly one build_id occurrence"
+        );
+        assert!(preview_text(&report).contains("build_id"));
+
+        // The report file serializes it (camelCase), and omits it when absent.
+        let file_json = serde_json::to_string(&report).unwrap_or_default();
+        assert!(file_json.contains("\"buildId\":\"12345678-90AB-CDEF-1122-334455667788-1\""));
+        let mut without = fixed_report(&scrubber);
+        without.build_id = None;
+        let without_json = serde_json::to_string(&without).unwrap_or_default();
+        assert!(!without_json.contains("buildId"));
+        let without_event = exception_event_json(&without);
+        assert!(without_event.to_string().find("build_id").is_none());
+    }
+
+    #[test]
     fn golden_event_json_scrubs_every_sentinel() {
         let scrubber = sentinel_scrubber();
         let report = fixed_report(&scrubber);
         let event = exception_event_json(&report);
-        let expected = serde_json::json!({
-            "event": "$exception",
+        let expected = serde_json::json!({            "event": "$exception",
             "distinct_id": "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0",
             "timestamp": event_timestamp(1_700_000_000),
             "properties": {

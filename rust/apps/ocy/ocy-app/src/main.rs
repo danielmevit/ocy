@@ -632,6 +632,13 @@ fn main() -> ExitCode {
         // record reflect the persisted state from the very first sender attempt. Every
         // later consent change arrives through `AppHost::save_settings`.
         ocy_app::usage_stats::apply_consent_from_settings(host.borrow().engine().settings());
+        // Crash-report sending (CR2a): same gate build key, same transport; its own consent
+        // (crash_reports, applied below) decides what leaves the machine — the usage-stats
+        // consent plays no role. Inert without a key or outside the real data folder.
+        if crash_capture {
+            let _crash_sender =
+                ocy_app::crash_sender::start_from_build(data_dir.clone(), error_log.clone());
+        }
     }
 
     // Crash reports (CR1): apply the loaded crash-report consent once (the host's

@@ -104,14 +104,40 @@ jobs:
           OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
         shell: pwsh
         run: |
+          # Remap build-machine paths out of the binary (CR2c). No rule is ever emitted
+          # with an empty FROM: an empty FROM makes rustc prefix every *relative* path
+          # with the TO (the CI exe shipped rustup\apps\... paths because RUSTUP_HOME
+          # is not set on the runner). rustc applies the LAST matching rule, so the
+          # most specific prefixes must come last.
           $separator = [char]31
-          $rustflags = @(
-            "--remap-path-prefix=$($env:CARGO_HOME)=cargo"
-            "--remap-path-prefix=$($env:GITHUB_WORKSPACE)=ocy"
-            "--remap-path-prefix=$($env:RUSTUP_HOME)=rustup"
-          ) -join $separator
-          $env:CARGO_ENCODED_RUSTFLAGS = $rustflags
+          $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
+          $rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE ".rustup" }
+          $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $env:GITHUB_WORKSPACE "rust\target" }
+          $sysroot = (rustc --print sysroot).Trim()
+          $flags = New-Object System.Collections.Generic.List[string]
+          $remaps = @(
+            @{ From = $rustupHome;          To = "rustup" },
+            @{ From = $env:GITHUB_WORKSPACE; To = "ocy" },
+            @{ From = $cargoHome;           To = "cargo" },
+            @{ From = $targetDir;           To = "target" },
+            @{ From = $sysroot;             To = "rustup" }
+          )
+          foreach ($remap in $remaps) {
+            if (-not $remap.From) { continue }
+            $flags.Add("--remap-path-prefix=$($remap.From)=$($remap.To)")
+            if ($remap.From -match '^[A-Za-z]:') {
+              # rustc canonicalizes some Windows paths to \\?\ form; cover that spelling too.
+              $flags.Add("--remap-path-prefix=\\?\$($remap.From)=$($remap.To)")
+            }
+          }
+          $env:CARGO_ENCODED_RUSTFLAGS = $flags -join $separator
+          Write-Host "CARGO_ENCODED_RUSTFLAGS: $($flags -join ' ')"
           cargo build -p ocy-app --release --locked
+      - name: Check the binary for leaked build-machine paths
+        shell: pwsh
+        run: |
+          $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "rust/target" }
+          python rust/tools/path_leak_check.py (Join-Path $targetDir "release/Ocy.exe")
       - name: Check Ocy.exe size budget (<= 15 MB)
         shell: pwsh
         run: |

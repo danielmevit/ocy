@@ -128,6 +128,19 @@ jobs:
           branch: stable
           upload-artifact: false
 
+      - name: Check the binary for leaked build-machine paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          # flatpak-github-actions builds into flatpak_app/ (default build-dir); the app
+          # binary lands at files/bin/Ocy per the manifest's install command.
+          BIN="$(find flatpak_app -type f -path '*/files/bin/Ocy' 2>/dev/null | head -n 1)"
+          if [ -z "$BIN" ]; then
+            BIN="$(find . -type f -path '*/files/bin/Ocy' -not -path './.git/*' 2>/dev/null | head -n 1)"
+          fi
+          test -n "$BIN"
+          python3 rust/tools/path_leak_check.py "$BIN"
+
       - name: Upload Flatpak bundle
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

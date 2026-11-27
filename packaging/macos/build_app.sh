@@ -13,10 +13,31 @@ PY
 )"
 
 export MACOSX_DEPLOYMENT_TARGET="11.0"
-export CARGO_ENCODED_RUSTFLAGS="$(printf '%s\037%s\037%s\037%s' "--remap-path-prefix=$ROOT=ocy" "--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=cargo" "--remap-path-prefix=${CARGO_TARGET_DIR:-$ROOT/rust/target}=target" "--remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=rustup")"
 
 cd rust
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+# Remap build-machine paths out of the binary (CR2c). Every FROM is non-empty:
+# an empty FROM makes rustc prefix every *relative* path with the TO, and rustc
+# applies the LAST matching rule, so the most specific prefixes come last. The
+# sysroot is queried inside rust/ so rustup resolves rust-toolchain.toml's pinned
+# toolchain, not the runner's default.
+sysroot="$(rustc --print sysroot)"
+sep=$'\037'
+flags=""
+add_remap() {
+    [ -n "$1" ] || return 0
+    if [ -n "$flags" ]; then flags+="$sep"; fi
+    flags+="--remap-path-prefix=$1=$2"
+}
+add_remap "${RUSTUP_HOME:-$HOME/.rustup}" rustup
+add_remap "$ROOT" ocy
+add_remap "${CARGO_HOME:-$HOME/.cargo}" cargo
+add_remap "${CARGO_TARGET_DIR:-$ROOT/rust/target}" target
+add_remap "$sysroot" rustup
+export CARGO_ENCODED_RUSTFLAGS="$flags"
+echo "CARGO_ENCODED_RUSTFLAGS: $(printf '%s' "$flags" | tr '\037' ' ')"
+
 cargo build --release --locked --target aarch64-apple-darwin -p ocy-app
 cargo build --release --locked --target x86_64-apple-darwin -p ocy-app
 cd "$ROOT"

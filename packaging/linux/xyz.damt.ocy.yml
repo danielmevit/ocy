@@ -44,7 +44,9 @@ modules:
       env:
         CARGO_HOME: /run/build/ocy/cargo
         CARGO_NET_OFFLINE: "true"
-        RUSTFLAGS: "--remap-path-prefix=/run/build/ocy/cargo=cargo --remap-path-prefix=/run/build/ocy/rust/target=target --remap-path-prefix=/run/build/ocy=ocy --remap-path-prefix=/usr/lib/sdk/rust-stable/rustup=rustup"
+        # Least specific prefix first: rustc applies the LAST matching --remap-path-prefix
+        # rule, so the cargo and target rules must come after the workspace rule (CR2c).
+        RUSTFLAGS: "--remap-path-prefix=/usr/lib/sdk/rust-stable/rustup=rustup --remap-path-prefix=/run/build/ocy=ocy --remap-path-prefix=/run/build/ocy/rust/target=target --remap-path-prefix=/run/build/ocy/cargo=cargo"
     build-commands:
       - cd rust && cargo --offline build --release --locked -p ocy-app
       - install -Dm755 rust/target/release/Ocy /app/bin/Ocy
