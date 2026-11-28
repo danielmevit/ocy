@@ -9,7 +9,9 @@ use std::time::Duration;
 
 use damt_app::{Acquire, AppDataPaths, ErrorLog, SingleInstance, install_panic_hook};
 use damt_platform::{Clock, PlatformServices, SystemClock};
-use ocy_app::break_logic::{DemoBreak, build_demo_launch_plan, parse_cli_args};
+use ocy_app::break_logic::{
+    DemoBreak, build_demo_launch_plan, demo_license_is_honoured, parse_cli_args,
+};
 use ocy_app::coordinator::{BreakUiCoordinator, OverlayBreakWindows};
 use ocy_app::host::AppHost;
 use ocy_app::instance::{is_probe_mode, parse_instance_scope, resolve_instance_id};
@@ -22,7 +24,7 @@ use ocy_app::slint_breaks::{
     BreakActionCallbacks, BreakLatencySample, LatencyOptions, SlintBreakWindows,
 };
 use ocy_app::slint_settings::SlintSettingsWindow;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use ocy_app::slint_tray::{OcyTray, SlintTraySink};
 use ocy_app::soak::{
     OffsetClock, SoakHooks, SoakTimings, build_soak_settings, format_soak_cycle_line,
@@ -40,7 +42,9 @@ const ERROR_LOG_PREFIX: &str = "ocy";
 
 #[cfg(target_os = "linux")]
 type LiveTraySink = LinuxTraySink;
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
+type LiveTraySink = MacTraySink;
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 type LiveTraySink = SlintTraySink;
 
 type LiveHost = AppHost<OverlayBreakWindows<SlintBreakWindows>, SlintSettingsWindow, LiveTraySink>;
@@ -291,6 +295,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let demo_language = parse_demo_language(&raw_args);
+    // Test-only crash trigger (cargo feature `crash-test`): parsed before the args are
+    // consumed; honoured only in isolated runs (checked right after `is_isolated`).
+    #[cfg(feature = "crash-test")]
+    let crash_test = ocy_app::crash_reports::parse_crash_test(&raw_args);
     let cli = parse_cli_args(raw_args);
 
     #[cfg(windows)]
@@ -300,6 +308,21 @@ fn main() -> ExitCode {
 
     let is_demo_or_probe = is_probe_mode(&cli);
     let is_isolated = is_demo_or_probe || instance_scope.is_some();
+    // The deliberate-crash trigger may never run against the user's real data folder.
+    #[cfg(feature = "crash-test")]
+    if crash_test.is_some() && !is_isolated {
+        #[cfg(windows)]
+        attach_parent_console_if_needed();
+        eprintln!("--crash-test needs an isolated data folder (--instance-scope or a demo run)");
+        return ExitCode::FAILURE;
+    }
+    // `--demo-license` is only honoured in isolated runs of a Store build; otherwise it is
+    // ignored with one line on stderr (the flag alone never makes a run isolated).
+    if cli.demo_license.is_some() && !demo_license_is_honoured(is_isolated) {
+        #[cfg(windows)]
+        attach_parent_console_if_needed();
+        eprintln!("--demo-license needs an isolated demo run of the Store build");
+    }
     let temp_demo_dir = if is_isolated {
         Some(std::env::temp_dir().join(format!("ocy-demo-{}", std::process::id())))
     } else {
@@ -310,6 +333,16 @@ fn main() -> ExitCode {
         .unwrap_or_else(|| AppDataPaths::new(APP_DATA_DIR_NAME).data_dir());
     let error_log = ErrorLog::new(&data_dir, ERROR_LOG_PREFIX);
     install_panic_hook(error_log.clone());
+    // Crash-report capture (CR1): local reports only, nothing is ever sent here. The
+    // panic hook chains with the damt-app hook installed above (both run). Isolated
+    // demo runs skip the capture entirely unless --crash-test asked for a crash.
+    #[cfg(feature = "crash-test")]
+    let crash_capture = !is_isolated || crash_test.is_some();
+    #[cfg(not(feature = "crash-test"))]
+    let crash_capture = !is_isolated;
+    if crash_capture {
+        ocy_app::crash_reports::install(data_dir.clone());
+    }
 
     let instance_id = resolve_instance_id(&cli, instance_scope.as_deref(), std::process::id());
     let mut single_instance_guard = match SingleInstance::acquire(&instance_id) {
@@ -331,13 +364,24 @@ fn main() -> ExitCode {
     };
     let owner_hwnd = owner_window.as_ref().and_then(OwnerWindow::raw_hwnd);
 
-    if let Err(err) = slint::BackendSelector::new()
+    let selector = slint::BackendSelector::new()
         .backend_name("winit".into())
-        .renderer_name("software".into())
+        .renderer_name("software".into());
+    #[cfg(target_os = "macos")]
+    let selector = {
+        let mut builder = slint::winit_030::winit::event_loop::EventLoop::<
+            slint::winit_030::SlintEvent,
+        >::with_user_event();
+        ocy_app::macos_window::configure_event_loop_builder(&mut builder);
+        selector.with_winit_event_loop_builder(builder)
+    };
+    if let Err(err) = selector
         .with_winit_window_attributes_hook(move |attrs| {
             let attrs = apply_window_attributes_for_role(attrs, owner_hwnd);
             #[cfg(target_os = "linux")]
             let attrs = ocy_app::linux_window::apply_window_attributes_for_role(attrs);
+            #[cfg(target_os = "macos")]
+            let attrs = ocy_app::macos_window::apply_window_attributes_for_role(attrs);
             attrs
         })
         .select()
@@ -345,6 +389,17 @@ fn main() -> ExitCode {
         error_log.log_error("slint_backend_select", &err);
         return ExitCode::FAILURE;
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        ocy_app::linux_window::init_winit_backend();
+        if let Err(err) = slint::set_xdg_app_id(ocy_app::instance::APP_ID) {
+            error_log.log_error("set_xdg_app_id", &err);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    let _ = ocy_app::macos_window::ensure_accessory_activation_policy();
 
     let mut settings = if is_isolated {
         default_app_settings()
@@ -410,7 +465,7 @@ fn main() -> ExitCode {
     );
     let initial_snapshot = engine.snapshot();
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     let tray_sink = {
         let tray_component = match OcyTray::new() {
             Ok(tray) => tray,
@@ -423,6 +478,8 @@ fn main() -> ExitCode {
     };
     #[cfg(target_os = "linux")]
     let tray_sink = LinuxTraySink::spawn(error_log.clone());
+    #[cfg(target_os = "macos")]
+    let tray_sink = MacTraySink::spawn(error_log.clone());
 
     let taskbar_theme: Rc<dyn damt_platform::TaskbarThemeProvider> = Rc::new(TaskbarThemeAdapter {
         platform: Arc::clone(&platform),
@@ -484,6 +541,7 @@ fn main() -> ExitCode {
         latency_options,
     );
     let latency_handle = slint_break_windows.latency_handle();
+    let break_active = slint_break_windows.break_active_handle();
     let break_windows = OverlayBreakWindows::with_clock(
         slint_break_windows,
         Arc::clone(&platform),
@@ -527,6 +585,13 @@ fn main() -> ExitCode {
     #[cfg(feature = "store")]
     if !is_isolated {
         settings_window.set_on_buy(Rc::new(store_license::trigger_purchase));
+    } else if cli.demo_license.is_some() {
+        // Honoured `--demo-license` run: Buy must be a logged no-op that never reaches
+        // `request_purchase_async`.
+        let demo_buy_log = error_log.clone();
+        settings_window.set_on_buy(Rc::new(move || {
+            demo_buy_log.log(Some("demo_purchase"), "demo: purchase skipped");
+        }));
     }
     let notifier: Rc<dyn damt_platform::Notifier> = if is_isolated {
         Rc::new(RecordingNotifier::new())
@@ -552,6 +617,46 @@ fn main() -> ExitCode {
         *slot.borrow_mut() = Some(Rc::downgrade(&host));
     });
 
+    // Anonymous usage stats (opt-in, off by default): a no-key build installs nothing at
+    // all. The sender thread sleeps ~1 minute before its first attempt, so startup is never
+    // blocked and never sends before the user has been asked (AN2 asks; nothing is due until
+    // consent becomes Granted).
+    if !is_isolated {
+        // The manager and handle are installed process-wide (usage_stats::global), so AN2's
+        // Settings toggle can reach them; the local binding only proves the build has a key.
+        let _usage_stats = ocy_app::usage_stats::start_from_build(
+            data_dir.clone(),
+            Arc::clone(&clock),
+            error_log.clone(),
+        );
+        // Settings load: apply the loaded consent once, so the mirror and the install
+        // record reflect the persisted state from the very first sender attempt. Every
+        // later consent change arrives through `AppHost::save_settings`.
+        ocy_app::usage_stats::apply_consent_from_settings(host.borrow().engine().settings());
+        // Crash-report sending (CR2a): same gate build key, same transport; its own consent
+        // (crash_reports, applied below) decides what leaves the machine — the usage-stats
+        // consent plays no role. Inert without a key or outside the real data folder.
+        if crash_capture {
+            let _crash_sender =
+                ocy_app::crash_sender::start_from_build(data_dir.clone(), error_log.clone());
+        }
+    }
+
+    // Crash reports (CR1): apply the loaded crash-report consent once (the host's
+    // in-memory settings are the single source of truth; every later change arrives
+    // through `AppHost::save_settings`), then convert any native raw record a previous
+    // crashed run left behind. Both are no-ops without an installed crash store.
+    ocy_app::crash_reports::apply_crash_consent_from_settings(host.borrow().engine().settings());
+    let _ = ocy_app::crash_reports::convert_native_pending();
+
+    // With the feature on, the deliberate crash works in release builds too (the real
+    // abort path, stripped exe); the hooks above have already written the report by the
+    // time the process dies.
+    #[cfg(feature = "crash-test")]
+    if let Some(kind) = crash_test {
+        ocy_app::crash_reports::run_crash_test(kind);
+    }
+
     #[cfg(feature = "store")]
     if !is_isolated {
         let cache_path = data_dir.join(ocy_app::license::LICENSE_CACHE_FILE_NAME);
@@ -560,9 +665,17 @@ fn main() -> ExitCode {
         host.borrow_mut()
             .set_license_state(initial_license, clock.now().timestamp());
         store_license::refresh();
+    } else if let Some(demo) = cli.demo_license {
+        // Honoured `--demo-license` run: set the state directly, before any window can paint.
+        // Isolated runs never call `store_license::init`/`refresh` and the periodic recheck
+        // no-ops without a runtime, so no Microsoft Store query ever runs and `license.json`
+        // is never written; Buy is the logged no-op registered above.
+        let now = clock.now().timestamp();
+        let state = ocy_app::break_logic::demo_license_state(demo, now);
+        host.borrow_mut().set_license_state(state, now);
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let host_ref = host.borrow();
         let tray = host_ref.tray().sink().component();
@@ -628,6 +741,30 @@ fn main() -> ExitCode {
     if cli.demo_settings {
         host.borrow_mut().show_settings();
     }
+
+    // Crash-report ask card (CR3): once per start, only with consent "Ask each time", pending
+    // reports and a build with a key; it waits while a break is on screen. A "Don't ask again"
+    // choice goes through the host's in-memory settings and `AppHost::save_settings`.
+    let _crash_card = (crash_capture || cli.demo_crash_card.is_some()).then(|| {
+        ocy_app::crash_card::start(
+            ocy_app::crash_card::CrashCardDeps {
+                platform: Arc::clone(&platform),
+                strings: Arc::clone(&strings),
+                error_log: error_log.clone(),
+                break_active: Rc::clone(&break_active),
+                consent: Rc::new(|| {
+                    with_ui_host_ret(|h| h.engine().settings().crash_reports).unwrap_or_default()
+                }),
+                save_consent: Rc::new(|consent| {
+                    with_ui_host(|h| {
+                        let _ = h.save_crash_consent(consent);
+                    });
+                    arm_next_tick();
+                }),
+            },
+            cli.demo_crash_card,
+        )
+    });
 
     if let (Some(demo), Some(plan)) = (cli.demo_break, &demo_plan)
         && plan.trigger_immediately
@@ -913,6 +1050,146 @@ impl ocy_app::tray::TraySink for LinuxTraySink {
 
         if let Some(handle) = &self.handle {
             handle.set_menu(LinuxTrayPresentation {
+                tooltip: presentation.tooltip.clone(),
+                pause_status: map_item(&presentation.pause_status),
+                take_short_break_now: map_item(&presentation.take_short_break_now),
+                take_long_break_now: map_item(&presentation.take_long_break_now),
+                hold_until_game_closes: map_item(&presentation.hold_until_game_closes),
+                pause_1_hour: map_item(&presentation.pause_1_hour),
+                pause_3_hours: map_item(&presentation.pause_3_hours),
+                pause_until_resumed: map_item(&presentation.pause_until_resumed),
+                resume: map_item(&presentation.resume),
+                settings: map_item(&presentation.settings),
+                quit: map_item(&presentation.quit),
+            });
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct MacTraySink {
+    handle: Option<damt_platform_mac::MacTrayHandle>,
+    error_log: ErrorLog,
+}
+
+#[cfg(target_os = "macos")]
+impl MacTraySink {
+    fn spawn(error_log: ErrorLog) -> Self {
+        use damt_platform_mac::{
+            MacTrayConfig, MacTrayHandle, MacTrayIconState, MacTrayPresentation,
+        };
+
+        let dispatch_log = error_log.clone();
+        let config = MacTrayConfig {
+            title: ocy_app::notifications::APP_DISPLAY_NAME.to_owned(),
+        };
+        let handle = match MacTrayHandle::spawn(
+            config,
+            MacTrayPresentation::default(),
+            MacTrayIconState::Active,
+            move |action| {
+                if let Err(err) = slint::invoke_from_event_loop(move || {
+                    dispatch_mac_tray_action(action);
+                }) {
+                    dispatch_log.log_error("mac_tray_dispatch", &err);
+                }
+            },
+        ) {
+            Ok(h) => Some(h),
+            Err(err) => {
+                error_log.log_error("tray_create", &err);
+                None
+            }
+        };
+        Self { handle, error_log }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn dispatch_mac_tray_action(action: damt_platform_mac::MacTrayAction) {
+    use damt_platform_mac::MacTrayAction;
+
+    match action {
+        MacTrayAction::TakeShortBreakNow => {
+            with_ui_host(|h| {
+                let _ = h.start_short_break_now();
+            });
+            arm_next_tick();
+        }
+        MacTrayAction::TakeLongBreakNow => {
+            with_ui_host(LiveHost::start_long_break_now);
+            arm_next_tick();
+        }
+        MacTrayAction::HoldUntilGameCloses => {
+            with_ui_host(|h| {
+                let _ = h.hold_until_game_closes();
+            });
+            arm_next_tick();
+        }
+        MacTrayAction::Pause1Hour => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::OneHour));
+            arm_next_tick();
+        }
+        MacTrayAction::Pause3Hours => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::ThreeHours));
+            arm_next_tick();
+        }
+        MacTrayAction::PauseUntilResumed => {
+            with_ui_host(|h| h.pause_from_tray(PauseSource::UntilResumed));
+            arm_next_tick();
+        }
+        MacTrayAction::Resume => {
+            with_ui_host(LiveHost::resume);
+            arm_next_tick();
+        }
+        MacTrayAction::Settings => with_ui_host(LiveHost::show_settings),
+        MacTrayAction::Quit => {
+            with_ui_host(LiveHost::shutdown);
+            let _ = slint::quit_event_loop();
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl ocy_app::tray::TraySink for MacTraySink {
+    fn set_tooltip(&mut self, tooltip: &str) {
+        if let Some(handle) = &self.handle {
+            handle.set_tooltip(tooltip);
+        }
+    }
+
+    fn set_icon(&mut self, state: ocy_app::tray::TrayIconState, use_light_set: bool) {
+        use damt_platform_mac::MacTrayIconState;
+        use ocy_app::tray::TrayIconState;
+
+        let mapped = match state {
+            TrayIconState::Active => MacTrayIconState::Active,
+            TrayIconState::Paused => MacTrayIconState::Paused,
+            TrayIconState::OnBreak => MacTrayIconState::OnBreak,
+            TrayIconState::Attention => MacTrayIconState::Attention,
+        };
+        if let Some(handle) = &mut self.handle
+            && let Err(err) = handle.set_icon(mapped, use_light_set)
+        {
+            self.error_log.log_error("tray_icon", &err);
+        }
+    }
+
+    fn set_menu(&mut self, presentation: &ocy_app::tray::TrayPresentation) {
+        use damt_platform_mac::{MacTrayMenuItem, MacTrayPresentation};
+        use ocy_app::tray::TrayMenuItemState;
+
+        fn map_item(item: &TrayMenuItemState) -> MacTrayMenuItem {
+            MacTrayMenuItem {
+                text: item.text.clone(),
+                is_visible: item.is_visible,
+                is_enabled: item.is_enabled,
+                is_checked: item.is_checked,
+            }
+        }
+
+        if let Some(handle) = &self.handle {
+            handle.set_menu(&MacTrayPresentation {
                 tooltip: presentation.tooltip.clone(),
                 pause_status: map_item(&presentation.pause_status),
                 take_short_break_now: map_item(&presentation.take_short_break_now),

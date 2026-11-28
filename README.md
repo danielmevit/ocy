@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Short eye exercises every few minutes, a real break every hour, and quiet when you need focus.</b><br/>
-  Free and open source. Lives in the tray. No account, no telemetry, nothing leaves your PC.
+  Free and open source. Lives in the tray. No account, works offline, optional anonymous usage stats and crash reports.
 </p>
 
 <p align="center">
@@ -155,9 +155,25 @@ looking at the screen.
   **take a long break now**. The pause menu shows your choice and the time left, for example
   "Paused until 15:40 · 1 h 15 min left".
 
+## What's new in 0.3.0
+
+- **Optional anonymous usage stats:** off until you say yes; one short summary a day of break counts and settings;
+  nothing personal, no IP address stored.
+- **Optional crash reports:** if Ocy closes unexpectedly, it asks before sending anything, shows you the exact report
+  first, and removes anything personal. Choose Ask each time, Always send or Never send in Settings → General.
+- The two choices are separate, and both can be changed any time.
+- Release builds no longer contain build-machine paths, and the Microsoft Store package includes symbol files for
+  readable crash locations.
+
+Full details: [CHANGELOG.md](CHANGELOG.md) and the [privacy page](https://ocy.damt.xyz/privacy/).
+
 ## Privacy
 
-No account, no telemetry, no ads and no network code. Ocy works fully offline, and nothing leaves your PC.
+No account and no ads. Ocy works fully offline and keeps its files on your PC. The only thing it can send is an
+anonymous daily summary of its own break counts and settings, and only if you turn on usage stats in Settings.
+If Ocy ever closes unexpectedly, it can also send a crash report (the error, Ocy's version and your system version,
+nothing personal), but only if you say yes: it asks first, and you can choose Always or Never in Settings. Full
+details: [ocy.damt.xyz/privacy](https://ocy.damt.xyz/privacy/#usage-stats).
 
 ## FAQ
 
@@ -176,7 +192,8 @@ Settings.
 
 **Is it free?** Yes. Ocy is free and open source under AGPL-3.0, with no paid tier and no ads.
 
-**Does it need the internet?** No. Ocy has no network code at all. It works fully offline and never phones home.
+**Does it need the internet?** No. Ocy works fully offline. If you turn on the optional anonymous usage stats, it sends one small summary a day
+when you're online.
 
 **Does it slow my PC down?** No. About 3.7 MB of memory while it waits, about 5–6 MB during a break, and it checks in
 about six times a minute. The whole app is one 12 MB file.
@@ -228,7 +245,7 @@ stay at 0 warnings, and new behaviour needs tests. Project conventions are in [A
 
 Ocy is designed, directed and maintained by [damt.xyz](https://damt.xyz) with extensive use of generative AI tools, from start to finish: most of the application code and tests, the documentation, the translations, the website, the store listing and other marketing materials, and ongoing maintenance.
 
-This applies only to how Ocy is made and marketed. At runtime Ocy uses no AI model, and it has no network code at all.
+This applies only to how Ocy is made and marketed. At runtime Ocy uses no AI model.
 
 Throughout, a real person steers the work and decides what is released.
 

@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.95"
 license = "AGPL-3.0-only"
@@ -83,4 +83,6 @@ lto = "fat"
 codegen-units = 1
 opt-level = 3
 strip = true
+debug = "limited"
+split-debuginfo = "packed"
 panic = "abort"

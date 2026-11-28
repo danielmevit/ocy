@@ -28,11 +28,9 @@ use crate::strings::Strings;
 /// Compile-time flag indicating whether the `store` Cargo feature is enabled.
 pub const STORE_FEATURE_ENABLED: bool = cfg!(feature = "store");
 
-/// Placeholder Microsoft Store product ID for `StoreContext::RequestPurchaseAsync`.
-///
-/// The owner must replace this with the real Partner Center Store ID before building the Store
-/// `.msix` release.
-pub const STORE_ID: &str = "9NBLGGH4XXXX";
+/// Microsoft Store product ID (Partner Center → Product identity) for
+/// `StoreContext::RequestPurchaseAsync`.
+pub const STORE_ID: &str = "9P0JGC2QK1P9";
 
 /// Periodic Store license re-check cadence (4 hours).
 pub const LICENSE_RECHECK_INTERVAL: Duration = Duration::from_secs(4 * 60 * 60);

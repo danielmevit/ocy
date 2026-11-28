@@ -1,0 +1,336 @@
+name: macOS app package
+
+on:
+  push:
+    branches: ["dev", "main"]
+    paths:
+      - "rust/**"
+      - "packaging/macos/**"
+      - "assets/icons/**"
+      - ".github/workflows/macos-package.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  macos-package:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Build macOS app
+        timeout-minutes: 30
+        # PostHog key compiled in via option_env! in ocy-app's usage_stats.rs; build_app.sh
+        # inherits the environment (no env scrubbing). Absent/empty secret -> stats stay off.
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
+        run: bash packaging/macos/build_app.sh | tee macos-build.log
+
+      - name: Check the binary for leaked build-machine paths
+        run: python3 rust/tools/path_leak_check.py packaging/macos/dist/Ocy.app/Contents/MacOS/Ocy
+
+      - name: Find app and archive
+        id: package
+        shell: bash
+        run: |
+          VERSION="$(python3 - <<'PY'
+          import tomllib
+          with open("rust/Cargo.toml", "rb") as source:
+              print(tomllib.load(source)["workspace"]["package"]["version"])
+          PY
+          )"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "app=packaging/macos/dist/Ocy.app" >> "$GITHUB_OUTPUT"
+          echo "archive=packaging/macos/dist/Ocy-$VERSION-macos-universal.zip" >> "$GITHUB_OUTPUT"
+          echo "checksum=packaging/macos/dist/Ocy-$VERSION-macos-universal.zip.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Probe short break
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="${{ steps.package.outputs.app }}"
+          PROBE="packaging/macos/ci/window_probe.swift"
+          mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/short-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
+          swift "$PROBE" "$$" > probe-artifacts/short-frontmost-before.json
+          "$APP/Contents/MacOS/Ocy" --demo-break short >probe-artifacts/short-launch.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
+          sleep 3
+          swift "$PROBE" "$PID" > probe-artifacts/short-probe.json
+          if ! screencapture -x probe-artifacts/probe-short.png 2>probe-artifacts/short-screencapture.log; then
+            echo "screencapture blocked; probe JSON retained" >> probe-artifacts/short-screencapture.log
+          fi
+          PID="$PID" python3 - <<'PY'
+          import json
+          import os
+
+          with open("probe-artifacts/short-frontmost-before.json", encoding="utf-8") as source:
+              before = json.load(source)
+          with open("probe-artifacts/short-probe.json", encoding="utf-8") as source:
+              probe = json.load(source)
+          windows = [w for w in probe["windows"] if w["on_screen"]]
+          frontmost = probe["frontmost"]["bundle_id"]
+          frontmost_pid = probe["frontmost"]["pid"]
+          pid = int(os.environ["PID"])
+          print(f"before frontmost: bundle_id={before['frontmost']['bundle_id']} pid={before['frontmost']['pid']}")
+          print(f"after frontmost: bundle_id={frontmost} pid={frontmost_pid}")
+          assert windows, "no on-screen Ocy window for short break"
+          assert frontmost != "xyz.damt.ocy", f"short break took focus; frontmost={frontmost}"
+          assert frontmost_pid != pid, f"short break took focus; frontmost_pid={frontmost_pid}, pid={pid}"
+          cards = [w for w in windows if 300 <= w["bounds"]["width"] <= 500 and w["bounds"]["height"] <= 250]
+          assert cards, "no short card window found for margin probe"
+          card = cards[0]["bounds"]
+          import subprocess
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-short.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # On macOS the window is exactly the card, rounded to an 8 pt radius by AppKit. The
+          # pixel 1 pt inside the window corner (centre 1.5, 1.5) lies outside the arc
+          # (distance ~9.2 pt from the arc centre at 8, 8), so it must show the pink backdrop
+          # (232, 93, 154). 2 pt in (centre 2.5, 2.5) is ~7.8 pt away, i.e. inside the card.
+          # A hue test tolerates the native shadow slightly darkening the cut-out corner.
+          corner = pixel_at(card["x"] + 1, card["y"] + 1)
+          red, green, blue, alpha = corner
+          print(f"short top-left corner RGBA={corner}")
+          assert alpha > 0
+          assert red > 120 and red > green + 60 and blue > green + 20, f"short window corner is not pink backdrop (opaque margin/corner); RGBA={corner}"
+          # Card surface: centre-left, left of the art/text column; light theme surface.
+          surface = pixel_at(card["x"] + 6, card["y"] + card["height"] // 2)
+          s_red, s_green, s_blue, _ = surface
+          print(f"short card surface RGBA={surface}")
+          assert min(s_red, s_green, s_blue) > 180, f"short card surface is not the light card (black or pink); RGBA={surface}"
+          assert abs(s_red - s_green) < 40, f"short card surface looks pink (window not painted); RGBA={surface}"
+          print(json.dumps(probe, sort_keys=True))
+          PY
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
+
+      - name: Probe long break
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="${{ steps.package.outputs.app }}"
+          PROBE="packaging/macos/ci/window_probe.swift"
+          mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/long-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
+          swift "$PROBE" "$$" > probe-artifacts/long-frontmost-before.json
+          "$APP/Contents/MacOS/Ocy" --demo-break long >probe-artifacts/long-launch.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
+          sleep 4
+          swift "$PROBE" "$PID" > probe-artifacts/long-probe.json
+          if ! screencapture -x probe-artifacts/probe-long.png 2>probe-artifacts/long-screencapture.log; then
+            echo "screencapture blocked; probe JSON retained" >> probe-artifacts/long-screencapture.log
+          fi
+          PID="$PID" python3 - <<'PY'
+          import json
+          import os
+
+          with open("probe-artifacts/long-frontmost-before.json", encoding="utf-8") as source:
+              before = json.load(source)
+          with open("probe-artifacts/long-probe.json", encoding="utf-8") as source:
+              probe = json.load(source)
+          frontmost = probe["frontmost"]["bundle_id"]
+          frontmost_pid = probe["frontmost"]["pid"]
+          pid = int(os.environ["PID"])
+          print(f"before frontmost: bundle_id={before['frontmost']['bundle_id']} pid={before['frontmost']['pid']}")
+          print(f"after frontmost: bundle_id={frontmost} pid={frontmost_pid}")
+          assert frontmost != "xyz.damt.ocy", f"long break took focus; frontmost={frontmost}"
+          assert frontmost_pid != pid, f"long break took focus; frontmost_pid={frontmost_pid}, pid={pid}"
+          windows = [w for w in probe["windows"] if w["on_screen"]]
+          dims = [w for w in windows if w["bounds"]["width"] >= 800 and w["bounds"]["height"] >= 600]
+          cards = [w for w in windows if w not in dims]
+          assert dims, "no monitor-sized dim window found"
+          assert cards, "no small long-break card window found"
+          card_layer = max(w["layer"] for w in cards)
+          dim_layer = max(w["layer"] for w in dims)
+          assert card_layer > dim_layer, f"card layer {card_layer} must be above dim layer {dim_layer}"
+          card = max(cards, key=lambda w: w["layer"])["bounds"]
+          assert 400 <= card["width"] <= 500, f"macOS long card window should be the 480 pt card; bounds={card}"
+          import subprocess
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-long.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # The dim is #000000 at alphaValue 0xc7/255 over the pink backdrop (232, 93, 154): it
+          # must read as a darkened pink (about 51, 20, 34), not opaque black and not the backdrop.
+          # Sample at (40, 120) pt: below the ~24 pt menu bar (which sits above the backdrop, so
+          # (20, 20) hit its Apple glyph) and left of the centred 480 pt card.
+          dim_x, dim_y = 40, 120
+          assert not (card["x"] <= dim_x < card["x"] + card["width"] and card["y"] <= dim_y < card["y"] + card["height"]), f"dim sample point is inside the card {card}"
+          dim = pixel_at(dim_x, dim_y)
+          d_red, d_green, d_blue, _ = dim
+          print(f"long dim RGBA={dim}")
+          assert dim[:3] != [0, 0, 0], f"long dim is opaque black; RGBA={dim}"
+          assert d_red > 15, f"long dim is (near) opaque black; RGBA={dim}"
+          assert d_red < 232 - 40 and d_blue < 154, f"long dim is not darker than the backdrop; RGBA={dim}"
+          assert d_red > d_green, f"long dim does not show the pink backdrop through it; RGBA={dim}"
+          # The card itself sits above the dim: its centre-left reads as the light card surface.
+          surface = pixel_at(card["x"] + 12, card["y"] + card["height"] // 2)
+          print(f"long card surface RGBA={surface}")
+          assert min(surface[:3]) > 180, f"long card surface is not the light card; RGBA={surface}"
+          print(json.dumps(probe, sort_keys=True))
+          PY
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
+
+      - name: Probe warning
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="${{ steps.package.outputs.app }}"
+          PROBE="packaging/macos/ci/window_probe.swift"
+          mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/warning-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
+          swift "$PROBE" "$$" > probe-artifacts/warning-frontmost-before.json
+          "$APP/Contents/MacOS/Ocy" --demo-break warning >probe-artifacts/warning-launch.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
+          sleep 3
+          swift "$PROBE" "$PID" > probe-artifacts/warning-probe.json
+          if ! screencapture -x probe-artifacts/probe-warning.png 2>probe-artifacts/warning-screencapture.log; then
+            echo "screencapture blocked; probe JSON retained" >> probe-artifacts/warning-screencapture.log
+          fi
+          PID="$PID" python3 - <<'PY'
+          import json
+          import os
+
+          with open("probe-artifacts/warning-frontmost-before.json", encoding="utf-8") as source:
+              before = json.load(source)
+          with open("probe-artifacts/warning-probe.json", encoding="utf-8") as source:
+              probe = json.load(source)
+          windows = [w for w in probe["windows"] if w["on_screen"]]
+          frontmost = probe["frontmost"]["bundle_id"]
+          frontmost_pid = probe["frontmost"]["pid"]
+          pid = int(os.environ["PID"])
+          print(f"before frontmost: bundle_id={before['frontmost']['bundle_id']} pid={before['frontmost']['pid']}")
+          print(f"after frontmost: bundle_id={frontmost} pid={frontmost_pid}")
+          assert windows, "no on-screen Ocy window for warning"
+          assert frontmost != "xyz.damt.ocy", f"warning took focus; frontmost={frontmost}"
+          assert frontmost_pid != pid, f"warning took focus; frontmost_pid={frontmost_pid}, pid={pid}"
+          cards = [w for w in windows if 300 <= w["bounds"]["width"] <= 500 and w["bounds"]["height"] <= 250]
+          assert cards, "no warning card window found for margin probe"
+          card = cards[0]["bounds"]
+          import subprocess
+
+          def pixel_at(x, y):
+              out = subprocess.check_output([
+                  "swift", "packaging/macos/ci/pixel_probe.swift",
+                  "probe-artifacts/probe-warning.png", str(x), str(y),
+              ], text=True).strip()
+              return [int(v) for v in out.split()]
+
+          # On macOS the window is exactly the card, rounded to an 8 pt radius by AppKit. The
+          # pixel 1 pt inside the window corner (centre 1.5, 1.5) lies outside the arc
+          # (distance ~9.2 pt from the arc centre at 8, 8), so it must show the pink backdrop
+          # (232, 93, 154). 2 pt in (centre 2.5, 2.5) is ~7.8 pt away, i.e. inside the card.
+          # A hue test tolerates the native shadow slightly darkening the cut-out corner.
+          corner = pixel_at(card["x"] + 1, card["y"] + 1)
+          red, green, blue, alpha = corner
+          print(f"warning top-left corner RGBA={corner}")
+          assert alpha > 0
+          assert red > 120 and red > green + 60 and blue > green + 20, f"warning window corner is not pink backdrop (opaque margin/corner); RGBA={corner}"
+          # Card surface: centre-left, left of the art/text column; light theme surface.
+          surface = pixel_at(card["x"] + 6, card["y"] + card["height"] // 2)
+          s_red, s_green, s_blue, _ = surface
+          print(f"warning card surface RGBA={surface}")
+          assert min(s_red, s_green, s_blue) > 180, f"warning card surface is not the light card (black or pink); RGBA={surface}"
+          assert abs(s_red - s_green) < 40, f"warning card surface looks pink (window not painted); RGBA={surface}"
+          print(json.dumps(probe, sort_keys=True))
+          PY
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
+
+      - name: Probe settings
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="${{ steps.package.outputs.app }}"
+          PROBE="packaging/macos/ci/window_probe.swift"
+          mkdir -p probe-artifacts
+          BACKDROP="packaging/macos/ci/backdrop.swift"
+          swift "$BACKDROP" >probe-artifacts/settings-backdrop.log 2>&1 &
+          BACKDROP_PID=$!
+          "$APP/Contents/MacOS/Ocy" --demo-settings >probe-artifacts/settings-launch.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; kill "$BACKDROP_PID" 2>/dev/null || true' EXIT
+          sleep 3
+          swift "$PROBE" "$PID" > probe-artifacts/settings-probe.json
+          if ! screencapture -x probe-artifacts/probe-settings.png 2>probe-artifacts/settings-screencapture.log; then
+            echo "screencapture blocked; probe JSON retained" >> probe-artifacts/settings-screencapture.log
+          fi
+          PID="$PID" python3 - <<'PY'
+          import json
+          import os
+
+          with open("probe-artifacts/settings-probe.json", encoding="utf-8") as source:
+              probe = json.load(source)
+          pid = int(os.environ["PID"])
+          windows = [w for w in probe["windows"] if w["on_screen"]]
+          assert windows, "no on-screen Ocy window for settings"
+          frontmost = probe["frontmost"]
+          print(f"settings frontmost: bundle_id={frontmost['bundle_id']} pid={frontmost['pid']} ocy_pid={pid}")
+          if frontmost["pid"] != pid or frontmost["bundle_id"] != "xyz.damt.ocy":
+              print(
+                  f"::warning::settings did not activate Ocy in headless CI "
+                  f"(expected pid={pid}, bundle_id=xyz.damt.ocy; "
+                  f"frontmost={frontmost['bundle_id']} pid={frontmost['pid']}). "
+                  f"macOS 14+ cooperative activation requires a user action or yieldActivation; verify manually via the menu-bar icon."
+              )
+          print(json.dumps(probe, sort_keys=True))
+          PY
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          kill "$BACKDROP_PID" 2>/dev/null || true
+          wait "$BACKDROP_PID" 2>/dev/null || true
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-macos-app
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Upload probe artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-macos-probe
+          path: |
+            probe-artifacts/**
+            macos-build.log
+          if-no-files-found: warn

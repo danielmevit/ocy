@@ -1,0 +1,202 @@
+[
+ {
+  "tag": "id",
+  "name": "Bahasa Indonesia",
+  "flag": "id"
+ },
+ {
+  "tag": "bs",
+  "name": "Bosanski",
+  "flag": "ba"
+ },
+ {
+  "tag": "cs",
+  "name": "Čeština",
+  "flag": "cz"
+ },
+ {
+  "tag": "da",
+  "name": "Dansk",
+  "flag": "dk"
+ },
+ {
+  "tag": "de",
+  "name": "Deutsch",
+  "flag": "de"
+ },
+ {
+  "tag": "et",
+  "name": "Eesti",
+  "flag": "ee"
+ },
+ {
+  "tag": "en",
+  "name": "English",
+  "flag": "gb"
+ },
+ {
+  "tag": "es",
+  "name": "Español",
+  "flag": "es"
+ },
+ {
+  "tag": "fr",
+  "name": "Français",
+  "flag": "fr"
+ },
+ {
+  "tag": "hr",
+  "name": "Hrvatski",
+  "flag": "hr"
+ },
+ {
+  "tag": "it",
+  "name": "Italiano",
+  "flag": "it"
+ },
+ {
+  "tag": "lv",
+  "name": "Latviešu",
+  "flag": "lv"
+ },
+ {
+  "tag": "lt",
+  "name": "Lietuvių",
+  "flag": "lt"
+ },
+ {
+  "tag": "hu",
+  "name": "Magyar",
+  "flag": "hu"
+ },
+ {
+  "tag": "nl",
+  "name": "Nederlands",
+  "flag": "nl"
+ },
+ {
+  "tag": "nb",
+  "name": "Norsk bokmål",
+  "flag": "no"
+ },
+ {
+  "tag": "pl",
+  "name": "Polski",
+  "flag": "pl"
+ },
+ {
+  "tag": "pt-BR",
+  "name": "Português (Brasil)",
+  "flag": "br"
+ },
+ {
+  "tag": "pt-PT",
+  "name": "Português (Portugal)",
+  "flag": "pt"
+ },
+ {
+  "tag": "ro",
+  "name": "Română",
+  "flag": "ro"
+ },
+ {
+  "tag": "sq",
+  "name": "Shqip",
+  "flag": "al"
+ },
+ {
+  "tag": "sk",
+  "name": "Slovenčina",
+  "flag": "sk"
+ },
+ {
+  "tag": "sl",
+  "name": "Slovenščina",
+  "flag": "si"
+ },
+ {
+  "tag": "sr-Latn",
+  "name": "Srpski (latinica)",
+  "flag": "rs"
+ },
+ {
+  "tag": "fi",
+  "name": "Suomi",
+  "flag": "fi"
+ },
+ {
+  "tag": "sv",
+  "name": "Svenska",
+  "flag": "se"
+ },
+ {
+  "tag": "vi",
+  "name": "Tiếng Việt",
+  "flag": "vn"
+ },
+ {
+  "tag": "tr",
+  "name": "Türkçe",
+  "flag": "tr"
+ },
+ {
+  "tag": "bg",
+  "name": "Български",
+  "flag": "bg"
+ },
+ {
+  "tag": "mk",
+  "name": "Македонски",
+  "flag": "mk"
+ },
+ {
+  "tag": "ru",
+  "name": "Русский",
+  "flag": "ru"
+ },
+ {
+  "tag": "sr",
+  "name": "Српски",
+  "flag": "rs"
+ },
+ {
+  "tag": "uk",
+  "name": "Українська",
+  "flag": "ua"
+ },
+ {
+  "tag": "el",
+  "name": "Ελληνικά",
+  "flag": "gr"
+ },
+ {
+  "tag": "hi",
+  "name": "हिन्दी",
+  "flag": "in"
+ },
+ {
+  "tag": "th",
+  "name": "ไทย",
+  "flag": "th"
+ },
+ {
+  "tag": "ko",
+  "name": "한국어",
+  "flag": "kr"
+ },
+ {
+  "tag": "ja",
+  "name": "日本語",
+  "flag": "jp"
+ },
+ {
+  "tag": "zh-Hans",
+  "name": "简体中文",
+  "flag": "cn"
+ },
+ {
+  "tag": "zh-Hant",
+  "name": "繁體中文",
+  "flag": "tw"
+ }
+]

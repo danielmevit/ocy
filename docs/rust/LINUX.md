@@ -160,13 +160,10 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
 
 ## 6. Break cards: never take focus, stay on top
 
-### X11 (implemented in `L2a` — pure helpers tested; live WM check pending)
+### X11 (implemented in `L2a`, pre-map focus fix in `L2f` — pure helpers tested; CI Xvfb/Openbox smoke pending)
 - `ocy_app::linux_window` (the Linux twin of `win32_window.rs`) + `damt_platform_linux::apply_x11_break_window_hints`:
-  - Before map: `WindowAttributesExtX11::with_x11_window_type(vec![WindowType::Notification])` and `.with_active(false)`.
-  - After winit window creation: extracts the X11 window ID from `raw-window-handle` (`Xlib` / `Xcb`) and uses a separate `x11rb` connection to set:
-    - `_NET_WM_WINDOW_TYPE` = `_NET_WM_WINDOW_TYPE_NOTIFICATION` (no taskbar entry, no Alt+Tab, WM keeps above);
-    - `_NET_WM_STATE` property and `_NET_WM_STATE` root `ClientMessage`s (`_NET_WM_STATE_ADD`): `_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`;
-    - ICCCM `WM_HINTS` `input = false` (never request keyboard focus) plus `_NET_WM_USER_TIME = 0` (suppress focus on initial map).
+  - Window attributes hook: `with_visible(false)`, `with_x11_window_type(vec![WindowType::Notification])`, and `.with_active(false)`. Note: `winit 0.30.13` leaves `with_active(false)` unsupported on X11 (`winit/src/window.rs`), and calling Slint `show()` before the winit window exists causes `WinitWindowAdapter::ensure_window` to map the window immediately upon creation before `install_break_window_role` can run.
+  - Pre-map hint sequence (`L2f`): on live winit X11, break cards and X11 overlays (`LinuxDimOverlay`, `LinuxEdgeFrameOverlay`) stay hidden until `Window::winit_window().await` resolves on the unmapped window; `apply_x11_break_window_hints` then writes `_NET_WM_WINDOW_TYPE` = `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), ICCCM `WM_HINTS` `input = false`, and `_NET_WM_USER_TIME = 0`, followed by `x11rb` `sync()` before `show()` maps the window. Break cards also register and `raise_x11_window_above` after overlays map so `LongBreakCard` always stacks above `LinuxDimOverlay`.
 - WM-dependent behaviour (e.g. tiling WMs like i3/sway) remains an inherent X11 caveat; needs a real X11 WM pass.
 - **Flatpak:** works through the X11 socket.
 
@@ -191,32 +188,55 @@ There is **no queryable global idle time on Wayland** — clients cannot see eac
     coordinates, no window list). Both are protocol-level, not a missing crate.
   - **Implemented in `L2a`:** `linux_window::enumerate_monitors` returns empty on Wayland; long-break and fullscreen short-break dims enumerate `winit` `available_monitors()` and open one borderless fullscreen click-through window per output. Small cards open as normal windows placed by the compositor; edge frames are dropped on Wayland.
 
-### L2a status — verified by tests vs. needs a real desktop check
+### L2a / L2f status — verified by tests vs. needs a real desktop check
 - **Verified by unit tests (`cargo test --workspace`):**
   - X11 vs. Wayland vs. Headless backend detection (`select_display_backend`, including `DISPLAY=:0` under Wayland).
-  - Window policy matrix (`LinuxWindowPolicy`), `WindowAttributePlan`, and `LinuxOverlayMode` selection.
+  - Window policy matrix (`LinuxWindowPolicy`), `WindowAttributePlan`, `should_defer_x11_show`, and `LinuxOverlayMode` selection.
   - Raw window handle X11 ID extraction (`Xlib` / `Xcb` -> `Some(u32)`, `Wayland` -> `None`).
-  - EWMH `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` atom merging (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), and `_NET_WM_STATE_ADD` `ClientMessage` packing.
+  - EWMH `_NET_WM_WINDOW_TYPE_NOTIFICATION`, `_NET_WM_STATE` atom merging (`_NET_WM_STATE_ABOVE`, `_NET_WM_STATE_SKIP_TASKBAR`, `_NET_WM_STATE_SKIP_PAGER`), `_NET_WM_STATE_ADD` `ClientMessage` packing, non-focus hint constants (`WM_HINTS.input=false`, `_NET_WM_USER_TIME=0`), and `x11_restack_above_target`.
   - `Xft.dpi` parsing, `_NET_WORKAREA` desktop indexing + monitor intersection, RandR primary-output resolution, and `X11MonitorInfo` -> `damt_overlay::MonitorInfo` conversion.
   - Wayland per-output dim window assignment (`plan_wayland_dim_outputs`).
   - Headless soak/integration lifecycle (`SlintBreakWindows` + `OverlayBreakWindows` creating and closing overlays with 0 leaked windows).
-- **Needs a real desktop check (not run here; no GUI launched in WSLg):**
-  - X11 (GNOME on X11, KDE on X11, XFCE, and a tiling WM like i3): confirm `_NET_WM_WINDOW_TYPE_NOTIFICATION` + `_NET_WM_STATE_ABOVE`/`SKIP_TASKBAR`/`SKIP_PAGER` + `WM_HINTS.input=false` keep break cards above, off the taskbar/Alt+Tab, clickable without stealing focus, placed on the active monitor's corner/centre, and XShape edge frames render transparently without capturing clicks.
-  - Wayland (GNOME Mutter and KDE KWin): confirm cards never steal focus (`with_active(false)`), `LinuxDimOverlay` goes borderless fullscreen on every connected `wl_output`, `set_cursor_hittest(false)` makes dims click-through, and `LongBreakCard` stacks above the dim window so "End break" is visible and clickable.
+- **CI smoke (`L3s` + `L2f`, `.github/workflows/linux-smoke.yml`):**
+  - `x11-smoke` launches `--demo-break short|warning|long`, `--demo-settings`, and `--report-memory` (asserting idle `private_mb` ≤ 15 MB) under `Xvfb` + `openbox` + a focused `xterm`, dumps `_NET_WM_WINDOW_TYPE`, `_NET_WM_STATE`, `WM_HINTS`, `_NET_WM_USER_TIME`, `WM_CLASS`, `_NET_WM_PID`, and `WM_NAME`, asserts no focus theft (`active_wid == xterm_wid`) and `long` card-above-dim stacking in `_NET_CLIENT_LIST_STACKING`, uploads screenshots/logs (`ocy-linux-smoke`), and runs a best-effort headless `weston` check for `--demo-break short`; `tarball` builds and uploads `Ocy-<version>-linux-x86_64.tar.gz` + `.sha256` (`ocy-linux-tarball`).
+  - Note: run `45059262177` caught X11 focus theft in `short`, `warning`, and `long` because `install_break_window_role` applied `WM_HINTS.input=false` and `_NET_WM_USER_TIME=0` after Slint had already mapped the window; `L2f` fixes this by applying and syncing the hints before the first map (CI re-run pending).
+  - **Still needs a real GNOME / KDE / multi-monitor desktop pass:**
+    - X11 (GNOME on X11, KDE on X11, XFCE, and a tiling WM like i3): confirm `_NET_WM_WINDOW_TYPE_NOTIFICATION` + `_NET_WM_STATE_ABOVE`/`SKIP_TASKBAR`/`SKIP_PAGER` + `WM_HINTS.input=false` keep break cards above, off the taskbar/Alt+Tab, clickable without stealing focus, placed on the active monitor's corner/centre, and XShape edge frames render transparently without capturing clicks.
+    - Wayland (GNOME Mutter and KDE KWin): confirm cards never steal focus (`with_active(false)`), `LinuxDimOverlay` goes borderless fullscreen on every connected `wl_output`, `set_cursor_hittest(false)` makes dims click-through, `LongBreakCard` stacks above the dim window so "End break" is visible and clickable, and SNI tray / Mutter idle / Background portal autostart work in a real desktop session.
 
 ## 8. Autostart
 
 - **Outside Flatpak (tarball):** write `~/.config/autostart/xyz.damt.ocy.desktop` per the autostart spec:
   https://specifications.freedesktop.org/autostart-spec/latest/ — the direct equivalent of the HKCU Run key.
-- **Inside Flatpak:** the app's `~/.config` is the sandbox's `~/.var/app/<id>/config`, which the desktop's
-  session **does not read** for autostart. The correct mechanism is the **Background portal**:
-  `org.freedesktop.portal.Background.RequestBackground` with `autostart=true` and a `reason`; `SetBackground`
-  clears it. The portal writes the autostart entry on the host side.
+- **Inside Flatpak (`L3a`, implemented; live GNOME/KDE portal pass pending):** the app's `~/.config` is the
+  sandbox's `~/.var/app/<id>/config`, which the desktop's session **does not read** for autostart. When
+  `FLATPAK_ID` is non-empty or `/.flatpak-info` exists, `LinuxAutostart` uses the **Background portal**:
+  `org.freedesktop.portal.Background.RequestBackground` over session D-Bus (`zbus` blocking API) with
+  `autostart: true/false`, `dbus-activatable: false`, `commandline: ["Ocy"]` (when enabling), and `reason`,
+  waiting up to 30 s for `org.freedesktop.portal.Request.Response` on the returned request object path and
+  mapping non-zero codes or `autostart: false` while enabling to `PlatformError`.
   Source: https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Background.html
-  Portals need no finish-args. **Unverified:** whether GNOME's and KDE's portal backends both honour
-  `autostart` (they are supposed to; the spike must toggle it on both).
-- The `AutostartService` implementation picks: portal when `FLATPAK_ID`/`container` says Flatpak, `.desktop`
-  file otherwise. `--autostart` argument handling stays as on Windows.
+  Portals need no finish-args.
+- **Limitation (`is_enabled()` in Flatpak):** `org.freedesktop.portal.Background` has no query method, so
+  `LinuxAutostart::is_enabled()` reads the last confirmed portal result cached in
+  `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (inside the sandbox) and reports `false` if none is stored.
+  External changes made in the host desktop's Settings will not be reflected in that cached file.
+  **Unverified:** whether GNOME's and KDE's portal backends both honour `autostart` in a live Flatpak session.
+- **Off the UI thread (`L3b`, implemented; state fixes `L3b2`):** the portal call blocks for up to 30 s (the desktop may show a
+  permission dialog), so Settings never calls it synchronously. `AutostartService::set_enabled_or_defer`
+  (default: plain `set_enabled`, `done` dropped) is overridden by `LinuxAutostart` in Flatpak mode: the portal
+  flow runs on a `std::thread` and `done(result)` is called from there (including the timeout); the state file
+  is written on success only, in that thread. The Settings state machine answers with `ChangeAction::
+  AutostartPending`, leaves the toggle where the user put it, and
+  applies the result via `on_autostart_result` when it arrives (marshaled back with
+  `slint::invoke_from_event_loop`). Each deferred request carries a monotonic id; a result whose id is not
+  the active pending request (window reload, or a stale request from before a close and reopen) is ignored.
+  While a request is pending, an edit to another control debounces normally but persists the last
+  *confirmed* `start_with_system`; flipping the toggle locks it back to the pending value (`AutostartLocked`,
+  no second request). If the window is closed when an `Ok` result arrives, the confirmed choice is persisted
+  through the normal save path (rule b), so `has_pending_changes` is never left stuck. Non-Flatpak paths are
+  unchanged.
+- Outside Flatpak, `--autostart` argument handling stays as on Windows.
 
 ## 9. Notifications
 
@@ -321,7 +341,9 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
 - Wayland: no-activation cards, fullscreen dim per output with click-through input region, no edge frames,
   no fullscreen deferral; tray via SNI; document the differences in the README/Flathub description.
 - `--report-memory`/smoke runs on Linux; budget checks (idle RAM ≤ 15 MB must hold — the Flatpak sandbox
-  adds nothing to the process itself).
+  adds nothing to the process itself). CI smoke + tarball build added in `.github/workflows/linux-smoke.yml` (`L3s`).
+- `L3s2`: the CI X11 job installs the dlopen runtime set (`libxkbcommon-x11-0` et al., run 45057118362 panicked
+  without it); `packaging/linux/README-LINUX.txt` documents the deb/rpm/arch runtime packages.
 **Effort:** 5–8 days.
 
 ### L4 — KDE pass
@@ -329,12 +351,24 @@ A scratch binary (not shipped) that prints, per session type (X11, GNOME Wayland
 **Effort:** 2–3 days (mostly hands-on; depends on L1 findings).
 
 ### L5 — Flatpak packaging + Flathub submission
-- Finalize `packaging/linux/` (manifest, .desktop, metainfo with releases/screenshots — Flathub requires
-  metainfo: https://docs.flathub.org/for-app-authors/metainfo-guidelines/), build with `flatpak-builder`
-  locally, test `--user` install on GNOME and KDE, submit: https://docs.flathub.org/for-app-authors/submission
-- **App ID risk:** Flathub requires control of the reverse-DNS domain. `xyz.damt.ocy` is the existing app ID
-  (Windows Store); whether `xyz.damt` satisfies Flathub's ownership check is **unverified** — resolve before
-  L5, or be ready to rename the Linux app ID (settings path would change; plan a migration).
+- **Done (`L5a`):**
+  - Finalized `packaging/linux/xyz.damt.ocy.yml` targeting `org.freedesktop.Platform` / `org.freedesktop.Sdk` `26.08` with `org.freedesktop.Sdk.Extension.rust-stable` (Rust 1.98.0, satisfying `rust/rust-toolchain.toml` `1.95.0`), offline `cargo --offline build --release --locked -p ocy-app`, `/app/bin/Ocy`, `.desktop`, metainfo, and hicolor icons (`64x64`, `128x128`, `256x256`, `512x512` rendered from SVG when `rsvg-convert` is present, and `scalable` SVG).
+  - Updated `packaging/linux/xyz.damt.ocy.desktop` (`Exec=Ocy`, `Icon=xyz.damt.ocy`, `StartupWMClass=Ocy` to match the X11 `WM_CLASS` emitted from `argv[0]`).
+  - Updated `packaging/linux/xyz.damt.ocy.metainfo.xml` (release `0.2.2`, OARS `1.1`, homepage, developer `Daniel Mevit`, and screenshots pointing at `main` raw URLs).
+  - Added `.github/workflows/linux-flatpak.yml` to validate `.desktop` + metainfo, generate `cargo-sources.json` via `flatpak-cargo-generator.py`, build the bundle, and upload artifact `ocy-linux-flatpak` (`Ocy-<version>-x86_64.flatpak`).
+- **Done (`L3a`):**
+  - **Wayland `app_id` / `StartupWMClass`:** `ocy-app` calls `slint::set_xdg_app_id(ocy_app::instance::APP_ID)` (`"xyz.damt.ocy"`) on Linux before creating the first window, setting `xdg_toplevel.app_id` on Wayland and `WM_CLASS = ("", "xyz.damt.ocy")` on X11 via winit 0.30; updated `StartupWMClass=xyz.damt.ocy` in `packaging/linux/xyz.damt.ocy.desktop`.
+  - **Flatpak autostart:** `LinuxAutostart` detects Flatpak (`FLATPAK_ID` or `/.flatpak-info`) and uses `org.freedesktop.portal.Background.RequestBackground` via `zbus` (blocking API, 30 s `Response` wait, `autostart` + `dbus-activatable: false` + `commandline: ["Ocy"]`), caching the last confirmed state in `$XDG_CONFIG_HOME/ocy/autostart-portal.state` (reports `false` if none stored; pure helpers unit-tested).
+- **Done (`L3b`):**
+  - **Portal off the UI thread:** `AutostartService::set_enabled_or_defer` (completion-style default method; the default is exactly `set_enabled`, so Windows/macOS/non-Flatpak Linux are unchanged) plus a `LinuxAutostart` override that runs the Flatpak portal flow on a `std::thread` and reports the result through `done`. The Settings state machine gained `ChangeAction::AutostartPending` and `on_autostart_result` (stale results ignored by request id; while pending, other-control edits debounce normally and a toggle flip locks back to the pending value), and the Slint backend marshals the result back with `slint::invoke_from_event_loop`. The Settings window no longer freezes while the portal permission dialog is open.
+- **Tester install (from the `ocy-linux-flatpak` CI artifact):**
+  ```sh
+  flatpak install --user ./Ocy-<version>-x86_64.flatpak
+  flatpak run xyz.damt.ocy
+  ```
+- **Still to do before Flathub submission:**
+  - **Commit `cargo-sources.json`:** CI generates `packaging/linux/cargo-sources.json` dynamically from `rust/Cargo.lock`; Flathub builds offline from the manifest repo and will require `cargo-sources.json` to be committed alongside the manifest.
+  - **Desktop testing & Flathub review:** test `--user` install and runtime behaviour on GNOME and KDE (including dock/taskbar matching via `xyz.damt.ocy`, Background portal autostart toggle, `org.gnome.Mutter.IdleMonitor`, and `org.freedesktop.login1` sandbox permissions), run `flatpak-builder-lint`, verify screenshot `width`/`height` attributes, and resolve `xyz.damt.ocy` reverse-DNS domain proof before submitting: https://docs.flathub.org/for-app-authors/submission
 **Effort:** 2–3 days plus review wait.
 
 ## 15. Honest effort estimate

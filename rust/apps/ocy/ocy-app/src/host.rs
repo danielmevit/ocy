@@ -393,11 +393,22 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
         let snapshot = self.engine.snapshot();
         self.sync_coordinator_for_snapshot(&snapshot);
+        // On macOS the Settings window activates the app and makes itself key when shown
+        // (`slint_settings` calls `macos_window::activate_settings_window`).
         self.coordinator.show_settings();
     }
 
     /// Applies updated settings to the engine and persists them via [`AppDataStore::save_settings`].
     /// Returns `false` (and logs the error) if persistence fails.
+    /// Saves a crash-report consent chosen on the crash card ("Don't ask again"): a copy of the
+    /// in-memory settings with only `crash_reports` changed, through [`Self::save_settings`], so
+    /// the consent mirror, the open Settings window and `settings.json` all follow.
+    pub fn save_crash_consent(&mut self, consent: ocy_core::settings::CrashReportsConsent) -> bool {
+        let mut updated = self.engine.settings().clone();
+        updated.crash_reports = consent;
+        self.save_settings(updated)
+    }
+
     pub fn save_settings(&mut self, updated: OcySettings) -> bool {
         if self.shut_down {
             return false;
@@ -406,6 +417,14 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
         let events = self.engine.update_settings(updated);
         let snapshot = self.engine.snapshot();
         let live_settings = self.engine.settings().clone();
+        // The in-memory settings are the single source of truth for usage-stats consent:
+        // keep the analytics record and the sender's consent mirror in step after every
+        // save. `apply_consent_from_settings` is a no-op without an installed manager.
+        crate::usage_stats::apply_consent_from_settings(&live_settings);
+        // Same single-source-of-truth wiring for crash-report consent (a completely
+        // separate consent): mirror it, refresh the scrubber, and on `Never` drop pending
+        // reports. A no-op without an installed crash store.
+        crate::crash_reports::apply_crash_consent_from_settings(&live_settings);
         if live_settings.language != self.last_language_setting {
             self.last_language_setting = live_settings.language.clone();
             self.tray.set_language(&live_settings.language);

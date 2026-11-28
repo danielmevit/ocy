@@ -14,6 +14,9 @@ mod macos;
 
 #[cfg(target_os = "macos")]
 pub use macos::{
-    MacActiveScreen, MacAppTheme, MacAutostart, MacFocus, MacForeground, MacIdle, MacMotion,
-    MacPlatform, MacSessionEvents, MacTaskbarTheme,
+    MacActiveScreen, MacAppTheme, MacAutostart, MacFocus, MacForeground, MacIdle, MacMonitorInfo,
+    MacMotion, MacPlatform, MacSessionEvents, MacTaskbarTheme, MacTrayConfig, MacTrayHandle,
+    query_mac_monitors,
 };
+#[cfg(target_os = "macos")]
+pub use pure::{MacTrayAction, MacTrayIconState, MacTrayMenuItem, MacTrayPresentation};

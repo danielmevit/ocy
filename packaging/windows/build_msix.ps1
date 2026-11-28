@@ -6,6 +6,7 @@
 
     Usage:
         powershell -ExecutionPolicy Bypass -File packaging\windows\build_msix.ps1 -Store
+        powershell -ExecutionPolicy Bypass -File packaging\windows\build_msix.ps1 -Store -PdbPath C:\path\to\Ocy.pdb
         powershell -ExecutionPolicy Bypass -File packaging\windows\build_msix.ps1 -SignForSideload C:\path\to\test.pfx
 #>
 param(
@@ -13,6 +14,7 @@ param(
     [string]$NoticesPath,
     [string]$SignForSideload,
     [string]$CertPassword,
+    [string]$PdbPath,
     [switch]$Store,
     [switch]$SkipBuild
 )
@@ -24,6 +26,9 @@ Push-Location $root
 try {
     if ($Store -and $SignForSideload) {
         Write-Error "Cannot combine -Store and -SignForSideload: Microsoft Store packages must be uploaded unsigned."
+    }
+    if ($PdbPath -and -not $Store) {
+        Write-Error "-PdbPath is only supported with -Store."
     }
 
     # -- 1. Version from rust/Cargo.toml --
@@ -219,7 +224,48 @@ try {
         Write-Error "makeappx pack failed"
     }
 
-    # -- 8. Optional local sideload signing --
+    # -- 8. Optional Store symbol packages --
+    if ($Store -and $PdbPath) {
+        $resolvedPdb = Resolve-Path $PdbPath -ErrorAction Stop
+        $pdbFile = Get-Item $resolvedPdb
+
+        $appxsymPath = Join-Path $outDir "Ocy-$rawVersion-store.appxsym"
+        $msixuploadPath = Join-Path $outDir "Ocy-$rawVersion-store.msixupload"
+        $appxsymStage = Join-Path $outDir "_appxsym"
+        $uploadStage = Join-Path $outDir "_msixupload"
+        foreach ($path in @($appxsymStage, $uploadStage)) {
+            if (Test-Path $path) {
+                Remove-Item $path -Recurse -Force
+            }
+        }
+        foreach ($path in @($appxsymPath, $msixuploadPath)) {
+            if (Test-Path $path) {
+                Remove-Item $path -Force
+            }
+        }
+
+        New-Item -ItemType Directory -Path $appxsymStage -Force | Out-Null
+        Copy-Item $pdbFile.FullName (Join-Path $appxsymStage "Ocy.pdb")
+        # Microsoft Partner Center package upload accepts a .msixupload containing
+        # the unsigned .msix and a .appxsym symbol package.
+        # Format reference: https://learn.microsoft.com/en-us/windows/apps/publish/upload-app-packages
+        # Compress-Archive only writes .zip: zip first, then rename to .appxsym.
+        Compress-Archive -Path (Join-Path $appxsymStage "*") -DestinationPath "$appxsymPath.zip" -Force
+        Move-Item -LiteralPath "$appxsymPath.zip" -Destination $appxsymPath -Force
+
+        New-Item -ItemType Directory -Path $uploadStage -Force | Out-Null
+        Copy-Item $msixPath (Join-Path $uploadStage (Split-Path $msixPath -Leaf))
+        Copy-Item $appxsymPath (Join-Path $uploadStage (Split-Path $appxsymPath -Leaf))
+        Compress-Archive -Path (Join-Path $uploadStage "*") -DestinationPath "$msixuploadPath.zip" -Force
+        Move-Item -LiteralPath "$msixuploadPath.zip" -Destination $msixuploadPath -Force
+
+        Remove-Item $appxsymStage -Recurse -Force
+        Remove-Item $uploadStage -Recurse -Force
+        Write-Host "[ok] Store symbols: $appxsymPath" -ForegroundColor Green
+        Write-Host "[ok] Store upload package: $msixuploadPath" -ForegroundColor Green
+    }
+
+    # -- 9. Optional local sideload signing --
     if ($SignForSideload) {
         if (-not (Test-Path $signtool)) {
             Write-Error "signtool.exe not found at $signtool"

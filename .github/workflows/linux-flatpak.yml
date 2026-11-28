@@ -1,0 +1,149 @@
+name: Linux Flatpak
+
+# Builds an installable Flatpak bundle for Linux testers using flatpak-builder.
+# See docs/rust/LINUX.md §14 L5.
+on:
+  push:
+    branches: ["dev", "main"]
+    paths:
+      - "rust/**"
+      - "packaging/linux/**"
+      - "assets/icons/**"
+      - "content/strings/**"
+      - ".github/workflows/linux-flatpak.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  flatpak:
+    name: Flatpak (x86_64)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Read app version
+        id: meta
+        shell: bash
+        run: |
+          version=$(python3 - <<'PY'
+          import pathlib, tomllib
+          ws = tomllib.loads(pathlib.Path("rust/Cargo.toml").read_text(encoding="utf-8"))
+          print(ws["workspace"]["package"]["version"])
+          PY
+          )
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate desktop entry and AppStream metainfo
+        shell: bash
+        run: |
+          desktop-file-validate packaging/linux/xyz.damt.ocy.desktop
+          appstreamcli validate --no-net packaging/linux/xyz.damt.ocy.metainfo.xml
+
+      - name: Generate vendored Cargo sources
+        shell: bash
+        env:
+          GENERATOR_COMMIT: 9d86d336a39b9af38b86f114b6ce5820fe260f91
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${GENERATOR_COMMIT}/cargo/flatpak-cargo-generator.py" -o /tmp/flatpak-cargo-generator.py
+          python3 -m venv /tmp/flatpak-cargo-venv
+          /tmp/flatpak-cargo-venv/bin/pip install --no-cache-dir "aiohttp>=3.9.5,<4.0.0" "tomlkit>=0.13.3,<1.0"
+          /tmp/flatpak-cargo-venv/bin/python /tmp/flatpak-cargo-generator.py rust/Cargo.lock -o packaging/linux/cargo-sources.json
+          rm -rf /tmp/flatpak-cargo-venv /tmp/flatpak-cargo-generator.py
+
+      - name: Inject PostHog key into the Flatpak manifest
+        # flatpak-builder does not pass host env into the sandboxed build, and the manifest is
+        # static. Only when the secret is non-empty, write the key into the ocy module's
+        # build-options.env of the runner's workspace copy of the manifest (never committed).
+        # The key is read from the environment only; never echoed, never inline in the script.
+        shell: bash
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OCY_POSTHOG_KEY:-}" ]; then
+            echo "OCY_POSTHOG_KEY is not set; building the Flatpak bundle without a usage stats key."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os
+          import pathlib
+
+          manifest_path = pathlib.Path("packaging/linux/xyz.damt.ocy.yml")
+          key = os.environ["OCY_POSTHOG_KEY"]
+          text = manifest_path.read_text(encoding="utf-8")
+
+          try:
+              import yaml
+          except ImportError:
+              yaml = None
+
+          if yaml is not None:
+              data = yaml.safe_load(text)
+              module = next(m for m in data["modules"] if m.get("name") == "ocy")
+              options = module.setdefault("build-options", {})
+              env = options.setdefault("env", {})
+              if isinstance(env, dict):
+                  env["OCY_POSTHOG_KEY"] = key
+              elif isinstance(env, list):
+                  options["env"] = [
+                      entry for entry in env if not entry.startswith("OCY_POSTHOG_KEY=")
+                  ] + [f"OCY_POSTHOG_KEY={key}"]
+              else:
+                  raise SystemExit("ocy module build-options.env is neither a mapping nor a list")
+              manifest_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+          else:
+              import re
+
+              if re.fullmatch(r"[A-Za-z0-9_\-]+", key) is None:
+                  raise SystemExit("OCY_POSTHOG_KEY has characters that cannot be written safely")
+              lines = text.splitlines(keepends=True)
+              matches = [
+                  index
+                  for index, line in enumerate(lines)
+                  if line.strip() == 'CARGO_NET_OFFLINE: "true"'
+              ]
+              if len(matches) != 1:
+                  raise SystemExit("did not find the ocy module env block exactly once")
+              anchor = lines[matches[0]]
+              indent = anchor[: len(anchor) - len(anchor.lstrip())]
+              lines.insert(matches[0] + 1, f"{indent}OCY_POSTHOG_KEY: \"{key}\"\n")
+              manifest_path.write_text("".join(lines), encoding="utf-8")
+          PY
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/linux/xyz.damt.ocy.yml
+          bundle: Ocy-${{ steps.meta.outputs.version }}-x86_64.flatpak
+          branch: stable
+          upload-artifact: false
+
+      - name: Check the binary for leaked build-machine paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          # flatpak-github-actions builds into flatpak_app/ (default build-dir); the app
+          # binary lands at files/bin/Ocy per the manifest's install command.
+          BIN="$(find flatpak_app -type f -path '*/files/bin/Ocy' 2>/dev/null | head -n 1)"
+          if [ -z "$BIN" ]; then
+            BIN="$(find . -type f -path '*/files/bin/Ocy' -not -path './.git/*' 2>/dev/null | head -n 1)"
+          fi
+          test -n "$BIN"
+          python3 rust/tools/path_leak_check.py "$BIN"
+
+      - name: Upload Flatpak bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ocy-linux-flatpak
+          path: Ocy-${{ steps.meta.outputs.version }}-x86_64.flatpak
+          if-no-files-found: error

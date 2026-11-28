@@ -1,8 +1,7 @@
 //! Run this twice. The first process waits for signals; the second signals it and exits.
 //!
-//! On Windows the first process prints `signal received` when the second launch happens. On other
-//! platforms the single-instance exclusion works through the lock file, but the signal channel is not
-//! implemented yet, so the first process keeps waiting.
+//! On Windows the signal travels through a named event. On other platforms the exclusion works
+//! through a lock file and the signal through a Unix domain socket (when it could be bound).
 
 use std::time::Duration;
 

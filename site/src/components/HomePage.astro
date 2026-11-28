@@ -4,7 +4,7 @@ import ExerciseMascot from './ExerciseMascot.astro';
 import ArtFrame from './ArtFrame.astro';
 import { STORE_URL, readAppVersion, readExercises } from '../lib/ocyData';
 import { readPngSize } from '../lib/pngSize';
-import { pageAbsoluteUrl, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
+import { pageAbsoluteUrl, pageHref, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
 import trayActiveL from '../../../assets/icons/tray/light/tray-active.svg?url';
 import trayPausedL from '../../../assets/icons/tray/light/tray-paused.svg?url';
 import trayBreakL from '../../../assets/icons/tray/light/tray-onbreak.svg?url';
@@ -13,6 +13,7 @@ import trayActiveD from '../../../assets/icons/tray/dark/tray-active.svg?url';
 import trayPausedD from '../../../assets/icons/tray/dark/tray-paused.svg?url';
 import trayBreakD from '../../../assets/icons/tray/dark/tray-onbreak.svg?url';
 import trayAttnD from '../../../assets/icons/tray/dark/tray-attention.svg?url';
+import { USAGE_STATS_IN_RELEASE } from '../lib/release';
 
 interface Props {
   lang: string;
@@ -136,13 +137,19 @@ const defaultsRows = [
 
 const install1Parts = splitTemplateParts(rawTemplate(lang, 'home.install.1.body'));
 const faq3Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.3.a'));
+const faq12Key = USAGE_STATS_IN_RELEASE ? 'home.faq.12.a' : 'home.faq.12.aCrashOnly';
+const faq12Parts = splitTemplateParts(rawTemplate(lang, faq12Key));
+const faq13Parts = splitTemplateParts(rawTemplate(lang, 'home.faq.13.a'));
+const privacyHref = pageHref(import.meta.env.BASE_URL, lang, 'privacy');
+const usageStatsHref = `${privacyHref}#${USAGE_STATS_IN_RELEASE ? 'usage-stats' : 'crash-reports'}`;
+const crashReportsHref = `${privacyHref}#crash-reports`;
 
-const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostart' }> = [
+const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostart' | 'data' | 'crash' }> = [
   { id: 1, q: t(lang, 'home.faq.1.q'), a: t(lang, 'home.faq.1.a') },
   {
     id: 2,
     q: t(lang, 'home.faq.2.q'),
-    a: t(lang, 'home.faq.2.a'),
+    a: t(lang, USAGE_STATS_IN_RELEASE ? 'home.faq.2.a' : 'home.faq.2.aCrashOnly'),
   },
   {
     id: 3,
@@ -154,7 +161,19 @@ const faqs: Array<{ id: number; q: string; a: string; kind?: 'table' | 'autostar
   { id: 5, q: t(lang, 'home.faq.5.q'), a: t(lang, 'home.faq.5.a') },
   { id: 6, q: t(lang, 'home.faq.6.q'), a: t(lang, 'home.faq.6.a') },
   { id: 7, q: t(lang, 'home.faq.7.q'), a: t(lang, 'home.faq.7.a') },
-  { id: 8, q: t(lang, 'home.faq.8.q'), a: t(lang, 'home.faq.8.a') },
+  { id: 8, q: t(lang, 'home.faq.8.q'), a: t(lang, USAGE_STATS_IN_RELEASE ? 'home.faq.8.a' : 'home.faq.8.aCrashOnly') },
+  {
+    id: 12,
+    q: t(lang, 'home.faq.12.q'),
+    a: t(lang, faq12Key, { link: t(lang, 'home.faq.12.link') }),
+    kind: 'data',
+  },
+  {
+    id: 13,
+    q: t(lang, 'home.faq.13.q'),
+    a: t(lang, 'home.faq.13.a', { link: t(lang, 'home.faq.13.link') }),
+    kind: 'crash',
+  },
   { id: 9, q: t(lang, 'home.faq.9.q'), a: t(lang, 'home.faq.9.a') },
   { id: 10, q: t(lang, 'home.faq.10.q'), a: t(lang, 'home.faq.10.a') },
   { id: 11, q: t(lang, 'home.faq.11.q'), a: t(lang, 'home.faq.11.a') },
@@ -208,10 +227,11 @@ const faqLd = {
       </div>
       <div class="hero-cta">
       <div class="btn-row">
-        <a class="btn btn-accent btn-store" data-label="Microsoft Store" aria-label={t(lang, 'home.hero.storeCta')} href={STORE_URL}><span class="store-row"><img class="store-logo" src="/ms-store.svg" alt="" width="20" height="20" />Microsoft Store</span></a>
+        <a class="btn btn-accent btn-store store-only" data-label="Microsoft Store" aria-label={t(lang, 'home.hero.storeCta')} href={STORE_URL}><span class="store-row"><img class="store-logo" src="/ms-store.svg" alt="" width="20" height="20" />Microsoft Store</span></a>
+        <span class="btn btn-play play-only" role="img" aria-label={t(lang, 'play.soonAria')}><img src="/google-play.svg" alt="" width="20" height="20" />{t(lang, 'play.soon')}</span>
         <a class="btn btn-outline" href="#works">{t(lang, 'nav.howItWorks')}</a>
       </div>
-      <p class="hero-trial">{t(lang, 'home.hero.trial')}</p>
+      <p class="hero-trial store-only">{t(lang, 'home.hero.trial')}</p>
       </div>
       <p class="hero-meta">
         {t(lang, 'home.hero.meta', { version })}
@@ -461,6 +481,26 @@ const faqLd = {
                     <strong>{t(lang, 'home.faq.3.setting')}</strong>
                   ) : part.name === 'appdata' ? (
                     <code>%APPDATA%\Ocy</code>
+                  ) : null
+                )}
+              </p>
+            ) : item.kind === 'data' ? (
+              <p>
+                {faq12Parts.map((part) =>
+                  part.type === 'text' ? (
+                    part.value
+                  ) : part.name === 'link' ? (
+                    <a href={usageStatsHref}>{t(lang, 'home.faq.12.link')}</a>
+                  ) : null
+                )}
+              </p>
+            ) : item.kind === 'crash' ? (
+              <p>
+                {faq13Parts.map((part) =>
+                  part.type === 'text' ? (
+                    part.value
+                  ) : part.name === 'link' ? (
+                    <a href={crashReportsHref}>{t(lang, 'home.faq.13.link')}</a>
                   ) : null
                 )}
               </p>

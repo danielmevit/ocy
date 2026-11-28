@@ -40,14 +40,25 @@ const allKnownKeys = Array.from(
   ])
 );
 
+// Missing translations are grouped per key, so "new English keys not translated yet" reads as one clear list.
+const missingByKey = new Map();
 for (const lang of langs) {
   if (lang === 'en') continue;
   const table = JSON.parse(fs.readFileSync(path.join(i18nDir, `${lang}.json`), 'utf8'));
   for (const key of enKeys) {
     if (typeof table[key] !== 'string' || table[key].trim() === '') {
-      fail(`${lang}.json is missing or empty for key "${key}"`);
+      if (!missingByKey.has(key)) missingByKey.set(key, []);
+      missingByKey.get(key).push(lang);
     }
   }
+}
+const otherLangCount = langs.filter((l) => l !== 'en').length;
+for (const [key, missingLangs] of missingByKey) {
+  fail(
+    missingLangs.length === otherLangCount
+      ? `translation missing: "${key}" is in en.json but in none of the other ${otherLangCount} languages`
+      : `translation missing: "${key}" in ${missingLangs.map((l) => `${l}.json`).join(', ')}`
+  );
 }
 
 function distFileFor(lang, pageType) {

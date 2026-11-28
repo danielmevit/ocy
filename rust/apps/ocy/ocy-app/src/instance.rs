@@ -91,7 +91,11 @@ where
 /// or `--soak`) is active.
 #[must_use]
 pub const fn is_probe_mode(cli: &CliArgs) -> bool {
-    cli.demo_break.is_some() || cli.demo_settings || cli.report_memory || cli.soak_cycles.is_some()
+    cli.demo_break.is_some()
+        || cli.demo_settings
+        || cli.report_memory
+        || cli.soak_cycles.is_some()
+        || cli.demo_crash_card.is_some()
 }
 
 /// Resolves the `app_id` passed to `damt_app::SingleInstance::acquire` for the given CLI flags,

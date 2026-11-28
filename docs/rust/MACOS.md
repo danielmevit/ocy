@@ -143,6 +143,58 @@ check on hardware:
 **Effort:** 3-6 engineering weeks for a first usable implementation, including UI
 and native integration/debugging.
 
+#### M2 status (implemented; compile-checked only — needs a Mac check)
+
+Nobody in this workspace has a Mac, so **every runtime behaviour below is compile-checked
+for `aarch64-apple-darwin` and unit-tested only in pure Rust on Linux; everything needs a
+Mac check on real hardware**.
+
+| Surface | Implementation | Compile-only vs tested | Honest limitation / check needed |
+| --- | --- | --- | --- |
+| Menu-bar icon (`NSStatusItem` + `NSMenu`) | `damt-platform-mac/src/macos/tray.rs` (`MacTrayHandle`) + `MacTraySink` in `ocy-app/src/main.rs`, behind `cfg(target_os = "macos")`. Mirrors `TrayPresenter` (`tray.rs`): all 10 items + 2 separators, visibility, enabled flags, checkmarks, tooltip, and `HoldUntilGameCloses`. Uses `menu.setAutoenablesItems(false)` and `MacTrayTarget` (`define_class!`). | Menu ordering, item visibility/enabled rules, action tags, and black+alpha `32x32` PNG template mask derivation are unit-tested on Linux (`damt-platform-mac/tests/pure.rs`). AppKit calls are **compile-checked only**. | Template icons are rendered at `16x16` pt (`32x32` px @2x) with `setTemplate(true)` — verify crispness and light/dark menu-bar tinting on Retina and 1x displays. |
+| Break cards, dims, and edge frames (`NSWindow`) | `ocy-app/src/macos_window.rs`: pre-creation winit attributes (`with_active(false)`, `AlwaysOnTop`, borderless/transparent/no-shadow for overlays) + post-creation `RawWindowHandle::AppKit` → `NSView` → `NSWindow` setup (`setLevel`, `setCollectionBehavior(CanJoinAllSpaces \| FullScreenAuxiliary \| Stationary)`, `setIgnoresMouseEvents`, `orderFrontRegardless`). Levels come from `damt_platform_mac::pure::window_level_for_role`: `BreakCard` = `1001` (`NSScreenSaverWindowLevel + 1`), `Dim` = `1000` (`NSScreenSaverWindowLevel`), `EdgeFrame` = `3` (`NSFloatingWindowLevel`), `Normal` = `0` (`NSNormalWindowLevel`). | Window-level mapping and ordering (`BreakCard > Dim > Normal`, `EdgeFrame < BreakCard`), collection-behavior bitmask, `AppKit` handle extraction, and `MonitorInfo` mapping are unit-tested on Linux (`damt-platform-mac/tests/pure.rs` + `macos_window::tests`). AppKit calls are **compile-checked only**. | **Focus / `makeKeyAndOrderFront` / `canBecomeKeyWindow` check needed:** Slint's `card.show()` (`i-slint-backend-winit 1.19`) delegates to `winit::Window::set_visible(true)`, which in `winit 0.30` unconditionally calls `NSWindow::makeKeyAndOrderFront(None)` (ignoring `with_active(false)` because Slint strips `visible = false` during `ensure_window`), and `winit`'s `WinitWindow` subclass overrides `canBecomeKeyWindow` / `canBecomeMainWindow` to return `true` unconditionally (`NSWindow` has no non-subclassing setter, and `NonactivatingPanel` applies only to `NSPanel`). `apply_ns_window_policy` installs the role and calls `orderFrontRegardless()` with `ActivationPolicy::Accessory` and `with_activate_ignoring_other_apps(false)`. Verify on macOS whether `makeKeyAndOrderFront` / `canBecomeKeyWindow == true` ever steals focus or key status (both while another app is active and while Ocy's Settings/menu is active); if it does, a custom `WinitWindow`/`NSPanel` subclass or Objective-C swizzle will be required. Also visually confirm `BreakCard` (`1001`) renders cleanly in front of `Dim` (`1000`). |
+| Active screen & multi-display placement | `MacActiveScreen` uses `NSEvent::mouseLocation` against `NSScreen::screens` (fallback `mainScreen` / `CGMainDisplayID`). `query_mac_monitors` reads `NSScreen::frame`, `visibleFrame` (excluding menu bar & Dock), and `backingScaleFactor` → DPI, flipping AppKit bottom-left coordinates to CG top-left physical pixels. `MacosOverlays` shows dims across all displays and edge frames on non-active displays. | AppKit-to-CG coordinate flip, Retina/mixed-DPI scaling, and point-in-screen selection are unit-tested on Linux. Live `NSScreen` queries are **compile-checked only**. | Verify mixed-DPI secondary display positioning (`winit` `set_outer_position` scales by the window's current `scale_factor`). |
+| No Dock icon | `configure_event_loop_builder` sets `ActivationPolicy::Accessory` and `with_activate_ignoring_other_apps(false)` on winit's `EventLoopBuilder`, and `ensure_accessory_activation_policy()` sets `NSApplicationActivationPolicy::Accessory` at startup. | Policy choice helper tested on Linux; AppKit/winit calls are **compile-checked only**. | `LSUIElement = true` in `Info.plist` still comes with `.app` bundling in M3. |
+| Autostart (`SMAppService.mainApp`) | `damt-platform-mac/src/macos/autostart.rs` (`MacAutostart`) links `ServiceManagement`, checks `NSProcessInfo.operatingSystemVersion().majorVersion >= 13` and `AnyClass::get(c"SMAppService")`, and calls `mainAppService` `status` / `registerAndReturnError:` / `unregisterAndReturnError:`. Reports `is_supported() == false` on macOS 12 and earlier. | Version check (`>= 13` + class presence) and `SMAppServiceStatus` mapping (`0..=3`) are unit-tested on Linux. Objective-C `msg_send!` calls are **compile-checked only**. | `SMAppService.mainApp` registration requires a bundled `.app` (M3); unbundled `cargo run` may surface a LaunchServices error in Settings. |
+| Deferred to M2 follow-up / M3 | `MacFocus` (`CGWindowListCopyWindowInfo` fullscreen heuristic), `UNUserNotificationCenter` (`STATUS_NOTIFICATIONS_SHIPPED` is still `false` everywhere, and `UNUserNotificationCenter` requires a bundled `.app`), `.app` bundle + `LSUIElement` + single-instance second-launch activation. | — | See M3 and `M1` limitation notes. |
+
+#### Manual test checklist for a Mac tester (M2 acceptance)
+
+First run `cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked` natively on macOS, then launch Ocy (`cargo run -p ocy-app` and, once M3 exists, the bundled `Ocy.app`) and verify every item:
+
+1. **No Dock icon & non-stealing startup:**
+   - Launch Ocy while Terminal/Finder is active. Confirm **no Dock icon** appears, no app switcher (`Cmd-Tab`) entry appears, and Terminal/Finder keeps keyboard focus.
+2. **Menu-bar icon & menu parity:**
+   - Confirm the Ocy sprout template icon appears in the menu bar and adapts cleanly to both Light and Dark menu bars (and wallpaper tinting) on Retina and 1x displays.
+   - Click the menu-bar icon: confirm all items match `TrayPresenter` (`Take short break now`, `Take long break now`, `Pause for 1 hour`, `Pause for 3 hours`, `Pause until resumed`, `Settings`, `Quit`, plus `Pause status` and `Resume` while paused).
+   - While paused (1h / 3h / until resumed), confirm the pause status line shows as disabled/non-clickable, the matching pause option shows a checkmark, `Resume` appears and works, and the menu-bar icon switches to the paused/on-break/attention states.
+   - With a known game running in front (not on the silent list), confirm `Hold breaks until I close this game` appears, works when clicked, and hides otherwise.
+3. **Focus never stolen (short break, warning, long break):**
+   - Type continuously in TextEdit or Terminal while triggering `--demo-break short`, `--demo-break warning`, and `--demo-break long` (or "Take short/long break now").
+   - Confirm Ocy never becomes the active menu-bar application, your cursor/typing in TextEdit/Terminal is uninterrupted, and clicking buttons on the break card (`End break`, `Postpone`, `Start now`, `Not during this game`) works without needing to click twice to focus first.
+   - **Check `makeKeyAndOrderFront` / `canBecomeKeyWindow`:** Slint's `card.show()` calls winit `makeKeyAndOrderFront(None)` and `WinitWindow::canBecomeKeyWindow` returns `true` (cannot be overridden without subclassing/swizzling). Trigger a break both while another app is active AND while Ocy's Settings window or menu-bar menu is open, and confirm whether the break card ever steals key focus or activates Ocy unexpectedly.
+4. **Cards over fullscreen apps, Spaces, and Mission Control:**
+   - Open a native macOS fullscreen app (e.g. Safari, Keynote, or a video player in its own fullscreen Space).
+   - Trigger a short break, warning, and long break: confirm the card (and dim/edge frames) appear **over the fullscreen app** without switching Spaces back to the desktop.
+   - Swipe between Spaces (`Ctrl-Left/Right`) and open Mission Control (`Ctrl-Up`): confirm cards stay stationary across Spaces (`canJoinAllSpaces | stationary | fullScreenAuxiliary`) and do not break Mission Control.
+5. **Dims, click-through, and z-order:**
+   - During a long break (or short break with fullscreen dim enabled), confirm the dim (`NSScreenSaverWindowLevel` = `1000`) covers the screen(s) including menu bar/Dock area, mouse clicks pass through the dim (`ignoresMouseEvents = true`), and the `LongBreakCard` / `ShortBreakCard` (`1001`, `NSScreenSaverWindowLevel + 1`) renders crisply **in front of** the dim (not darkened behind it), while `EdgeFrame` (`NSFloatingWindowLevel` = `3`) stays below cards.
+   - Confirm `Cmd-Q` / `Cmd-W` / red close button cannot dismiss a break card while a break is active (`should_allow_close` guard).
+6. **Multiple displays:**
+   - Connect an external monitor (ideally mixed DPI, e.g. Retina built-in + 1x/1.5x external).
+   - Move the mouse cursor to the built-in display and trigger a short break: confirm the card opens in the bottom-right work area (above Dock, below menu bar) of the built-in display, and the external display shows the click-through accent edge frame (clicks pass through the frame to windows underneath).
+   - Move the mouse cursor to the external display and repeat: confirm the card opens on the external display and the edge frame moves to the built-in display.
+   - **Edge strips (M5, not covered by CI; the runner has one display):** on the non-active display, confirm the edge frame is four thin translucent accent strips (top, bottom, left, right) at the configured thickness on both Retina and 1x displays, with no darker corners (strips must not overlap), no black or opaque full-screen window, clicks passing through every strip, and the strips disappearing when the break ends.
+   - Trigger a long break: confirm dims cover **both** displays and the long-break card is centered on the active display.
+7. **Settings window & login item (`SMAppService.mainApp`):**
+   - **Settings activation:** open Settings from the menu-bar icon; typing goes to Settings without clicking it (confirm Ocy becomes the active menu-bar app, the Settings window comes to the front over other windows and centers on the active display's work area, and keyboard input such as `Tab`/`Esc` works immediately). Also verify re-activating an already-open Settings window from the menu-bar item, and test launching a second copy (single-instance signal).
+   - On macOS 13+ (with a bundled `.app` once M3 is ready): toggle `Start with system`, confirm it appears under System Settings → General → Login Items, toggle off and confirm removal, and test reboot/re-login auto-launch. On unbundled `cargo run`, confirm any LaunchServices error is surfaced gracefully in the UI without crashing.
+   - On macOS 12 or earlier (if available): confirm `Start with system` is hidden/unsupported (`AutostartService::is_supported() == false`).
+8. **Sleep, wake, and screen lock:**
+   - Lock screen (`Ctrl-Cmd-Q`), wait > `awayThreshold`, unlock: confirm away/absence crediting behaves properly and menu-bar countdown updates.
+   - Sleep (lid close or Apple menu → Sleep) and wake: confirm `Suspending`/`Resumed` events update timers cleanly without stuck break overlays or crashes.
+   - Quit from the menu-bar `Quit` item: confirm the status item disappears cleanly with no crash on exit.
+
 ### M3: unsigned community release
 - Create `.app` bundling, zip/DMG, checksums, release instructions, and smoke scripts.
 - Add architecture-specific builds and test on Intel and Apple Silicon Macs.
@@ -150,6 +202,96 @@ and native integration/debugging.
   signing/notarization becomes a release requirement.
 
 **Effort:** 1-3 engineering weeks; depends heavily on packaging and hardware coverage.
+
+#### M3 status (CI packaging implemented; hardware acceptance pending)
+
+The macOS packaging workflow builds `aarch64-apple-darwin` and `x86_64-apple-darwin`
+release binaries, merges them with `lipo`, creates `Ocy.app`, ad-hoc signs it, and
+publishes an unsigned universal zip plus SHA-256 checksum. The app uses the
+`xyz.damt.ocy` bundle identifier and the menu-bar-only `LSUIElement` setting.
+
+CI smoke runs on `macos-latest` and proves:
+
+- short, warning, and long-break demo cards create on-screen Ocy windows;
+- short and warning cards do not take frontmost-app focus;
+- long-break dim and card layers follow the 1000/1001 separation;
+- settings launches an on-screen window in `--demo-settings` mode, and the probe records the frontmost app (emitting a `::warning::` if Ocy is not frontmost, without failing — see M5c below);
+- short and warning card margins are checked against a solid CI backdrop;
+- window probe JSON and optional screenshots are retained as artifacts.
+
+CI does not prove hardware behavior that requires a local Mac, nor user-initiated cooperative app activation (CI launches `--demo-settings` from a shell with no user input or `yieldActivation` handoff, so macOS 14+ can refuse activation even when a menu-bar click succeeds). A human tester still needs to verify Retina and non-Retina placement, multiple monitors and Spaces, Mission Control, fullscreen apps, mouse and keyboard behavior, menu-bar-triggered Settings activation, menu-bar coexistence, sleep/wake, lock/unlock, and actual Gatekeeper behavior. The first macOS run may require an explicit trust override.
+
+For an unsigned download:
+
+1. Right-click `Ocy.app` in Finder, choose **Open**, then confirm the warning.
+2. Alternatively, remove the downloaded quarantine attribute in Terminal:
+   `xattr -dr com.apple.quarantine Ocy.app`.
+
+The build sets `LSMinimumSystemVersion` to `11.0`. This follows the universal binary
+floor: the Rust toolchain's Apple Silicon target requires macOS 11 or newer, while
+the Intel target can run on older releases; a universal binary therefore cannot
+advertise a lower floor than 11.0. The build also sets
+`MACOSX_DEPLOYMENT_TARGET=11.0`.
+
+#### M4 status (Settings activation and card margins)
+
+Settings is the only macOS window role that activates the accessory app. Its pure
+role decision is `Normal => true`; break cards, warning cards, dim overlays, and edge
+frames remain `false`. On macOS 14+, `NSApplication.activate()` is used; older macOS
+runs use `activateIgnoringOtherApps:YES`.
+
+Break-card windows are transparent and use no native `NSWindow` shadow (superseded by M5 below). Slint already
+draws the card shadow inside the 392 DIP window, so native shadow was disabled to
+avoid a second dark shadow/rectangle around the margins. The native window is also
+non-opaque with a clear background. CI places a pink backdrop behind short and warning
+probes and samples 3 points inside the top-left card window margin.
+
+#### M5 status (no per-pixel alpha on macOS)
+
+Slint 1.19's software renderer presents through softbuffer's CoreGraphics backend, which
+builds its `CGImage` with `kCGImageAlphaNoneSkipFirst` (`softbuffer-0.4.8/src/backends/cg.rs:328`):
+the alpha byte is ignored, so every transparent or translucent pixel shows as its premultiplied
+RGB, i.e. black. `setOpaque(false)` and a clear window background (M4) cannot fix that. So on
+macOS only:
+
+- **Cards:** `ShortBreakCard`, `WarningCard` and `LongBreakCard` take `card-inset: 0` (default
+  16 px elsewhere), drop the Slint drop shadow, and paint their window in the card surface. The
+  window is exactly the card (360 DIP short/warning, 480 DIP long). The content view's layer gets
+  `cornerRadius = 8` + `masksToBounds`, the window gets a clear background and the native shadow
+  (`hasShadow = YES`, `invalidateShadow` after the first frames). The corner position adds 16 DIP
+  so the card lands where it does on Windows.
+- **Dims:** painted in the opaque RGB of the dim colour; the alpha moves to `NSWindow.alphaValue`.
+- **Edge frames:** four opaque strip windows per monitor (top/bottom full width, left/right
+  between them), each with `alphaValue` = border alpha; same level, click-through and collection
+  behaviour as before.
+
+Settings activation: `slint_settings` calls `activate_settings_window` on the Settings window
+itself when it is created or re-activated (`app.activate()` then `makeKeyAndOrderFront` on that
+`NSWindow`); the old `app.keyWindow()` helper is removed (M5b).
+
+CI asserts the pink backdrop 1 pt inside the short/warning window corner (outside the 8 pt
+arc), the light card surface at the card's centre-left, and for the long break a darkened-pink
+dim sampled at (40, 120) pt, below the menu bar and outside the card (not black, `R > 15`,
+`R > G`, darker than the backdrop), with the card above it. Edge strips stay on the manual
+multi-display checklist above.
+
+#### M5c status (cooperative Settings activation on macOS 14–26)
+
+Since macOS 14 Sonoma, AppKit uses **cooperative app activation**: `NSApplication.activate()` is
+a request rather than a forced steal (`activateIgnoringOtherApps:` and
+`NSApplicationActivateIgnoringOtherApps` are deprecated and ignored on macOS 14+). When Ocy
+runs as an `LSUIElement` / `.accessory` app and is launched headless in CI via `--demo-settings`
+with no user interaction and no yielding active app (`yieldActivation(to:)` /
+`NSRunningApplication.activate(from:options:)`), macOS can leave Finder frontmost.
+
+`macos_window::activate_settings_window` already uses the documented user-initiated sequence
+(`NSApplication.activate()` on macOS 14+, `activateIgnoringOtherApps(true)` on macOS 11–13,
+then `makeKeyAndOrderFront` and `makeMainWindow` on the Settings `NSWindow`), so no code
+change was made there. In CI (`.github/workflows/macos-package.yml`), the Settings probe still
+asserts that Settings puts a window on screen, records the frontmost app, and emits a
+`::warning::` instead of failing when Ocy is not frontmost; break card probes remain strict
+that cards never take focus. Human Mac verification is required for menu-bar-initiated
+Settings typing/focus and second-launch activation.
 
 ## Honest estimate
 

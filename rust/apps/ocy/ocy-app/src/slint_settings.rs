@@ -7,10 +7,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use damt_app::ErrorLog;
+#[cfg(not(target_os = "macos"))]
 use damt_overlay::enumerate_monitors;
-use damt_platform::{Clock, PlatformServices};
+use damt_platform::{Clock, PlatformError, PlatformServices};
 use ocy_core::engine::EngineSnapshot;
-use ocy_core::settings::OcySettings;
+use ocy_core::settings::{OcySettings, UsageStatsConsent};
 use ocy_core::statistics::StatisticsData;
 use ocy_ui::{SettingsWindowV2 as UiSettingsWindow, SilentGame, TimelineMark as UiTimelineMark};
 use slint::winit_030::{
@@ -36,6 +37,7 @@ use crate::settings_logic::{
     ManagedSettingsWindow, SettingsBackend, SettingsCallbacks, SettingsCreateParams,
     SettingsLiveView, SettingsTexts, SettingsUiHandlers, SettingsValues, format_slider_duration,
     format_slider_every_minutes, format_slider_minutes, format_slider_seconds, format_slider_times,
+    invoke_registered_autostart_result_sink,
 };
 use crate::strings::Strings;
 use crate::tray::TaskbarIconTracker;
@@ -87,6 +89,21 @@ fn apply_texts(ui: &UiSettingsWindow, texts: &SettingsTexts) {
     ui.set_try_long_label(texts.try_long_label.as_str().into());
     ui.set_water_nudges_label(texts.water_nudges_label.as_str().into());
     ui.set_water_nudges_help(texts.water_nudges_help.as_str().into());
+    ui.set_usage_stats_label(texts.usage_stats_label.as_str().into());
+    ui.set_usage_stats_help(texts.usage_stats_help.as_str().into());
+    ui.set_usage_stats_link(texts.usage_stats_link.as_str().into());
+    ui.set_usage_stats_ask_title(texts.usage_stats_ask_title.as_str().into());
+    ui.set_usage_stats_ask_body(texts.usage_stats_ask_body.as_str().into());
+    ui.set_usage_stats_share_label(texts.usage_stats_share_label.as_str().into());
+    ui.set_usage_stats_decline_label(texts.usage_stats_decline_label.as_str().into());
+    ui.set_crash_reports_label(texts.crash_reports_label.as_str().into());
+    ui.set_crash_reports_help(texts.crash_reports_help.as_str().into());
+    let crash_choices: Vec<SharedString> = texts
+        .crash_reports_choices
+        .iter()
+        .map(|label| SharedString::from(label.as_str()))
+        .collect();
+    ui.set_crash_reports_model(ModelRc::new(VecModel::from(crash_choices)));
     ui.set_strict_label(texts.strict_label.as_str().into());
     ui.set_strict_help(texts.strict_help.as_str().into());
     ui.set_inactivity_label(texts.inactivity_label.as_str().into());
@@ -143,6 +160,62 @@ fn apply_values(ui: &UiSettingsWindow, values: &SettingsValues) {
     ui.set_games_mode_index(i32::from(values.games_hold));
     ui.set_window_nearby(values.window_nearby);
     ui.set_status_notifications(values.status_notifications);
+    ui.set_usage_stats_on(values.usage_stats == UsageStatsConsent::Granted);
+    ui.set_usage_stats_ask(values.usage_stats == UsageStatsConsent::NotAsked);
+    ui.set_crash_reports_index(crate::settings_logic::crash_reports_index(
+        values.crash_reports,
+    ));
+}
+
+/// The consent the UI shows: the ask card still open means "not asked yet".
+fn ui_usage_stats(ui: &UiSettingsWindow) -> UsageStatsConsent {
+    if ui.get_usage_stats_ask() {
+        UsageStatsConsent::NotAsked
+    } else if ui.get_usage_stats_on() {
+        UsageStatsConsent::Granted
+    } else {
+        UsageStatsConsent::Declined
+    }
+}
+
+/// Public page listing every field the usage stats send (fine in Store builds: a website link).
+pub const USAGE_STATS_INFO_URL: &str = "https://ocy.damt.xyz/privacy/#usage-stats";
+
+/// Opens `url` in the default browser without blocking or showing a console window.
+fn open_in_browser(url: &str, error_log: &ErrorLog) {
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        use windows::core::{HSTRING, w};
+        let target = HSTRING::from(url);
+        // SAFETY: both strings are valid NUL-terminated wide strings for the duration of the call.
+        let result = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
+        // ShellExecuteW reports success with a value greater than 32.
+        if result.0 as isize <= 32 {
+            error_log.log_error(
+                "usage_stats_open_link",
+                &format!("ShellExecuteW: {}", result.0 as isize),
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let program = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        match std::process::Command::new(program).arg(url).spawn() {
+            // Reap the child off the UI thread so it never lingers as a zombie.
+            Ok(mut child) => {
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+            }
+            Err(err) => error_log.log_error("usage_stats_open_link", &err),
+        }
+    }
 }
 
 fn apply_preset_sliders(ui: &UiSettingsWindow, preset: i32, values: &SettingsValues) {
@@ -179,6 +252,10 @@ fn read_ui_values(ui: &UiSettingsWindow) -> SettingsValues {
             .iter()
             .map(|game| game.name.to_string())
             .collect(),
+        usage_stats: ui_usage_stats(ui),
+        crash_reports: crate::settings_logic::crash_reports_from_index(
+            ui.get_crash_reports_index(),
+        ),
     }
 }
 
@@ -449,6 +526,9 @@ impl SlintSettingsBackend {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
+        #[cfg(target_os = "macos")]
+        let monitors = crate::macos_window::enumerate_monitors();
+        #[cfg(not(target_os = "macos"))]
         let monitors = enumerate_monitors();
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         select_active_screen(&monitors, active_bounds)
@@ -514,6 +594,18 @@ impl SettingsBackend for SlintSettingsBackend {
 
         let on_changed = Rc::clone(&handlers.on_changed);
         ui.on_changed(move || on_changed());
+
+        // Usage stats: shown only in a build with a stats key. A choice flows through the normal
+        // settings model (`SettingsValues::usage_stats` -> `apply_to` -> the usual save), like any
+        // other toggle; the install record follows the saved settings via the host hook (AN1c).
+        ui.set_show_usage_stats(crate::usage_stats::is_available());
+        // Crash reports: same gate (a build with a key), its own dropdown; a change is an ordinary
+        // settings change (`SettingsValues::crash_reports` -> `apply_to` -> `AppHost::save_settings`).
+        ui.set_show_crash_reports(crate::usage_stats::is_available());
+        let on_changed_stats = Rc::clone(&handlers.on_changed);
+        ui.on_usage_stats_chosen(move |_share| on_changed_stats());
+        let link_log = self.error_log.clone();
+        ui.on_open_usage_stats_link(move || open_in_browser(USAGE_STATS_INFO_URL, &link_log));
 
         let on_preset = Rc::clone(&handlers.on_preset_selected);
         ui.on_preset_selected(move |i| on_preset(i));
@@ -665,6 +757,10 @@ impl SettingsBackend for SlintSettingsBackend {
             winit_win.set_minimized(false);
             winit_win.focus_window();
         });
+        // macOS: activate the accessory app and make this Settings window key directly
+        // (`app.keyWindow()` can still be `None` right after `activate()`).
+        #[cfg(target_os = "macos")]
+        let _ = crate::macos_window::activate_settings_window(ui.window());
 
         Ok(ui)
     }
@@ -677,6 +773,8 @@ impl SettingsBackend for SlintSettingsBackend {
             winit_win.set_minimized(false);
             winit_win.focus_window();
         });
+        #[cfg(target_os = "macos")]
+        let _ = crate::macos_window::activate_settings_window(instance.window());
     }
 
     fn set_texts(
@@ -747,6 +845,23 @@ impl SettingsBackend for SlintSettingsBackend {
 
     fn schedule_apply_timer(&self, delay: Duration, on_fire: Box<dyn FnOnce()>) {
         Timer::single_shot(delay, on_fire);
+    }
+
+    fn autostart_result_done(
+        &self,
+        request_id: u64,
+    ) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+        // The portal worker thread calls `done`; hop to the Slint event loop (the UI thread)
+        // before the registered result sink touches the Rc-based settings state machine.
+        let error_log = self.error_log.clone();
+        Box::new(move |result| {
+            if let Err(err) = slint::invoke_from_event_loop(move || {
+                invoke_registered_autostart_result_sink(request_id, result)
+            }) {
+                // The event loop is gone (the app is shutting down); the result is dropped.
+                error_log.log_error("autostart_result_dispatch", &err);
+            }
+        })
     }
 
     fn start_refresh_timer(&self, interval: Duration, on_tick: Box<dyn Fn()>) {

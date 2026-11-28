@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>xyz.damt.ocy</string>
+	<key>CFBundleName</key>
+	<string>Ocy</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ocy</string>
+	<key>CFBundleExecutable</key>
+	<string>Ocy</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundleIconFile</key>
+	<string>Ocy</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Daniel Mitev</string>
+</dict>
+</plist>

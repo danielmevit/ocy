@@ -808,6 +808,13 @@ pub fn settings_v2(lang: &str, dark: bool) -> Result<ocy_ui::SettingsWindowV2, S
     ui.set_try_long_label(s("settings.tryLongBreak"));
     ui.set_water_nudges_label(s("settings.waterNudges.label"));
     ui.set_water_nudges_help(s("settings.waterNudges.help"));
+    ui.set_usage_stats_label(s("settings.usageStats.label"));
+    ui.set_usage_stats_help(s("settings.usageStats.help"));
+    ui.set_usage_stats_link(s("settings.usageStats.link"));
+    ui.set_usage_stats_ask_title(s("settings.usageStats.ask.title"));
+    ui.set_usage_stats_ask_body(s("settings.usageStats.ask.body"));
+    ui.set_usage_stats_share_label(s("settings.usageStats.ask.share"));
+    ui.set_usage_stats_decline_label(s("settings.usageStats.ask.decline"));
     ui.set_strict_label(s("settings.strictMode.label"));
     ui.set_strict_help(s("settings.strictMode.help"));
     ui.set_inactivity_label(s("settings.inactivityTracking.label"));
@@ -1021,5 +1028,239 @@ fn settings_v2_shot(state: V2State, dark: bool) -> Result<Rgba, String> {
         } else {
             state.height
         }
+    }))
+}
+
+// ---- Usage stats consent (AN2 review set) ----
+
+/// Consent state for a review render: the ask card, after "No thanks", after "Share stats".
+#[derive(Debug, Clone, Copy)]
+pub enum ConsentState {
+    Ask,
+    /// The ask with two long (English) button labels: a layout stress test for long languages.
+    AskLongLabels,
+    Declined,
+    Granted,
+}
+
+/// Settings V2 with the usage stats UI enabled (as in a build with a stats key), General open.
+/// The buttons are clicked through the real Slint handlers so the after-states come from the UI.
+pub fn consent_shot(
+    lang: &str,
+    dark: bool,
+    state: ConsentState,
+    width: f32,
+) -> Result<Rgba, String> {
+    let ui = settings_v2(lang, dark)?;
+    let window = take_window()?;
+    ui.set_show_usage_stats(true);
+    ui.set_usage_stats_on(false);
+    ui.set_usage_stats_ask(true);
+    ui.set_general_open(true);
+    match state {
+        ConsentState::Ask => {}
+        ConsentState::AskLongLabels => {
+            ui.set_usage_stats_share_label("Share my anonymous usage statistics".into());
+            ui.set_usage_stats_decline_label("No thank you, do not share".into());
+        }
+        ConsentState::Declined => ui.invoke_choose_usage_stats(false),
+        ConsentState::Granted => ui.invoke_choose_usage_stats(true),
+    }
+    Ok(render(&window, width, || {
+        640f32.max(ui.get_content_height().ceil())
+    }))
+}
+
+// ---- Crash-report card (CR3 review set) ----
+
+/// The exact preview text of a fake, already scrubbed report (CR1's documented event shape).
+pub const CRASH_PREVIEW_SAMPLE: &str = r#"{
+  "distinct_id": "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0",
+  "event": "$exception",
+  "properties": {
+    "$exception_list": [
+      {
+        "mechanism": {
+          "handled": false,
+          "synthetic": false
+        },
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 22,
+              "filename": "apps/ocy/ocy-app/src/scheduler.rs",
+              "function": "ocy_app::scheduler::next_tick",
+              "in_app": true,
+              "lang": "rust",
+              "lineno": 118,
+              "platform": "custom"
+            }
+          ],
+          "type": "raw"
+        },
+        "type": "panic",
+        "value": "called `Option::unwrap()` on a `None` value"
+      }
+    ],
+    "$geoip_disable": true,
+    "$lib": "ocy",
+    "$process_person_profile": false,
+    "app_version": "0.3.0",
+    "channel": "direct",
+    "os_version": "10.0.22631",
+    "platform": "windows"
+  },
+  "timestamp": "2026-11-27T08:00:00Z"
+}"#;
+
+/// Crash card state for a review render.
+#[derive(Debug, Clone, Copy)]
+pub enum CrashCardState {
+    /// One pending report.
+    One,
+    /// Three pending reports (the count line) with "Don't ask again" ticked.
+    SeveralTicked,
+    /// "See what's in it" open.
+    Preview,
+    /// Long labels everywhere: a layout stress test for long languages.
+    LongLabels,
+    /// The preview with long title, help, Copy and Back labels.
+    PreviewLongLabels,
+}
+
+/// Renders the crash card in `lang` at its real 392 px window width.
+pub fn crash_card_shot(lang: &str, dark: bool, state: CrashCardState) -> Result<Rgba, String> {
+    let t = Table::load(lang)?;
+    let ui = ocy_ui::CrashReportCard::new().map_err(|e| e.to_string())?;
+    let window = take_window()?;
+    ui.global::<Theme>().set_dark(dark);
+    if lang == "ja" {
+        ui.set_font_family("Yu Gothic UI".into());
+    }
+    // Headless renders run on Linux: the host's Consolas/Menlo stand-in.
+    ui.set_mono_font_family("DejaVu Sans Mono".into());
+    let s = |k: &str| -> slint::SharedString { t.get(k).into() };
+    ui.set_heading(s("crash.card.title"));
+    ui.set_body(s("crash.card.body"));
+    ui.set_see_what_label(s("crash.card.seeWhat"));
+    ui.set_dont_ask_label(s("crash.card.dontAskAgain"));
+    ui.set_send_label(s("crash.card.send"));
+    ui.set_dont_send_label(s("crash.card.dontSend"));
+    ui.set_close_label(s("crash.card.close"));
+    ui.set_preview_title(s("crash.preview.title"));
+    ui.set_preview_help(s("crash.preview.help"));
+    ui.set_copy_label(s("crash.preview.copy"));
+    ui.set_back_label(s("crash.preview.back"));
+    let ids = [
+        "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0",
+        "7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d",
+        "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+    ];
+    let count = match state {
+        CrashCardState::SeveralTicked
+        | CrashCardState::Preview
+        | CrashCardState::LongLabels
+        | CrashCardState::PreviewLongLabels => 3,
+        _ => 1,
+    };
+    if count > 1 {
+        ui.set_count_text(
+            t.fmt("crash.card.count.other", &[("count", count.to_string())])
+                .into(),
+        );
+    }
+    let items: Vec<ocy_ui::CrashPreviewItem> = ids[..count]
+        .iter()
+        .map(|id| ocy_ui::CrashPreviewItem {
+            report_id: (*id).into(),
+            id_line: t
+                .fmt("crash.preview.reportId", &[("id", (*id).to_owned())])
+                .into(),
+            text: CRASH_PREVIEW_SAMPLE.replace(ids[0], id).into(),
+        })
+        .collect();
+    ui.set_reports(slint::ModelRc::new(slint::VecModel::from(items)));
+    match state {
+        CrashCardState::One => {}
+        CrashCardState::SeveralTicked => ui.set_dont_ask_again(true),
+        CrashCardState::Preview => ui.set_show_preview(true),
+        CrashCardState::LongLabels => {
+            ui.set_heading(
+                "Ocy wurde unerwartet beendet und hat einen Fehlerbericht gespeichert".into(),
+            );
+            ui.set_see_what_label("Ansehen, was genau dieser Bericht alles enthält".into());
+            ui.set_dont_ask_label(
+                "Nicht mehr fragen und diese Entscheidung für künftige Abstürze merken".into(),
+            );
+            ui.set_send_label("Fehlerbericht jetzt senden".into());
+            ui.set_dont_send_label("Fehlerbericht nicht senden".into());
+            ui.set_body("Ein Absturzbericht hilft, das zu beheben. Er enthält den Fehler, die Version von Ocy und die Version deines Systems, und nichts Persönliches.".into());
+            ui.set_count_text(
+                "Wartende Berichte: 3. Eine Entscheidung gilt für alle zusammen.".into(),
+            );
+        }
+        CrashCardState::PreviewLongLabels => {
+            ui.set_show_preview(true);
+            ui.set_preview_title("Что именно содержится в этом отчёте об ошибке".into());
+            ui.set_preview_help(
+                "Это точный текст, который будет отправлен, без каких-либо изменений.".into(),
+            );
+            ui.set_copy_label("Скопировать идентификатор".into());
+            ui.set_back_label("Вернуться назад к выбору".into());
+        }
+    }
+    Ok(render(&window, 392.0, || ui.get_content_height()))
+}
+
+/// Settings V2 (General open) with the crash-reports row, as in a build with a key.
+pub fn crash_settings_shot(lang: &str, dark: bool, width: f32) -> Result<Rgba, String> {
+    crash_settings_shot_with(lang, dark, width, false)
+}
+
+/// As [`crash_settings_shot`]; `long` sets long (Russian-length) label, help and choices.
+pub fn crash_settings_shot_with(
+    lang: &str,
+    dark: bool,
+    width: f32,
+    long: bool,
+) -> Result<Rgba, String> {
+    let t = Table::load(lang)?;
+    let ui = settings_v2(lang, dark)?;
+    let window = take_window()?;
+    ui.set_show_usage_stats(true);
+    ui.set_usage_stats_ask(false);
+    ui.set_usage_stats_on(false);
+    ui.set_show_crash_reports(true);
+    ui.set_crash_reports_label(t.get("settings.crashReports.label").into());
+    ui.set_crash_reports_help(t.get("settings.crashReports.help").into());
+    let choices: Vec<slint::SharedString> = [
+        "settings.crashReports.ask",
+        "settings.crashReports.always",
+        "settings.crashReports.never",
+    ]
+    .iter()
+    .map(|k| t.get(k).into())
+    .collect();
+    ui.set_crash_reports_model(slint::ModelRc::new(slint::VecModel::from(choices)));
+    ui.set_crash_reports_index(0);
+    if long {
+        ui.set_crash_reports_label("Отчёты о сбоях приложения".into());
+        ui.set_crash_reports_help(
+            "Отправляются только после неожиданного закрытия Ocy: ошибка и версии, ничего личного."
+                .into(),
+        );
+        let long_choices: Vec<slint::SharedString> = [
+            "Спрашивать каждый раз",
+            "Всегда отправлять",
+            "Никогда не отправлять",
+        ]
+        .iter()
+        .map(|c| (*c).into())
+        .collect();
+        ui.set_crash_reports_model(slint::ModelRc::new(slint::VecModel::from(long_choices)));
+    }
+    ui.set_general_open(true);
+    Ok(render(&window, width, || {
+        640f32.max(ui.get_content_height().ceil())
     }))
 }

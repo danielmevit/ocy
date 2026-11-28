@@ -17,6 +17,7 @@ pub use linux::{
     LinuxNotifier, LinuxPlatform, LinuxSessionEvents, LinuxTaskbarTheme, LinuxTray,
     LinuxTrayAction, LinuxTrayConfig, LinuxTrayHandle, LinuxTrayIconState, LinuxTrayMenuItem,
     LinuxTrayMenuSlot, LinuxTrayPresentation, apply_x11_break_window_hints, query_x11_monitors,
+    raise_x11_window_above,
 };
 #[cfg(target_os = "linux")]
 pub use pure::{

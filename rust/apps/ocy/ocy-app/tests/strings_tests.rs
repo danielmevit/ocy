@@ -1087,6 +1087,39 @@ fn notify_absence_credited_has_no_double_dot_for_dot_abbreviations() {
     );
 }
 
+#[test]
+fn platform_neutral_strings_never_name_windows_across_all_shipped_languages() {
+    let tables = embedded_language_tables();
+    assert_eq!(tables.len(), 40);
+
+    for (tag, raw) in tables {
+        let map: HashMap<String, String> =
+            serde_json::from_str(raw).unwrap_or_else(|e| panic!("failed to parse {tag}.json: {e}"));
+
+        let help = map
+            .get("settings.startWithSystem.help")
+            .unwrap_or_else(|| panic!("{tag}.json missing settings.startWithSystem.help"));
+        assert!(
+            !help.to_ascii_lowercase().contains("windows"),
+            "{tag}.json settings.startWithSystem.help must not mention Windows: {help:?}"
+        );
+
+        let auto_win = map
+            .get("settings.v2.language.automatic")
+            .unwrap_or_else(|| panic!("{tag}.json missing settings.v2.language.automatic"));
+        assert!(!auto_win.is_empty());
+
+        let auto_sys = map
+            .get("settings.v2.language.automaticSystem")
+            .unwrap_or_else(|| panic!("{tag}.json missing settings.v2.language.automaticSystem"));
+        assert!(!auto_sys.is_empty());
+        assert!(
+            !auto_sys.to_ascii_lowercase().contains("windows"),
+            "{tag}.json settings.v2.language.automaticSystem must not mention Windows: {auto_sys:?}"
+        );
+    }
+}
+
 #[cfg(windows)]
 mod windows_glyph_coverage {
     use std::collections::HashMap;

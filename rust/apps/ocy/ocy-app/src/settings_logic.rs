@@ -1,6 +1,7 @@
 //! Pure settings mapping, localization, debounce/autostart state machine, and lifecycle logic.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use damt_platform::{
 use jiff::SignedDuration;
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::{GamesMode, OcySettings};
+use ocy_core::settings::{CrashReportsConsent, GamesMode, OcySettings, UsageStatsConsent};
 use ocy_core::statistics::StatisticsData;
 use ocy_core::time::Paused;
 
@@ -90,6 +91,10 @@ pub struct SettingsValues {
     pub games_hold: bool,
     /// Exe names that always hold breaks, in stored order.
     pub games_silent: Vec<String>,
+    /// Anonymous usage stats consent (General switch and the one-time ask card).
+    pub usage_stats: UsageStatsConsent,
+    /// Crash-report consent (General dropdown; the crash card changes it through the host).
+    pub crash_reports: CrashReportsConsent,
 }
 
 impl SettingsValues {
@@ -125,6 +130,8 @@ impl SettingsValues {
             status_notifications: settings.status_notifications,
             games_hold: settings.games_mode == GamesMode::Hold,
             games_silent: settings.games_silent.clone(),
+            usage_stats: settings.usage_stats,
+            crash_reports: settings.crash_reports,
         }
     }
 
@@ -158,6 +165,8 @@ impl SettingsValues {
             GamesMode::Gentle
         };
         updated.games_silent.clone_from(&self.games_silent);
+        updated.usage_stats = self.usage_stats;
+        updated.crash_reports = self.crash_reports;
 
         if autostart_supported {
             updated.start_with_system = self.start_with_system;
@@ -231,6 +240,17 @@ pub struct SettingsTexts {
     pub try_long_label: String,
     pub water_nudges_label: String,
     pub water_nudges_help: String,
+    pub usage_stats_label: String,
+    pub usage_stats_help: String,
+    pub usage_stats_link: String,
+    pub usage_stats_ask_title: String,
+    pub usage_stats_ask_body: String,
+    pub usage_stats_share_label: String,
+    pub usage_stats_decline_label: String,
+    pub crash_reports_label: String,
+    pub crash_reports_help: String,
+    /// Dropdown labels in [`crash_reports_index`] order: Ask each time, Always send, Never send.
+    pub crash_reports_choices: [String; 3],
     pub strict_label: String,
     pub strict_help: String,
     pub inactivity_label: String,
@@ -318,6 +338,20 @@ impl SettingsTexts {
             try_long_label: strings.get("settings.tryLongBreak").to_owned(),
             water_nudges_label: strings.get("settings.waterNudges.label").to_owned(),
             water_nudges_help: strings.get("settings.waterNudges.help").to_owned(),
+            usage_stats_label: strings.get("settings.usageStats.label").to_owned(),
+            usage_stats_help: strings.get("settings.usageStats.help").to_owned(),
+            usage_stats_link: strings.get("settings.usageStats.link").to_owned(),
+            usage_stats_ask_title: strings.get("settings.usageStats.ask.title").to_owned(),
+            usage_stats_ask_body: strings.get("settings.usageStats.ask.body").to_owned(),
+            usage_stats_share_label: strings.get("settings.usageStats.ask.share").to_owned(),
+            usage_stats_decline_label: strings.get("settings.usageStats.ask.decline").to_owned(),
+            crash_reports_label: strings.get("settings.crashReports.label").to_owned(),
+            crash_reports_help: strings.get("settings.crashReports.help").to_owned(),
+            crash_reports_choices: [
+                strings.get("settings.crashReports.ask").to_owned(),
+                strings.get("settings.crashReports.always").to_owned(),
+                strings.get("settings.crashReports.never").to_owned(),
+            ],
             strict_label: strings.get("settings.strictMode.label").to_owned(),
             strict_help: strings.get("settings.strictMode.help").to_owned(),
             inactivity_label: strings.get("settings.inactivityTracking.label").to_owned(),
@@ -353,7 +387,7 @@ impl SettingsTexts {
             ),
             about_tagline: strings.get("app.tagline").to_owned(),
             language_model: language_choice::dropdown_model(
-                strings.get("settings.v2.language.automatic"),
+                strings.get(language_choice::automatic_language_key()),
             ),
         }
     }
@@ -641,6 +675,19 @@ pub enum ChangeAction {
     },
     /// `AutostartService::set_enabled` failed; revert UI toggle to `revert_to` without scheduling a save.
     AutostartFailed { revert_to: bool },
+    /// `AutostartService::set_enabled_or_defer` deferred the change (Flatpak Background portal):
+    /// the platform flow runs off the UI thread and the result arrives later via
+    /// [`SettingsDebounceState::on_autostart_result`] with `request_id`. The toggle stays
+    /// where the user put it.
+    AutostartPending {
+        /// Identity of the deferred request; results carrying any other id are stale.
+        request_id: u64,
+        requested: bool,
+    },
+    /// The user flipped the autostart toggle while a deferred change was in flight: the
+    /// toggle is put back to `revert_to` (the pending requested value) under
+    /// `suppress_autostart_events`, with no second platform request and no save.
+    AutostartLocked { revert_to: bool },
 }
 
 /// Pure state machine for Settings loading guards, 400 ms debouncing, and autostart error handling.
@@ -650,6 +697,10 @@ pub struct SettingsDebounceState {
     suppress_autostart_events: bool,
     has_pending_changes: bool,
     last_autostart_value: bool,
+    /// The id and requested value of the deferred autostart change that has not completed yet.
+    autostart_pending: Option<(u64, bool)>,
+    /// Monotonic counter handing each deferred autostart request a unique identity.
+    autostart_request_counter: u64,
     timer_generation: u64,
 }
 
@@ -662,15 +713,19 @@ impl SettingsDebounceState {
             suppress_autostart_events: false,
             has_pending_changes: false,
             last_autostart_value: false,
+            autostart_pending: None,
+            autostart_request_counter: 0,
             timer_generation: 0,
         }
     }
 
     /// Enters load mode, suppressing change and autostart side-effects until [`Self::end_load`].
+    /// A reload also makes any in-flight deferred autostart result stale.
     pub fn begin_load(&mut self) {
         self.loading = true;
         self.suppress_autostart_events = true;
         self.has_pending_changes = false;
+        self.autostart_pending = None;
         self.timer_generation = self.timer_generation.wrapping_add(1);
     }
 
@@ -698,37 +753,127 @@ impl SettingsDebounceState {
         self.timer_generation
     }
 
+    /// True while a deferred autostart change is in flight (its result has not arrived yet).
+    #[must_use]
+    pub const fn is_autostart_pending(&self) -> bool {
+        self.autostart_pending.is_some()
+    }
+
+    /// The id the next deferred autostart request will use. The caller registers the
+    /// UI-thread result sink under this id before the request is made.
+    #[must_use]
+    pub const fn peek_next_autostart_request_id(&self) -> u64 {
+        self.autostart_request_counter + 1
+    }
+
+    /// The `start_with_system` value to persist for a UI toggle state: the last confirmed
+    /// value while a deferred autostart change is pending, otherwise the UI value itself.
+    /// A save triggered by an edit to another control must not persist the requested but
+    /// unconfirmed toggle value.
+    #[must_use]
+    pub const fn saved_autostart_value(&self, ui_value: bool) -> bool {
+        if self.autostart_pending.is_some() {
+            self.last_autostart_value
+        } else {
+            ui_value
+        }
+    }
+
     /// Handles a UI `changed()` signal, applying autostart immediately if that toggle changed.
+    ///
+    /// `done` is the completion callback for a deferred autostart change
+    /// ([`AutostartService::set_enabled_or_defer`]); every synchronous path drops it unused.
     pub fn on_changed(
         &mut self,
         autostart_supported: bool,
         current_autostart_ui: bool,
         autostart: &dyn AutostartService,
+        done: Box<dyn FnOnce(Result<(), PlatformError>) + Send>,
     ) -> ChangeAction {
         if self.loading || self.suppress_autostart_events {
             return ChangeAction::Ignored;
         }
 
-        if autostart_supported && current_autostart_ui != self.last_autostart_value {
-            return match autostart.set_enabled(current_autostart_ui) {
-                Ok(()) => {
-                    self.last_autostart_value = current_autostart_ui;
-                    let generation = self.schedule_apply();
-                    ChangeAction::ScheduleTimer {
-                        generation,
-                        clear_autostart_error: true,
-                    }
+        if autostart_supported {
+            if let Some((_, requested)) = self.autostart_pending {
+                if current_autostart_ui != requested {
+                    // The user flipped the toggle while the portal request is in flight.
+                    // Lock the control at the pending value: no second request, and no
+                    // save of `!requested` (the in-flight result still decides).
+                    return ChangeAction::AutostartLocked {
+                        revert_to: requested,
+                    };
                 }
-                Err(_) => ChangeAction::AutostartFailed {
-                    revert_to: !current_autostart_ui,
-                },
-            };
+                // The toggle still equals the pending requested value, so another control
+                // changed. Run the normal debounce save; `saved_autostart_value` keeps the
+                // persisted `start_with_system` at the last confirmed value until the
+                // result arrives.
+                let generation = self.schedule_apply();
+                return ChangeAction::ScheduleTimer {
+                    generation,
+                    clear_autostart_error: false,
+                };
+            }
+            if current_autostart_ui != self.last_autostart_value {
+                let request_id = self.autostart_request_counter + 1;
+                return match autostart.set_enabled_or_defer(current_autostart_ui, done) {
+                    Some(Ok(())) => {
+                        self.last_autostart_value = current_autostart_ui;
+                        let generation = self.schedule_apply();
+                        ChangeAction::ScheduleTimer {
+                            generation,
+                            clear_autostart_error: true,
+                        }
+                    }
+                    Some(Err(_)) => ChangeAction::AutostartFailed {
+                        revert_to: !current_autostart_ui,
+                    },
+                    None => {
+                        self.autostart_request_counter = request_id;
+                        self.autostart_pending = Some((request_id, current_autostart_ui));
+                        ChangeAction::AutostartPending {
+                            request_id,
+                            requested: current_autostart_ui,
+                        }
+                    }
+                };
+            }
         }
 
         let generation = self.schedule_apply();
         ChangeAction::ScheduleTimer {
             generation,
             clear_autostart_error: false,
+        }
+    }
+
+    /// Feeds the result of a deferred autostart change back into the machine.
+    ///
+    /// `request_id`/`requested` identify the deferred request. A result whose id or value
+    /// is not the active pending request (the window reloaded, or a stale request from
+    /// before a close and reopen finished late) is ignored.
+    pub fn on_autostart_result(
+        &mut self,
+        request_id: u64,
+        requested: bool,
+        result: Result<(), PlatformError>,
+    ) -> ChangeAction {
+        if self.autostart_pending != Some((request_id, requested)) {
+            return ChangeAction::Ignored;
+        }
+        self.autostart_pending = None;
+        match result {
+            Ok(()) => {
+                self.last_autostart_value = requested;
+                let generation = self.schedule_apply();
+                ChangeAction::ScheduleTimer {
+                    generation,
+                    clear_autostart_error: true,
+                }
+            }
+            Err(_) => ChangeAction::AutostartFailed {
+                revert_to: !requested,
+            },
         }
     }
 
@@ -764,6 +909,48 @@ impl SettingsDebounceState {
     pub fn cancel_timer(&mut self) {
         self.timer_generation = self.timer_generation.wrapping_add(1);
     }
+}
+
+/// UI-thread callback receiving the final result of a deferred autostart change.
+type AutostartResultSink = Box<dyn FnOnce(Result<(), PlatformError>)>;
+
+thread_local! {
+    /// UI-thread sinks for the results of deferred autostart changes, keyed by request id.
+    /// A map (not a single slot) is required for safety across a close and reopen of the
+    /// window: the sink registered for request 2 must not be consumed by a late result
+    /// of request 1, and vice versa.
+    static AUTOSTART_RESULT_SINKS: RefCell<HashMap<u64, AutostartResultSink>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Registers the UI-thread sink invoked with the result of the deferred autostart request
+/// `request_id`.
+pub(crate) fn register_autostart_result_sink(request_id: u64, sink: AutostartResultSink) {
+    AUTOSTART_RESULT_SINKS.with(|map| {
+        map.borrow_mut().insert(request_id, sink);
+    });
+}
+
+/// Removes the sink registered for `request_id` without invoking it (no request with that
+/// id was handed to the platform, so no result will ever arrive for it).
+pub(crate) fn remove_registered_autostart_result_sink(request_id: u64) {
+    AUTOSTART_RESULT_SINKS.with(|map| {
+        map.borrow_mut().remove(&request_id);
+    });
+}
+
+/// Invokes and clears the sink registered for `request_id`, if any. Must run on the thread
+/// that registered the sink (the UI thread); a no-op when no sink is registered for that
+/// id (stale result, e.g. from a request made before the window was closed and reopened).
+pub(crate) fn invoke_registered_autostart_result_sink(
+    request_id: u64,
+    result: Result<(), PlatformError>,
+) {
+    AUTOSTART_RESULT_SINKS.with(|map| {
+        if let Some(sink) = map.borrow_mut().remove(&request_id) {
+            sink(result);
+        }
+    });
 }
 
 /// Host callbacks invoked by the Settings window.
@@ -883,6 +1070,22 @@ pub trait SettingsBackend {
 
     /// Schedules a single-shot callback after `delay`.
     fn schedule_apply_timer(&self, delay: Duration, on_fire: Box<dyn FnOnce()>);
+
+    /// Builds the completion callback handed to [`AutostartService::set_enabled_or_defer`]
+    /// for the deferred autostart request `request_id` (Linux Flatpak Background portal).
+    ///
+    /// The returned callback can be invoked from any thread (it is `Send`) and must marshal
+    /// the result back to the UI thread, where it invokes the sink registered for
+    /// `request_id` with [`register_autostart_result_sink`]. The default invokes the sink
+    /// inline and is therefore only correct when `done` is called on the UI thread (unit
+    /// tests, single-threaded hosts); the Slint backend overrides it with
+    /// `slint::invoke_from_event_loop`.
+    fn autostart_result_done(
+        &self,
+        request_id: u64,
+    ) -> Box<dyn FnOnce(Result<(), PlatformError>) + Send> {
+        Box::new(move |result| invoke_registered_autostart_result_sink(request_id, result))
+    }
 
     /// Starts (or replaces) the periodic 30 s refresh timer while the window is open.
     fn start_refresh_timer(&self, _interval: Duration, _on_tick: Box<dyn Fn()>) {}
@@ -1035,14 +1238,57 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             self.backend.read_values(inst)
         };
 
+        // Deferred-autostart plumbing: register the UI-thread result sink under the id the
+        // next deferred request will use (unless a deferred change is already in flight —
+        // no second request is made then, and the in-flight sink must survive until its
+        // result arrives), then get the `Send` completion callback from the backend (the
+        // Slint backend marshals through `slint::invoke_from_event_loop`). Every
+        // synchronous path drops `done` unused, and the just-registered sink is removed
+        // again below because no result will ever arrive for it.
+        let request_id = self.state.borrow().peek_next_autostart_request_id();
+        if !self.state.borrow().is_autostart_pending() {
+            let weak = Rc::downgrade(self);
+            let requested = values.start_with_system;
+            register_autostart_result_sink(
+                request_id,
+                Box::new(move |result| {
+                    if let Some(inner) = weak.upgrade() {
+                        inner.handle_autostart_result(request_id, requested, result);
+                    }
+                }),
+            );
+        }
+        let done = self.backend.autostart_result_done(request_id);
+
         let action = self.state.borrow_mut().on_changed(
             autostart_supported,
             values.start_with_system,
             self.platform.autostart(),
+            done,
         );
+        if !matches!(action, ChangeAction::AutostartPending { .. }) {
+            // No deferred request carries this id, so no result will arrive for it.
+            remove_registered_autostart_result_sink(request_id);
+        }
+        self.apply_change_action(action);
+    }
 
+    /// Applies a [`ChangeAction`] produced by the debounce state machine (UI updates + save timer).
+    fn apply_change_action(self: &Rc<Self>, action: ChangeAction) {
         match action {
             ChangeAction::Ignored => {}
+            // Calm pending: leave the toggle where the user put it; nothing else happens
+            // until the deferred result arrives in `handle_autostart_result`. No new strings.
+            ChangeAction::AutostartPending { .. } => {}
+            ChangeAction::AutostartLocked { revert_to } => {
+                // The user flipped the toggle while a portal request was in flight; put it
+                // back to the pending requested value without triggering another change.
+                self.state.borrow_mut().set_suppress_autostart_events(true);
+                if let Some(inst) = self.active.borrow().as_ref() {
+                    self.backend.set_start_with_system(inst, revert_to);
+                }
+                self.state.borrow_mut().set_suppress_autostart_events(false);
+            }
             ChangeAction::AutostartFailed { revert_to } => {
                 self.state.borrow_mut().set_suppress_autostart_events(true);
                 if let Some(inst) = self.active.borrow().as_ref() {
@@ -1060,6 +1306,13 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                 generation,
                 clear_autostart_error,
             } => {
+                let values = {
+                    let active = self.active.borrow();
+                    let Some(inst) = active.as_ref() else {
+                        return;
+                    };
+                    self.backend.read_values(inst)
+                };
                 let preview = self.preview_settings_for(&values);
                 let detected_preset = presets::detect(&preview).index();
                 let live_view = self.compute_live_view(&preview);
@@ -1080,6 +1333,56 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
                     }),
                 );
             }
+        }
+    }
+
+    /// Feeds the result of a deferred autostart change (marshaled back to the UI thread by
+    /// the `done` callback) into the state machine and applies the resulting action.
+    fn handle_autostart_result(
+        self: &Rc<Self>,
+        request_id: u64,
+        requested: bool,
+        result: Result<(), PlatformError>,
+    ) {
+        let action = self
+            .state
+            .borrow_mut()
+            .on_autostart_result(request_id, requested, result);
+        if let ChangeAction::ScheduleTimer { .. } = action
+            && self.active.borrow().is_none()
+        {
+            // The window closed while the request was in flight. Rule (b): persist the
+            // confirmed choice through the normal save path instead of scheduling a UI
+            // debounce save that can never run; `has_pending_changes` is consumed by
+            // that save, never left stuck at `true`.
+            self.persist_autostart_after_close(requested);
+            return;
+        }
+        self.apply_change_action(action);
+    }
+
+    /// Persists `start_with_system = requested` after a deferred autostart result confirmed
+    /// it while the Settings window is closed (rule b): the user's choice sticks even though
+    /// the debounce save path (which reads the UI) is unavailable.
+    fn persist_autostart_after_close(&self, requested: bool) {
+        let should_save = self.state.borrow_mut().flush_if_pending();
+        if !should_save {
+            return;
+        }
+        let autostart_supported = self.platform.autostart().is_supported();
+        let mut updated = self.current_settings.borrow().clone();
+        if autostart_supported {
+            updated.start_with_system = requested;
+        }
+        let ok = (self.callbacks.on_save)(updated.clone());
+        if ok {
+            *self.current_settings.borrow_mut() = updated;
+        } else {
+            // No window is open to show the error; leave a trace in the log.
+            self.error_log.log(
+                Some("settings_autostart_closed"),
+                "could not persist the confirmed autostart choice after the window closed",
+            );
         }
     }
 
@@ -1121,6 +1424,14 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
             let prev = self.current_settings.borrow().language.clone();
             let mut updated = self.preview_settings_for(&values);
             updated.language = tag.to_owned();
+            if self.platform.autostart().is_supported() {
+                // Same rule as `perform_save`: never persist the requested but unconfirmed
+                // toggle value of a pending deferred autostart change.
+                updated.start_with_system = self
+                    .state
+                    .borrow()
+                    .saved_autostart_value(updated.start_with_system);
+            }
             (updated, prev)
         };
 
@@ -1170,7 +1481,17 @@ impl<B: SettingsBackend + 'static> ManagedSettingsInner<B> {
         let autostart_supported = self.platform.autostart().is_supported();
         let updated = {
             let current = self.current_settings.borrow();
-            values.apply_to(&current, autostart_supported)
+            let mut updated = values.apply_to(&current, autostart_supported);
+            if autostart_supported {
+                // While a deferred autostart change is pending, the UI toggle shows the
+                // requested (not yet confirmed) value; persist the last confirmed value
+                // until the result arrives.
+                updated.start_with_system = self
+                    .state
+                    .borrow()
+                    .saved_autostart_value(updated.start_with_system);
+            }
+            updated
         };
 
         let ok = (self.callbacks.on_save)(updated.clone());
@@ -1536,5 +1857,25 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
                     .log(Some("settings_window_create"), &err);
             }
         }
+    }
+}
+
+/// Dropdown index of a crash-report consent: 0 Ask each time, 1 Always send, 2 Never send.
+#[must_use]
+pub const fn crash_reports_index(consent: CrashReportsConsent) -> i32 {
+    match consent {
+        CrashReportsConsent::Ask => 0,
+        CrashReportsConsent::Always => 1,
+        CrashReportsConsent::Never => 2,
+    }
+}
+
+/// The consent for a dropdown index (anything unknown falls back to the safe default, Ask).
+#[must_use]
+pub const fn crash_reports_from_index(index: i32) -> CrashReportsConsent {
+    match index {
+        1 => CrashReportsConsent::Always,
+        2 => CrashReportsConsent::Never,
+        _ => CrashReportsConsent::Ask,
     }
 }

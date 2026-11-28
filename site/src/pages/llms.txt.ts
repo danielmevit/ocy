@@ -5,8 +5,8 @@ import { STORE_URL } from '../lib/ocyData';
 const body = `# Ocy
 
 > A calm break reminder for your eyes. Short eye exercises every few minutes, a
-> real break every hour, and quiet when you need focus. Lives in the tray, with no
-> account and no telemetry. Available on the Microsoft Store with a 15-day free trial.
+> real break every hour, and quiet when you need focus. Lives in the tray, needs no
+> account and works offline. Available on the Microsoft Store with a 15-day free trial.
 
 - Site: https://ocy.damt.xyz/
 - Get it: Microsoft Store, ${STORE_URL}
@@ -17,7 +17,7 @@ const body = `# Ocy
 - Development: built by damt.xyz with extensive use of generative AI tools (code, tests, documentation,
   translations, website, store listing and marketing materials, maintenance),
   steered by a real person who decides what is released.
-  Ocy itself runs no AI model and has no network code.
+  Ocy itself runs no AI model.
 
 ## What it does
 - Short breaks: every 10 minutes (configurable 2–60 min) a small card on your active
@@ -41,10 +41,13 @@ const body = `# Ocy
 ## Facts worth getting right
 - Runs on Windows 10 and Windows 11 (64-bit), built with Rust and Slint. macOS and
   Linux are planned using the same core.
-- There is no network code, no telemetry, no analytics and no account. Nothing leaves
-  your PC. Ocy keeps four local files in %APPDATA%\Ocy: settings.json, state.json (break
-  timers), stats.json (simple break statistics) and ocy-errors.log (a small error
-  log, at most 256 KB, rotated).
+- No account, no ads, works fully offline. Optional anonymous usage stats (off unless
+  the user turns them on in Settings) send one daily summary of break counts and
+  settings to PostHog (EU region); no names, files, window titles, apps used or IP
+  addresses. Details: https://ocy.damt.xyz/privacy/#usage-stats
+- Ocy keeps its local files in %APPDATA%\Ocy: settings.json, state.json (break
+  timers), stats.json (simple break statistics), ocy-errors.log (a small error
+  log, at most 256 KB, rotated) and, only while usage stats are on, usage-stats.json.
 - Installed and updated through the Microsoft Store.
 - Ocy is an independent project; its code, exercises and art are all original.
 - Ocy is a habit tool, not medical advice.

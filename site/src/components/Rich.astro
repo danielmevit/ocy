@@ -1,0 +1,28 @@
+---
+/**
+ * Renders a localized template, filling `{slot}` tokens with inline markup:
+ * `code` → <code>, `strong` → <strong>, `links` → <a>. Fails the build on an unknown slot.
+ */
+import { splitTemplateParts } from '../lib/i18n';
+
+interface Props {
+  template: string;
+  code?: Record<string, string>;
+  strong?: Record<string, string>;
+  links?: Record<string, { href: string; text: string }>;
+}
+
+const { template, code = {}, strong = {}, links = {} } = Astro.props;
+const parts = splitTemplateParts(template);
+for (const p of parts) {
+  if (p.type === 'slot' && !(p.name in code) && !(p.name in strong) && !(p.name in links)) {
+    throw new Error(`Rich: no value for {${p.name}} in "${template}"`);
+  }
+}
+---
+{parts.map((p) =>
+  p.type === 'text' ? p.value
+  : p.name in code ? <code>{code[p.name]}</code>
+  : p.name in strong ? <strong>{strong[p.name]}</strong>
+  : <a href={links[p.name].href}>{links[p.name].text}</a>
+)}

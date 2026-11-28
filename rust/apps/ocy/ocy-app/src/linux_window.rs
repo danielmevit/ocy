@@ -3,13 +3,14 @@
 use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use damt_overlay::{MonitorId, MonitorInfo, Rgba};
 use damt_platform::ScreenRect;
-use damt_platform_linux::pure::IdleEnv;
+use damt_platform_linux::pure::{IdleEnv, x11_restack_above_target};
 use damt_platform_linux::{
     LinuxDisplayBackend, LinuxWindowPolicy, X11MonitorInfo, apply_x11_break_window_hints,
-    query_x11_monitors, select_display_backend,
+    query_x11_monitors, raise_x11_window_above, select_display_backend,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::winit_030::winit::event::WindowEvent;
@@ -68,9 +69,54 @@ enum LinuxOverlayRole {
     X11Overlay,
 }
 
+static WINIT_X11_ACTIVE: AtomicBool = AtomicBool::new(false);
+
 thread_local! {
     static NEXT_LINUX_OVERLAY_ROLE: RefCell<LinuxOverlayRole> =
         const { RefCell::new(LinuxOverlayRole::None) };
+    static ACTIVE_BREAK_CARD_XID: Cell<Option<u32>> = const { Cell::new(None) };
+}
+
+/// Records whether the live winit backend is running on X11 (versus Wayland or headless tests).
+pub fn init_winit_backend() {
+    let is_x11 = select_display_backend(&IdleEnv::from_env()) == LinuxDisplayBackend::X11;
+    WINIT_X11_ACTIVE.store(is_x11, Ordering::Relaxed);
+}
+
+/// Returns `true` when the live winit backend is running on X11.
+#[must_use]
+pub fn is_winit_x11_active() -> bool {
+    WINIT_X11_ACTIVE.load(Ordering::Relaxed)
+}
+
+/// Pure helper returning `true` when a Slint window's first `show()` must be deferred until its
+/// unmapped winit/X11 window exists so `WM_HINTS` and `_NET_WM_USER_TIME` are set before mapping.
+#[must_use]
+pub const fn should_defer_x11_show(winit_x11_active: bool, has_winit_window: bool) -> bool {
+    winit_x11_active && !has_winit_window
+}
+
+/// Returns `true` when `window` needs deferred first `show()` on X11.
+#[must_use]
+pub fn should_defer_x11_card_show(window: &slint::Window) -> bool {
+    should_defer_x11_show(is_winit_x11_active(), window.has_winit_window())
+}
+
+/// Records the active X11 break-card window ID and raises it above any existing overlays.
+pub fn register_x11_break_card(window: &slint::Window) {
+    if !is_winit_x11_active() {
+        return;
+    }
+    let xid = extract_x11_window_id_and_sync(window);
+    ACTIVE_BREAK_CARD_XID.with(|cell| cell.set(xid));
+    if let Some(card_xid) = xid {
+        let _ = raise_x11_window_above(card_xid);
+    }
+}
+
+/// Clears the active X11 break-card window ID when break cards are hidden or closed.
+pub fn clear_x11_break_card() {
+    ACTIVE_BREAK_CARD_XID.with(|cell| cell.set(None));
 }
 
 struct LinuxOverlayRoleGuard {
@@ -238,6 +284,7 @@ pub fn apply_window_attributes_for_role(mut attrs: WindowAttributes) -> WindowAt
                 .with_fullscreen(Some(Fullscreen::Borderless(monitor)))
         }
         LinuxOverlayRole::X11Overlay => attrs
+            .with_visible(false)
             .with_active(false)
             .with_decorations(false)
             .with_transparent(true)
@@ -248,6 +295,9 @@ pub fn apply_window_attributes_for_role(mut attrs: WindowAttributes) -> WindowAt
             WindowRole::BreakCard => {
                 let backend = select_display_backend(&IdleEnv::from_env());
                 let plan = break_card_attribute_plan(backend);
+                if backend == LinuxDisplayBackend::X11 {
+                    attrs = attrs.with_visible(false);
+                }
                 if plan.never_activate {
                     attrs = attrs.with_active(false);
                 }
@@ -319,6 +369,7 @@ pub fn enumerate_monitors() -> Vec<MonitorInfo> {
 pub struct LinuxOverlays {
     dims: Vec<LinuxDimOverlay>,
     edge_frames: Vec<LinuxEdgeFrameOverlay>,
+    generation: Rc<Cell<u64>>,
 }
 
 impl fmt::Debug for LinuxOverlays {
@@ -339,11 +390,18 @@ impl Drop for LinuxOverlays {
 impl LinuxOverlays {
     /// Creates an empty [`LinuxOverlays`] container.
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             dims: Vec::new(),
             edge_frames: Vec::new(),
+            generation: Rc::new(Cell::new(0)),
         }
+    }
+
+    fn bump_generation(&self) -> u64 {
+        let next = self.generation.get().wrapping_add(1);
+        self.generation.set(next);
+        next
     }
 
     /// Number of currently live dim + edge-frame overlay windows.
@@ -360,6 +418,7 @@ impl LinuxOverlays {
 
     /// Closes and drops all active dim and edge-frame overlay windows.
     pub fn close(&mut self) {
+        let _ = self.bump_generation();
         for dim in self.dims.drain(..) {
             let _ = dim.hide();
         }
@@ -393,6 +452,7 @@ impl LinuxOverlays {
 
     /// Shows click-through edge frames on `monitors` (X11 with active compositor only; no-op on Wayland).
     pub fn show_edge_frames(&mut self, monitors: &[MonitorInfo], color: Rgba, thickness_dip: u32) {
+        let generation = self.bump_generation();
         for frame in self.edge_frames.drain(..) {
             let _ = frame.hide();
         }
@@ -424,9 +484,7 @@ impl LinuxOverlays {
             };
             frame.set_border_color(slint_col);
             frame.set_border_width_px(thickness_dip as f32);
-            configure_x11_overlay_window(&frame, monitor.rect);
-            if frame.show().is_ok() {
-                apply_x11_overlay_after_show(frame.window());
+            if show_x11_overlay(&frame, monitor.rect, generation, &self.generation) {
                 self.edge_frames.push(frame);
             }
         }
@@ -490,6 +548,7 @@ impl LinuxOverlays {
     }
 
     fn show_x11_dims(&mut self, color: Rgba) {
+        let generation = self.generation.get();
         let snapshot = query_x11_monitors();
         let slint_col = slint_color(color);
         for monitor in snapshot.monitors {
@@ -501,9 +560,7 @@ impl LinuxOverlays {
                 continue;
             };
             dim.set_dim_color(slint_col);
-            configure_x11_overlay_window(&dim, monitor.rect);
-            if dim.show().is_ok() {
-                apply_x11_overlay_after_show(dim.window());
+            if show_x11_overlay(&dim, monitor.rect, generation, &self.generation) {
                 self.dims.push(dim);
             }
         }
@@ -531,33 +588,92 @@ fn attach_wayland_click_through_hook(window: &slint::Window) {
     });
 }
 
-fn configure_x11_overlay_window<C: ComponentHandle>(component: &C, rect: ScreenRect) {
-    let win = component.window();
+fn extract_x11_window_id_and_sync(window: &slint::Window) -> Option<u32> {
+    window
+        .with_winit_window(|w| {
+            let _ = w.inner_position();
+            let handle = w.window_handle().ok()?;
+            extract_x11_window_id_from_raw(handle.as_raw())
+        })
+        .flatten()
+}
+
+fn apply_x11_overlay_before_show(window: &slint::Window) -> bool {
+    let xid = window
+        .with_winit_window(|w| {
+            let _ = w.set_cursor_hittest(false);
+            let _ = w.inner_position();
+            let handle = w.window_handle().ok()?;
+            extract_x11_window_id_from_raw(handle.as_raw())
+        })
+        .flatten();
+    if let Some(xid) = xid {
+        let _ = apply_x11_break_window_hints(xid);
+        true
+    } else {
+        false
+    }
+}
+
+fn restack_after_x11_overlay_show(window: &slint::Window) {
+    if let Some(overlay_xid) = extract_x11_window_id_and_sync(window)
+        && let Some(card_xid) =
+            x11_restack_above_target(ACTIVE_BREAK_CARD_XID.with(Cell::get), overlay_xid)
+    {
+        let _ = raise_x11_window_above(card_xid);
+    }
+}
+
+fn show_x11_overlay<C: ComponentHandle + 'static>(
+    overlay: &C,
+    rect: ScreenRect,
+    generation: u64,
+    gen_cell: &Rc<Cell<u64>>,
+) -> bool {
+    let win = overlay.window();
     win.set_position(PhysicalPosition::new(rect.x, rect.y));
     win.set_size(PhysicalSize::new(
         u32::try_from(rect.width).unwrap_or(1),
         u32::try_from(rect.height).unwrap_or(1),
     ));
 
-    let applied = Rc::new(Cell::new(false));
-    win.on_winit_window_event(move |w, _event| {
-        if !applied.get() && apply_x11_overlay_after_show(w) {
-            applied.set(true);
-        }
-        EventResult::Propagate
-    });
-}
-
-fn apply_x11_overlay_after_show(window: &slint::Window) -> bool {
-    let applied = window.with_winit_window(|w| {
-        let _ = w.set_cursor_hittest(false);
-        if let Ok(handle) = w.window_handle()
-            && let Some(xid) = extract_x11_window_id_from_raw(handle.as_raw())
+    if should_defer_x11_show(is_winit_x11_active(), win.has_winit_window()) {
+        let weak = overlay.as_weak();
+        let gen_ref = Rc::clone(gen_cell);
+        if slint::spawn_local(async move {
+            if gen_ref.get() != generation {
+                return;
+            }
+            let Some(overlay) = weak.upgrade() else {
+                return;
+            };
+            let winit_res = overlay.window().winit_window().await;
+            drop(winit_res);
+            if gen_ref.get() != generation {
+                return;
+            }
+            apply_x11_overlay_before_show(overlay.window());
+            if overlay.show().is_ok() {
+                restack_after_x11_overlay_show(overlay.window());
+            }
+        })
+        .is_ok()
         {
-            let _ = apply_x11_break_window_hints(xid);
+            return true;
         }
-    });
-    applied.is_some()
+    }
+
+    if is_winit_x11_active() {
+        apply_x11_overlay_before_show(win);
+    }
+    if overlay.show().is_ok() {
+        if is_winit_x11_active() {
+            restack_after_x11_overlay_show(overlay.window());
+        }
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -574,7 +690,7 @@ mod tests {
     use super::{
         LinuxOverlayKind, LinuxOverlayMode, WindowAttributePlan, break_card_attribute_plan,
         decide_overlay_mode, extract_x11_window_id_from_raw, is_wayland_window_handle,
-        monitor_info_from_x11, plan_wayland_dim_outputs,
+        monitor_info_from_x11, plan_wayland_dim_outputs, should_defer_x11_show,
     };
 
     #[test]
@@ -694,5 +810,13 @@ mod tests {
                 primary: true,
             }
         );
+    }
+
+    #[test]
+    fn x11_show_deferral_applies_only_to_uncreated_winit_x11_windows() {
+        assert!(should_defer_x11_show(true, false));
+        assert!(!should_defer_x11_show(true, true));
+        assert!(!should_defer_x11_show(false, false));
+        assert!(!should_defer_x11_show(false, true));
     }
 }

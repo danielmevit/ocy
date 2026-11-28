@@ -1,6 +1,6 @@
 //! README / website app screenshots for a release: renders the real Ocy surfaces (`ui/ocy.slint`,
 //! interpreted, with the shipped generated theme) with real values in English, light and dark, to
-//! `<out_dir>/{light,dark}/{settings,short-break,long-break,warning}.png` at 2x, plus the exercise
+//! `<out_dir>/{light,dark}/{settings,short-break,short-roll,long-break,warning}.png` at 2x, plus the exercise
 //! strip frames `<out_dir>/exercises/{light,dark}/NNN.png`. `site/scripts/readme-visuals.py` fits
 //! them into the committed frames (`assets/readme/*`, `site/public/assets/screens/*`).
 //!
@@ -132,7 +132,7 @@ fn run_games(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
                 settings(
                     &get("SettingsWindowV2")?,
                     dark,
-                    Some(&["eldenring.exe", "VALORANT-Win64-Shipping.exe"]),
+                    Some(&["game.exe", "another-game.exe"]),
                 )?,
             ),
             (
@@ -165,6 +165,10 @@ fn run(out_dir: &Path) -> Result<Vec<PathBuf>, String> {
         let shots = [
             ("settings", settings(&get("SettingsWindowV2")?, dark, None)?),
             ("short-break", short_break(&get("ShortBreakCard")?, dark)?),
+            (
+                "short-roll",
+                short_exercise(&get("ShortBreakCard")?, dark, "roll")?,
+            ),
             ("long-break", long_break(&get("LongBreakCard")?, dark)?),
             ("warning", warning(&get("WarningCard")?, dark)?),
         ];
@@ -355,6 +359,19 @@ fn short_break(def: &ComponentDefinition, dark: bool) -> Result<Rgba, String> {
     )?;
     ui.text("close-label", "Close")?;
     ui.num("progress", 0.8)?;
+    Ok(render(&window, 392.0, || ui.height()))
+}
+
+/// A plain short card for one exercise, with its shipped English title, body and first frame.
+fn short_exercise(def: &ComponentDefinition, dark: bool, id: &str) -> Result<Rgba, String> {
+    let t = Table::load("en")?;
+    let ui = Ui::new(def, dark)?;
+    let window = take_window()?;
+    ui.set("art", art(&format!("{id}-{}-f1.svg", theme(dark)), 56.0)?)?;
+    ui.text("heading", &t.get(&format!("exercise.{id}.title")))?;
+    ui.text("body", &t.get(&format!("exercise.{id}.body")))?;
+    ui.text("close-label", &t.get("shortbreak.skip"))?;
+    ui.num("progress", 0.6)?;
     Ok(render(&window, 392.0, || ui.height()))
 }
 

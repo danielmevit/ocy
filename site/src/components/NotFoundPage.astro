@@ -31,7 +31,8 @@ const pageDescription = t(lang, 'notFound.meta.description');
 
     <div class="btn-row" style="margin-top: 20px;">
       <a class="btn btn-accent" data-label={t(lang, 'notFound.homeCta')} href={homeHref}>{t(lang, 'notFound.homeCta')}</a>
-      <a class="btn btn-outline btn-store" aria-label={t(lang, 'notFound.storeCta')} href={STORE_URL}><img class="store-logo on-light" src="/ms-store-light.svg" alt="" width="20" height="20" /><img class="store-logo on-dark" src="/ms-store.svg" alt="" width="20" height="20" />Microsoft Store</a>
+      <a class="btn btn-outline btn-store store-only" aria-label={t(lang, 'notFound.storeCta')} href={STORE_URL}><img class="store-logo on-light" src="/ms-store-light.svg" alt="" width="20" height="20" /><img class="store-logo on-dark" src="/ms-store.svg" alt="" width="20" height="20" />Microsoft Store</a>
+      <span class="btn btn-play play-only" role="img" aria-label={t(lang, 'play.soonAria')}><img src="/google-play.svg" alt="" width="20" height="20" />{t(lang, 'play.soon')}</span>
     </div>
   </section>
 </BaseLayout>

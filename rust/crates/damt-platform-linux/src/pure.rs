@@ -3,13 +3,15 @@
 //!
 //! No display server, D-Bus daemon, or filesystem root is required to test anything here.
 
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use damt_platform::{FocusState, ScreenRect, SessionEvent};
+use damt_platform::{FocusState, PlatformError, ScreenRect, SessionEvent};
 use thiserror::Error;
+use zbus::zvariant::{OwnedValue, Value};
 
 const LIGHT_ACTIVE_PNG: &[u8] =
     include_bytes!("../../../../assets/icons/tray/light/png/tray-active-32.png");
@@ -763,6 +765,23 @@ pub const X11_BREAK_STATE_ATOM_NAMES: [&str; 3] = [
 pub const NET_WM_STATE_ADD: u32 = 1;
 /// EWMH normal-application source indication for `_NET_WM_STATE` client messages.
 pub const NET_WM_SOURCE_APPLICATION: u32 = 1;
+/// ICCCM `WM_HINTS.input` value for break and overlay windows (`false`: never accept keyboard focus).
+pub const X11_BREAK_WM_HINTS_INPUT: bool = false;
+/// EWMH `_NET_WM_USER_TIME` value for break and overlay windows (`0`: suppress initial focus on map).
+pub const X11_BREAK_USER_TIME: u32 = 0;
+
+/// Returns `Some(card_xid)` when an active break-card window ID needs to be raised above
+/// `overlay_xid`, or `None` when no card is active or the IDs are invalid/identical.
+#[must_use]
+pub const fn x11_restack_above_target(
+    active_card_xid: Option<u32>,
+    overlay_xid: u32,
+) -> Option<u32> {
+    match active_card_xid {
+        Some(card_xid) if card_xid != 0 && card_xid != overlay_xid => Some(card_xid),
+        _ => None,
+    }
+}
 
 /// Merges `required` `_NET_WM_STATE` atoms into `existing` without duplicates and skipping `0`.
 #[must_use]
@@ -953,4 +972,214 @@ pub fn is_sandboxed_env(
             id.parse::<u32>().is_ok() && snap_hierarchy && snap_unit
         })
     })
+}
+
+/// Default path checked to detect a Flatpak sandbox container.
+pub const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
+
+const PORTAL_AUTOSTART_STATE_FILENAME: &str = "autostart-portal.state";
+
+/// Detects whether the current process is running inside Flatpak (`FLATPAK_ID` is non-empty
+/// or `flatpak_info_path` exists on disk).
+#[must_use]
+pub fn is_flatpak_env(flatpak_id: Option<&OsStr>, flatpak_info_path: &Path) -> bool {
+    let has_flatpak_id = flatpak_id.is_some_and(|v| !v.to_string_lossy().trim().is_empty());
+    has_flatpak_id || flatpak_info_path.exists()
+}
+
+/// Resolves the portal autostart state file path inside the app's XDG config directory
+/// (`$XDG_CONFIG_HOME/<appname>/autostart-portal.state`, falling back to
+/// `$HOME/.config/<appname>/autostart-portal.state`, lowercased to match `damt_app::AppDataPaths`).
+#[must_use]
+pub fn portal_autostart_state_path(
+    xdg_config_home: Option<&OsStr>,
+    home: Option<&OsStr>,
+    app_name: &str,
+) -> Option<PathBuf> {
+    let trimmed = app_name.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let dir_name = trimmed.to_ascii_lowercase();
+    if let Some(value) = xdg_config_home
+        && !value.is_empty()
+    {
+        return Some(
+            PathBuf::from(value)
+                .join(dir_name)
+                .join(PORTAL_AUTOSTART_STATE_FILENAME),
+        );
+    }
+    if let Some(value) = home
+        && !value.is_empty()
+    {
+        return Some(
+            PathBuf::from(value)
+                .join(".config")
+                .join(dir_name)
+                .join(PORTAL_AUTOSTART_STATE_FILENAME),
+        );
+    }
+    None
+}
+
+/// Formats the confirmed Flatpak portal autostart state for local persistence.
+#[must_use]
+pub const fn format_portal_autostart_state(enabled: bool) -> &'static str {
+    if enabled { "true\n" } else { "false\n" }
+}
+
+/// Parses a persisted Flatpak portal autostart state file.
+#[must_use]
+pub fn parse_portal_autostart_state(contents: &str) -> Option<bool> {
+    let trimmed = contents.trim();
+    if trimmed.eq_ignore_ascii_case("true")
+        || trimmed == "1"
+        || trimmed.eq_ignore_ascii_case("enabled")
+    {
+        Some(true)
+    } else if trimmed.eq_ignore_ascii_case("false")
+        || trimmed == "0"
+        || trimmed.eq_ignore_ascii_case("disabled")
+    {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Reads the persisted Flatpak portal autostart state, returning `false` if absent or invalid.
+#[must_use]
+pub fn read_portal_autostart_state(path: &Path) -> bool {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| parse_portal_autostart_state(&contents))
+        .unwrap_or(false)
+}
+
+/// Atomically writes `bytes` to `path` via a sibling temporary file and rename.
+pub fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), PlatformError> {
+    let Some(parent) = path.parent() else {
+        return Err(PlatformError(format!(
+            "autostart path has no parent directory: {}",
+            path.display()
+        )));
+    };
+    std::fs::create_dir_all(parent).map_err(|err| {
+        PlatformError(format!(
+            "could not create autostart directory {}: {err}",
+            parent.display()
+        ))
+    })?;
+
+    let tmp_name = format!(
+        ".{}.tmp-{}",
+        path.file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("autostart"),
+        std::process::id()
+    );
+    let tmp_path = parent.join(tmp_name);
+    std::fs::write(&tmp_path, bytes).map_err(|err| {
+        PlatformError(format!(
+            "could not write temporary autostart entry {}: {err}",
+            tmp_path.display()
+        ))
+    })?;
+    std::fs::rename(&tmp_path, path).map_err(|err| {
+        let _ = std::fs::remove_file(&tmp_path);
+        PlatformError(format!(
+            "could not install autostart entry {}: {err}",
+            path.display()
+        ))
+    })
+}
+
+/// Atomically persists the confirmed Flatpak portal autostart state to `path`.
+pub fn write_portal_autostart_state(path: &Path, enabled: bool) -> Result<(), PlatformError> {
+    write_file_atomic(path, format_portal_autostart_state(enabled).as_bytes())
+}
+
+/// Builds the `a{sv}` options dictionary for `org.freedesktop.portal.Background.RequestBackground`.
+///
+/// Sets `autostart`, `dbus-activatable: false`, `handle_token`, `reason`, and (when enabling)
+/// `commandline: [<command_name>]`.
+#[must_use]
+pub fn build_background_portal_options(
+    enabled: bool,
+    handle_token: &str,
+    command_name: &str,
+    reason: &str,
+) -> HashMap<&'static str, Value<'static>> {
+    let mut options = HashMap::new();
+    options.insert("handle_token", Value::from(handle_token.to_owned()));
+    options.insert("reason", Value::from(reason.to_owned()));
+    options.insert("autostart", Value::from(enabled));
+    options.insert("dbus-activatable", Value::from(false));
+    if enabled {
+        let cmd = if command_name.trim().is_empty() {
+            "Ocy".to_owned()
+        } else {
+            command_name.to_owned()
+        };
+        options.insert("commandline", Value::from(vec![cmd]));
+    }
+    options
+}
+
+fn unwrap_zvariant_bool(val: &Value<'_>) -> Option<bool> {
+    match val {
+        Value::Bool(v) => Some(*v),
+        Value::Value(inner) => unwrap_zvariant_bool(inner),
+        _ => None,
+    }
+}
+
+/// Extracts the `autostart` boolean from a `org.freedesktop.portal.Request::Response` results map.
+#[must_use]
+pub fn extract_portal_autostart_result(results: &HashMap<String, OwnedValue>) -> Option<bool> {
+    results
+        .get("autostart")
+        .and_then(|v| unwrap_zvariant_bool(v))
+}
+
+/// Maps an `org.freedesktop.portal.Request::Response` code and `autostart` boolean into
+/// `Result<(), PlatformError>`.
+///
+/// A non-zero response code, or an `autostart` value that contradicts the request
+/// (`autostart: false` while enabling, `autostart: true` while disabling), returns a
+/// clear [`PlatformError`].
+pub fn map_background_portal_response(
+    requested_enabled: bool,
+    response_code: u32,
+    autostart_granted: Option<bool>,
+) -> Result<(), PlatformError> {
+    match response_code {
+        0 => {
+            if autostart_granted == Some(!requested_enabled) {
+                Err(PlatformError(
+                    "desktop portal denied the requested autostart change".to_owned(),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        1 => Err(PlatformError(
+            "autostart permission request was cancelled".to_owned(),
+        )),
+        other => Err(PlatformError(format!(
+            "autostart portal request failed (response code {other})"
+        ))),
+    }
+}
+
+/// Extracts `autostart` from `results` and maps the portal response via
+/// [`map_background_portal_response`].
+pub fn map_background_portal_results(
+    requested_enabled: bool,
+    response_code: u32,
+    results: &HashMap<String, OwnedValue>,
+) -> Result<(), PlatformError> {
+    let autostart_granted = extract_portal_autostart_result(results);
+    map_background_portal_response(requested_enabled, response_code, autostart_granted)
 }

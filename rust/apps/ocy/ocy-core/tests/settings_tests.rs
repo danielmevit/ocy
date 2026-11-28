@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use common::TempDir;
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::{LongBreakSettings, OcySettings, ShortBreakSettings};
+use ocy_core::settings::{LongBreakSettings, OcySettings, ShortBreakSettings, UsageStatsConsent};
 use ocy_core::time::FakeClock;
 
 #[test]
@@ -475,4 +475,89 @@ fn water_nudges_false_round_trips_and_true_stays_unwritten() {
     assert!(json.contains("\"waterNudges\": false"));
     let reloaded = store.load_settings();
     assert!(!reloaded.water_nudges);
+}
+
+#[test]
+fn usage_stats_consent_defaults_to_not_asked_and_stays_unwritten() {
+    let dir = TempDir::new("settings-usage-stats-default");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 17, 12, 0, 0).expect("valid date"));
+    let store = AppDataStore::new(dir.path(), clock);
+
+    assert_eq!(
+        OcySettings::default().usage_stats,
+        UsageStatsConsent::NotAsked
+    );
+
+    // Default files stay byte-identical to pre-analytics files: the key is omitted.
+    store
+        .save_settings(&OcySettings::default())
+        .expect("save defaults");
+    let json = fs::read_to_string(store.settings_path()).expect("read saved json");
+    assert!(!json.contains("usageStats"));
+
+    // Old files without the key load as NotAsked.
+    fs::write(
+        store.settings_path(),
+        r#"{"schemaVersion": 2, "language": "de"}"#,
+    )
+    .expect("write old settings");
+    let loaded = store.load_settings();
+    assert_eq!(loaded.usage_stats, UsageStatsConsent::NotAsked);
+    assert_eq!(loaded.language, "de");
+}
+
+#[test]
+fn usage_stats_consent_round_trips_granted_and_declined() {
+    let dir = TempDir::new("settings-usage-stats-roundtrip");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 17, 12, 0, 0).expect("valid date"));
+    let store = AppDataStore::new(dir.path(), clock);
+
+    let granted = OcySettings {
+        usage_stats: UsageStatsConsent::Granted,
+        ..OcySettings::default()
+    };
+    store.save_settings(&granted).expect("save granted");
+    let json = fs::read_to_string(store.settings_path()).expect("read json");
+    assert!(json.contains("\"usageStats\": \"granted\""));
+    assert_eq!(
+        store.load_settings().usage_stats,
+        UsageStatsConsent::Granted
+    );
+
+    let declined = OcySettings {
+        usage_stats: UsageStatsConsent::Declined,
+        ..OcySettings::default()
+    };
+    store.save_settings(&declined).expect("save declined");
+    assert_eq!(
+        store.load_settings().usage_stats,
+        UsageStatsConsent::Declined
+    );
+}
+
+#[test]
+fn usage_stats_consent_unknown_or_null_value_is_not_asked() {
+    let dir = TempDir::new("settings-usage-stats-unknown");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 17, 12, 0, 0).expect("valid date"));
+    let store = AppDataStore::new(dir.path(), clock);
+
+    fs::write(
+        store.settings_path(),
+        r#"{"schemaVersion": 2, "usageStats": "somefuturevalue"}"#,
+    )
+    .expect("write future settings");
+    assert_eq!(
+        store.load_settings().usage_stats,
+        UsageStatsConsent::NotAsked
+    );
+
+    fs::write(
+        store.settings_path(),
+        r#"{"schemaVersion": 2, "usageStats": null}"#,
+    )
+    .expect("write null settings");
+    assert_eq!(
+        store.load_settings().usage_stats,
+        UsageStatsConsent::NotAsked
+    );
 }

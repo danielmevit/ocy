@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use damt_app::ErrorLog;
 use damt_art::FrameSequencer;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use damt_overlay::enumerate_monitors;
 use damt_platform::{Clock, PlatformServices};
 use jiff::Timestamp;
@@ -32,13 +32,20 @@ use crate::break_logic::{
 use crate::coordinator::BreakWindows;
 use crate::layout::{DipSize, OverlayLayout, PixelPoint, ScreenInfo, select_active_screen};
 use crate::strings::{Strings, font_family_for};
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use crate::win32_window::install_break_window_subclass_and_style;
 use crate::win32_window::{
     WindowRole, WindowRoleGuard, announce_to_screen_reader, should_allow_close,
 };
 
-const CARD_WINDOW_WIDTH_DIP: f64 = 392.0;
+/// Short-break and warning window width: 392 (card + 16 px margins), or exactly the 360 px card on
+/// macOS, whose software renderer cannot show transparent margins.
+const CARD_WINDOW_WIDTH_DIP: f64 =
+    crate::macos_window::short_card_window_width_dip(cfg!(target_os = "macos"));
+/// Extra corner margin when placing a short/warning card (16 on macOS, where the window has no
+/// transparent margin, so the card lands where it does elsewhere; 0 elsewhere).
+const CARD_CORNER_MARGIN_DIP: f64 =
+    crate::macos_window::card_corner_margin_dip(cfg!(target_os = "macos"));
 
 /// Host actions triggered by interactive buttons on the break and warning cards.
 #[derive(Clone)]
@@ -321,12 +328,14 @@ impl SlintBreakWindows {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
-        #[cfg(not(target_os = "linux"))]
-        let monitors = enumerate_monitors();
-        #[cfg(target_os = "linux")]
-        let monitors = crate::linux_window::enumerate_monitors();
-        let active_bounds = self.platform.active_screen().active_screen_bounds();
-        select_active_screen(&monitors, active_bounds)
+        active_screen_info(self.platform.as_ref())
+    }
+
+    /// Shared flag that is `true` while a break card, warning or long break is on screen (the
+    /// crash-report card waits until it is `false`).
+    #[must_use]
+    pub fn break_active_handle(&self) -> Rc<Cell<bool>> {
+        Rc::clone(&self.break_active)
     }
 
     fn configure_short_card_handlers(&self, card: &ShortBreakCard) {
@@ -386,6 +395,8 @@ impl SlintBreakWindows {
     fn create_short_card(&self, dark: bool) -> Result<ShortBreakCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = ShortBreakCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_close_label(self.strings.get("shortbreak.skip").into());
@@ -399,6 +410,8 @@ impl SlintBreakWindows {
     fn create_warning_card(&self, dark: bool) -> Result<WarningCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = WarningCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         let buttons = warning_buttons(self.strict_mode, self.postpones_left);
@@ -422,6 +435,8 @@ impl SlintBreakWindows {
     fn create_long_card(&self, dark: bool) -> Result<LongBreakCard, slint::PlatformError> {
         let _role = WindowRoleGuard::new(WindowRole::BreakCard);
         let card = LongBreakCard::new()?;
+        #[cfg(target_os = "macos")]
+        card.set_card_inset(0.0);
         ocy_ui::set_dark(&card, dark);
         card.set_font_family(font_family_for(self.strings.language()).into());
         card.set_dim_backdrop(false);
@@ -534,6 +549,8 @@ impl SlintBreakWindows {
     }
 
     fn hide_and_drop_active(&mut self) {
+        #[cfg(target_os = "linux")]
+        crate::linux_window::clear_x11_break_card();
         if let Some(active) = self.active.take() {
             match active {
                 ActiveBreakWindow::ShortBreak(s) => {
@@ -903,6 +920,80 @@ fn schedule_next_suggestion_frame(
     });
 }
 
+/// Logical long-break card window size: the shadowed 544 px window, or exactly the 480 px card on
+/// macOS (no per-pixel alpha there; AppKit draws the shadow).
+fn long_card_window_size(content_height_dip: f64, screen: Option<ScreenInfo>) -> DipSize {
+    #[cfg(target_os = "macos")]
+    {
+        let screen_dip = screen.map_or(DipSize::new(0.0, 0.0), |s| {
+            OverlayLayout::compute_dip_size(s.bounds.width, s.bounds.height, s.scaling)
+        });
+        let (w, h) = crate::macos_window::mac_long_card_window_size(
+            content_height_dip,
+            screen_dip.width,
+            screen_dip.height,
+        );
+        DipSize::new(w, h)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        match screen {
+            Some(s) => OverlayLayout::compute_long_break_window_size(content_height_dip, &s),
+            None => DipSize::new(544.0, content_height_dip + 80.0),
+        }
+    }
+}
+
+/// The monitor a card should appear on (the one with the active window).
+pub(crate) fn active_screen_info(platform: &dyn PlatformServices) -> Option<ScreenInfo> {
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let monitors = enumerate_monitors();
+    #[cfg(target_os = "linux")]
+    let monitors = crate::linux_window::enumerate_monitors();
+    #[cfg(target_os = "macos")]
+    let monitors = crate::macos_window::enumerate_monitors();
+    let active_bounds = platform.active_screen().active_screen_bounds();
+    select_active_screen(&monitors, active_bounds)
+}
+
+/// Shows `card` as a non-activating corner card exactly like the short-break card (same window
+/// role, placement and platform styling); used by the crash-report card (CR3). The card must have
+/// been created under a [`WindowRole::BreakCard`] guard.
+pub(crate) fn show_corner_card<C: ComponentHandle + 'static>(
+    card: &C,
+    screen: Option<ScreenInfo>,
+    error_log: ErrorLog,
+    announcement: String,
+    content_height: impl Fn(&C) -> f64 + 'static,
+) {
+    show_card_window(
+        card,
+        ShowWindowContext {
+            kind: "crash",
+            prewarmed: false,
+            due_at: Instant::now(),
+            screen,
+            centered: false,
+            generation: 1,
+            gen_cell: Rc::new(Cell::new(1)),
+            latency_out: Rc::new(RefCell::new(None)),
+            error_log,
+            log_latency: false,
+            print_latency_on_first_paint: false,
+            announcement,
+        },
+        move |c, _| DipSize::new(CARD_WINDOW_WIDTH_DIP, content_height(c).max(100.0)),
+    );
+}
+
+/// Re-places a corner card after its content height changed (keeps the corner anchoring).
+pub(crate) fn resize_corner_card(window: &slint::Window, screen: Option<ScreenInfo>, height: f64) {
+    let dip = DipSize::new(CARD_WINDOW_WIDTH_DIP, height.max(100.0));
+    let (pos, w, h) = compute_card_rect(screen, dip, false);
+    window.set_position(PhysicalPosition::new(pos.x, pos.y));
+    window.set_size(PhysicalSize::new(w, h));
+}
+
 fn compute_card_rect(
     screen: Option<ScreenInfo>,
     dip_size: DipSize,
@@ -914,7 +1005,7 @@ fn compute_card_rect(
             let pos = if centered {
                 OverlayLayout::compute_centered_position(&s, dip_size)
             } else {
-                OverlayLayout::compute_corner_position(&s, dip_size, 0.0)
+                OverlayLayout::compute_corner_position(&s, dip_size, CARD_CORNER_MARGIN_DIP)
             };
             (pos, w, h)
         }
@@ -946,7 +1037,11 @@ fn install_break_window_role_platform(window: &slint::Window) -> bool {
     {
         crate::linux_window::install_break_window_role(window)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        crate::macos_window::install_break_window_role(window)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         install_break_window_subclass_and_style(window)
     }
@@ -977,10 +1072,78 @@ fn schedule_subclass_retry<C: ComponentHandle + 'static>(
     });
 }
 
+#[cfg(target_os = "linux")]
+fn try_defer_x11_card_show<C: ComponentHandle + 'static>(
+    card: &C,
+    ctx: &ShowWindowContext,
+    dip_size: DipSize,
+    dip_size_fn: Rc<impl Fn(&C, Option<ScreenInfo>) -> DipSize + 'static>,
+    subclassed: &Rc<Cell<bool>>,
+) -> bool {
+    use slint::winit_030::WinitWindowAccessor;
+
+    if !crate::linux_window::should_defer_x11_card_show(card.window()) {
+        return false;
+    }
+
+    let weak = card.as_weak();
+    let subclassed_ev = Rc::clone(subclassed);
+    let gen_ref = Rc::clone(&ctx.gen_cell);
+    let generation = ctx.generation;
+    let due_at = ctx.due_at;
+    let latency_out = Rc::clone(&ctx.latency_out);
+    let error_log = ctx.error_log.clone();
+    let screen = ctx.screen;
+    let centered = ctx.centered;
+
+    let spawn_error_log = ctx.error_log.clone();
+    match slint::spawn_local(async move {
+        if gen_ref.get() != generation {
+            return;
+        }
+        let Some(card) = weak.upgrade() else {
+            return;
+        };
+        let winit_res = card.window().winit_window().await;
+        drop(winit_res);
+        if gen_ref.get() != generation {
+            return;
+        }
+        if !subclassed_ev.get() && install_break_window_role_platform(card.window()) {
+            subclassed_ev.set(true);
+        }
+        if let Err(err) = card.show() {
+            error_log.log_error("break_window_show", &err);
+        }
+        let show_ms = due_at.elapsed().as_secs_f64() * 1000.0;
+        if let Some(sample) = latency_out.borrow_mut().as_mut() {
+            sample.due_to_show_ms = show_ms;
+        }
+        let updated_dip = dip_size_fn(&card, screen);
+        if (updated_dip.height - dip_size.height).abs() > 0.5
+            || (updated_dip.width - dip_size.width).abs() > 0.5
+        {
+            let (new_pos, new_w, new_h) = compute_card_rect(screen, updated_dip, centered);
+            card.window()
+                .set_position(PhysicalPosition::new(new_pos.x, new_pos.y));
+            card.window().set_size(PhysicalSize::new(new_w, new_h));
+        }
+        crate::linux_window::register_x11_break_card(card.window());
+    }) {
+        Ok(_) => true,
+        Err(err) => {
+            // The deferred show never started; the caller falls back to the synchronous
+            // show path. Log so the degraded path is visible.
+            spawn_error_log.log_error("x11_defer_spawn", &err);
+            false
+        }
+    }
+}
+
 fn show_card_window<C: ComponentHandle + 'static>(
     card: &C,
     ctx: ShowWindowContext,
-    dip_size_fn: impl Fn(&C, Option<ScreenInfo>) -> DipSize,
+    dip_size_fn: impl Fn(&C, Option<ScreenInfo>) -> DipSize + 'static,
 ) {
     let dip_size = dip_size_fn(card, ctx.screen);
     let (pos, phys_w, phys_h) = compute_card_rect(ctx.screen, dip_size, ctx.centered);
@@ -1058,6 +1221,21 @@ fn show_card_window<C: ComponentHandle + 'static>(
         EventResult::Propagate
     });
 
+    #[cfg(target_os = "linux")]
+    let dip_size_fn = Rc::new(dip_size_fn);
+    #[cfg(target_os = "linux")]
+    if try_defer_x11_card_show(card, &ctx, dip_size, Rc::clone(&dip_size_fn), &subclassed) {
+        return;
+    }
+
+    #[cfg(target_os = "linux")]
+    if crate::linux_window::is_winit_x11_active()
+        && !subclassed.get()
+        && install_break_window_role_platform(card.window())
+    {
+        subclassed.set(true);
+    }
+
     if let Err(err) = card.show() {
         ctx.error_log.log_error("break_window_show", &err);
     }
@@ -1076,6 +1254,9 @@ fn show_card_window<C: ComponentHandle + 'static>(
             .set_position(PhysicalPosition::new(new_pos.x, new_pos.y));
         card.window().set_size(PhysicalSize::new(new_w, new_h));
     }
+
+    #[cfg(target_os = "linux")]
+    crate::linux_window::register_x11_break_card(card.window());
 
     if install_break_window_role_platform(card.window()) {
         subclassed.set(true);
@@ -1397,10 +1578,7 @@ impl BreakWindows for SlintBreakWindows {
             },
             |c, scr| {
                 let h = f64::from(c.get_content_height()).max(200.0);
-                match scr {
-                    Some(s) => OverlayLayout::compute_long_break_window_size(h, &s),
-                    None => DipSize::new(544.0, h + 80.0),
-                }
+                long_card_window_size(h, scr)
             },
         );
 
@@ -1466,6 +1644,8 @@ impl BreakWindows for SlintBreakWindows {
     }
 
     fn close_all(&mut self) {
+        #[cfg(target_os = "linux")]
+        crate::linux_window::clear_x11_break_card();
         self.break_active.set(false);
         let _ = self.next_generation();
         self.hide_and_drop_active();

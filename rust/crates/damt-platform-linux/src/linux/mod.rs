@@ -23,6 +23,6 @@ pub use tray::{
     LinuxTray, LinuxTrayAction, LinuxTrayConfig, LinuxTrayHandle, LinuxTrayMenuItem,
     LinuxTrayMenuSlot, LinuxTrayPresentation,
 };
-pub use window::{apply_x11_break_window_hints, query_x11_monitors};
+pub use window::{apply_x11_break_window_hints, query_x11_monitors, raise_x11_window_above};
 
 pub use crate::pure::LinuxTrayIconState;

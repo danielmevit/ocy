@@ -115,6 +115,22 @@ pub fn language_options() -> Vec<LanguageOption> {
     options
 }
 
+/// String key for the `"Automatic (...)"` first entry of the Settings V2 language dropdown.
+#[must_use]
+pub const fn automatic_language_key_for_platform(is_windows: bool) -> &'static str {
+    if is_windows {
+        "settings.v2.language.automatic"
+    } else {
+        "settings.v2.language.automaticSystem"
+    }
+}
+
+/// String key for the `"Automatic (...)"` dropdown entry on the current compile target.
+#[must_use]
+pub const fn automatic_language_key() -> &'static str {
+    automatic_language_key_for_platform(cfg!(windows))
+}
+
 /// Builds the full dropdown model: index 0 = `automatic_label`, followed by every embedded
 /// language's endonym in sorted order.
 #[must_use]
@@ -194,6 +210,22 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create temp dir");
         dir
+    }
+
+    #[test]
+    fn automatic_language_key_selects_windows_or_system_by_platform() {
+        assert_eq!(
+            automatic_language_key_for_platform(true),
+            "settings.v2.language.automatic"
+        );
+        assert_eq!(
+            automatic_language_key_for_platform(false),
+            "settings.v2.language.automaticSystem"
+        );
+        assert_eq!(
+            automatic_language_key(),
+            automatic_language_key_for_platform(cfg!(windows))
+        );
     }
 
     #[test]

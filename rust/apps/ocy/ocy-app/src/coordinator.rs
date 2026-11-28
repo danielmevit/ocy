@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use damt_overlay::enumerate_monitors;
 use damt_overlay::{Dims, EdgeFrames};
 use damt_platform::{Clock, PlatformServices, SystemClock};
@@ -123,6 +123,8 @@ pub struct OverlayBreakWindows<W: BreakWindows> {
     dims: Option<Dims>,
     #[cfg(target_os = "linux")]
     linux_overlays: crate::linux_window::LinuxOverlays,
+    #[cfg(target_os = "macos")]
+    macos_overlays: crate::macos_window::MacosOverlays,
     theme_tracker: AppThemeTracker,
     short_break_fullscreen: bool,
 }
@@ -162,6 +164,8 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
             dims: None,
             #[cfg(target_os = "linux")]
             linux_overlays: crate::linux_window::LinuxOverlays::new(),
+            #[cfg(target_os = "macos")]
+            macos_overlays: crate::macos_window::MacosOverlays::new(),
             theme_tracker,
             short_break_fullscreen: false,
         }
@@ -187,7 +191,11 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
         let linux = self.linux_overlays.len();
         #[cfg(not(target_os = "linux"))]
         let linux = 0;
-        edge_frames + dims + linux
+        #[cfg(target_os = "macos")]
+        let macos = self.macos_overlays.len();
+        #[cfg(not(target_os = "macos"))]
+        let macos = 0;
+        edge_frames + dims + linux + macos
     }
 
     fn close_overlays(&mut self) {
@@ -196,6 +204,8 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
         self.dims = None;
         #[cfg(target_os = "linux")]
         self.linux_overlays.close();
+        #[cfg(target_os = "macos")]
+        self.macos_overlays.close();
     }
 
     fn refresh_theme(&mut self) {
@@ -216,21 +226,31 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
                 };
                 self.linux_overlays.set_edge_frame_color(color);
             }
+            #[cfg(target_os = "macos")]
+            if let Some(kind) = self.edge_frame_kind {
+                let color = match kind {
+                    EdgeFrameKind::ShortBreak => edge_frame_color(dark),
+                    EdgeFrameKind::Warning => attention_frame_color(dark),
+                };
+                self.macos_overlays.set_edge_frame_color(color);
+            }
         }
     }
 
     fn show_edge_frames(&mut self, color: damt_overlay::Rgba, kind: EdgeFrameKind) {
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let monitors = enumerate_monitors();
         #[cfg(target_os = "linux")]
         let monitors = crate::linux_window::enumerate_monitors();
+        #[cfg(target_os = "macos")]
+        let monitors = crate::macos_window::enumerate_monitors();
         if monitors.is_empty() {
             return;
         }
         let active_bounds = self.platform.active_screen().active_screen_bounds();
         let other_monitors = non_active_monitors(&monitors, active_bounds);
         if !other_monitors.is_empty() {
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(not(any(target_os = "linux", target_os = "macos")))]
             {
                 self.edge_frames = Some(EdgeFrames::show(
                     &other_monitors,
@@ -246,12 +266,20 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
                     EDGE_FRAME_THICKNESS_DIP,
                 );
             }
+            #[cfg(target_os = "macos")]
+            {
+                self.macos_overlays.show_edge_frames(
+                    &other_monitors,
+                    color,
+                    EDGE_FRAME_THICKNESS_DIP,
+                );
+            }
             self.edge_frame_kind = Some(kind);
         }
     }
 
     fn show_dims_all_monitors(&mut self) {
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         {
             let monitors = enumerate_monitors();
             if !monitors.is_empty() {
@@ -264,6 +292,11 @@ impl<W: BreakWindows> OverlayBreakWindows<W> {
         #[cfg(target_os = "linux")]
         {
             self.linux_overlays
+                .show_dims(overlay_dim_color(self.theme_tracker.is_dark()));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            self.macos_overlays
                 .show_dims(overlay_dim_color(self.theme_tracker.is_dark()));
         }
     }

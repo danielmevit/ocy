@@ -14,6 +14,9 @@ path = "src/main.rs"
 [features]
 default = []
 store = ["damt-platform-win/store"]
+# Test-only crash trigger (`--crash-test panic|native`), also usable in release builds so
+# the real abort path can be exercised. Never enabled in release artifacts.
+crash-test = []
 
 [dependencies]
 damt-app = { path = "../../../crates/damt-app" }
@@ -30,15 +33,59 @@ resvg.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 slint.workspace = true
+# Anonymous usage stats (AN1): batch sender + deterministic event UUIDs.
+uuid = { version = "=1.29.3", features = ["v4", "v5"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { workspace = true, features = ["Win32_Globalization", "Win32_System_Console", "Win32_System_ProcessStatus", "Win32_UI_Accessibility"] }
+windows = { workspace = true, features = [
+    "Win32_Globalization",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_IO",
+    "Win32_System_Kernel",
+    "Win32_System_ProcessStatus",
+    "Win32_UI_Accessibility",
+    "Win32_Storage_FileSystem",
+    "Wdk_System_SystemServices",
+] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 damt-platform-linux = { path = "../../../crates/damt-platform-linux" }
+# TLS per platform (R4 finding 1/4): Linux uses rustls (ring, built natively here and in
+# the Flatpak SDK) with bundled webpki roots, so the binary never links libssl/libcrypto.
+# The features of every matching dependency entry are unified per target, so the Linux
+# entry must be the only one that applies there.
+ureq = { version = "=3.5.2", default-features = false, features = [
+    "json",
+    "rustls",
+    "win-system-proxy",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 damt-platform-mac = { path = "../../../crates/damt-platform-mac" }
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", features = [
+    "NSApplication",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSView",
+    "NSWindow",
+] }
+objc2-foundation = { version = "=0.3.2", features = [
+    "NSLocale",
+    "NSObject",
+    "NSProcessInfo",
+] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+# Windows and macOS use the OS-native TLS stack (SChannel / Security.framework) with the
+# platform verifier; the explicit TlsConfig in usage_stats picks the matching provider.
+# These targets must not pull ring (cross clippy via xwin has no C toolchain for it).
+ureq = { version = "=3.5.2", default-features = false, features = [
+    "json",
+    "native-tls-no-default",
+    "win-system-proxy",
+] }
 
 [build-dependencies]
 damt-build.workspace = true

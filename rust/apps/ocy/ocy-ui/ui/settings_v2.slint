@@ -127,6 +127,27 @@ export component SettingsWindowV2 inherits Window {
     in property <string> notifications-label;
     in property <string> notifications-help;
     in property <string> about-name-version;
+    // Anonymous usage stats (opt-in). Only a build with a stats key sets `show-usage-stats`; without
+    // it neither the General row nor the one-time ask renders. `usage-stats-ask` shows the inline
+    // card at the top until the user picks either button (or the switch); the host keeps it true
+    // while the stored consent is "not asked", so closing without a choice asks again next time.
+    in property <bool> show-usage-stats: false;
+    in-out property <bool> usage-stats-on: false;
+    in-out property <bool> usage-stats-ask: false;
+    in property <string> usage-stats-label;
+    in property <string> usage-stats-help;
+    in property <string> usage-stats-link;
+    in property <string> usage-stats-ask-title;
+    in property <string> usage-stats-ask-body;
+    in property <string> usage-stats-share-label;
+    in property <string> usage-stats-decline-label;
+    // Crash reports (CR3): Ask each time / Always send / Never send. Same gate as usage stats (a
+    // build with a key), but its own row, label and helper line.
+    in property <bool> show-crash-reports: false;
+    in property <string> crash-reports-label;
+    in property <string> crash-reports-help;
+    in property <[string]> crash-reports-model;
+    in-out property <int> crash-reports-index: 0;
     in property <string> about-tagline;
     // Language picker: display names, entry 0 is "Automatic (Windows language)".
     in property <[string]> language-model;
@@ -182,6 +203,10 @@ export component SettingsWindowV2 inherits Window {
     callback remove-silent-game(int);
     // Store build: open the Store purchase flow.
     callback buy();
+    // Usage stats: the user chose (true share, false no); the host stores the consent.
+    callback usage-stats-chosen(bool);
+    // Open the "What's sent" page in the browser.
+    callback open-usage-stats-link();
     // Esc pressed: the host closes the window as if its close button was used.
     callback escape-pressed();
 
@@ -212,6 +237,12 @@ export component SettingsWindowV2 inherits Window {
     property <int> scene-index: max(0, min(3, root.preset)) * 4 + max(0, min(3, root.mode-frame - 1));
     property <bool> trial-ended: root.store-build && root.license-state == "trial-expired";
     property <bool> trial-running: root.store-build && root.license-state == "trial" && root.trial-days-left > 0;
+
+    public function choose-usage-stats(share: bool) {
+        root.usage-stats-on = share;
+        root.usage-stats-ask = false;
+        root.usage-stats-chosen(share);
+    }
 
     function pick-preset(i: int) {
         root.preset = i;
@@ -268,6 +299,64 @@ export component SettingsWindowV2 inherits Window {
                                 kind: ButtonKind.accent;
                                 accessible-name: root.buy-label;
                                 clicked => { root.buy(); }
+                            }
+                        }
+                    }
+                }
+
+                // One-time ask for anonymous usage stats: inline, never a popup. Both answers are
+                // the same outline button at the same width, so "No thanks" is as easy as "Share".
+                // Side by side when they fit, stacked (still equal) in long languages at 480 px.
+                if root.show-usage-stats && root.usage-stats-ask : ask := Group {
+                    accessible-role: groupbox;
+                    accessible-label: root.usage-stats-ask-title;
+                    // Hidden measuring copies (semibold, as the buttons reserve) so both buttons get
+                    // the width of the longer label.
+                    share-measure := Text { visible: false; x: 0; y: 0; text: root.usage-stats-share-label; font-size: Theme.font-size-label; font-weight: 600; }
+                    decline-measure := Text { visible: false; x: 0; y: 0; text: root.usage-stats-decline-label; font-size: Theme.font-size-label; font-weight: 600; }
+                    property <length> button-width: max(share-measure.preferred-width, decline-measure.preferred-width) + 32px;
+                    property <bool> side-by-side: self.width - 24px >= 2 * self.button-width + 8px;
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text { text: root.usage-stats-ask-title; font-size: Theme.font-size-body; font-weight: 600; color: Theme.text; wrap: word-wrap; }
+                            Text { text: root.usage-stats-ask-body; font-size: Theme.font-size-label; color: Theme.text-muted; wrap: word-wrap; }
+                            HorizontalLayout {
+                                alignment: start;
+                                LinkButton {
+                                    text: root.usage-stats-link;
+                                    padding-y: 2px;
+                                    clicked => { root.open-usage-stats-link(); }
+                                }
+                            }
+                        }
+                        if ask.side-by-side : HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            Button {
+                                text: root.usage-stats-share-label;
+                                fixed-width: ask.button-width;
+                                clicked => { root.choose-usage-stats(true); }
+                            }
+                            Button {
+                                text: root.usage-stats-decline-label;
+                                fixed-width: ask.button-width;
+                                clicked => { root.choose-usage-stats(false); }
+                            }
+                        }
+                        if !ask.side-by-side : VerticalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: root.usage-stats-share-label;
+                                horizontal-stretch: 1;
+                                clicked => { root.choose-usage-stats(true); }
+                            }
+                            Button {
+                                text: root.usage-stats-decline-label;
+                                horizontal-stretch: 1;
+                                clicked => { root.choose-usage-stats(false); }
                             }
                         }
                     }
@@ -667,6 +756,33 @@ export component SettingsWindowV2 inherits Window {
                                 help: root.water-nudges-help;
                                 checked <=> root.water-nudges;
                                 toggled => { root.changed(); }
+                            }
+                            if root.show-usage-stats : ToggleRow {
+                                label: root.usage-stats-label;
+                                help: root.usage-stats-help;
+                                checked <=> root.usage-stats-on;
+                                toggled(v) => { root.choose-usage-stats(v); }
+                            }
+                            if root.show-usage-stats : HorizontalLayout {
+                                alignment: start;
+                                padding-bottom: 3px;
+                                LinkButton {
+                                    text: root.usage-stats-link;
+                                    font-size: Theme.font-size-help;
+                                    padding-y: 2px;
+                                    clicked => { root.open-usage-stats-link(); }
+                                }
+                            }
+                            if root.show-crash-reports : CompactRow {
+                                label: root.crash-reports-label;
+                                help: root.crash-reports-help;
+                                Dropdown {
+                                    model: root.crash-reports-model;
+                                    current-index <=> root.crash-reports-index;
+                                    window-height: root.height;
+                                    accessible-name: root.crash-reports-label;
+                                    selected => { root.changed(); }
+                                }
                             }
                         }
                     }

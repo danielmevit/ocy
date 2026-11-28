@@ -39,6 +39,86 @@ impl GamesMode {
     }
 }
 
+/// User consent for the anonymous usage statistics feature.
+///
+/// Missing, null, and unrecognised values deserialize as [`UsageStatsConsent::NotAsked`], so an
+/// old settings file (or a future value an older build does not know) never fails the load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UsageStatsConsent {
+    /// The user has not been asked yet (default; also used when the build has no analytics key).
+    #[default]
+    NotAsked,
+    /// The user opted in; anonymous daily summaries may be sent.
+    Granted,
+    /// The user declined (or opted out); nothing is sent and any install record is deleted.
+    Declined,
+}
+
+impl UsageStatsConsent {
+    fn is_not_asked(consent: &Self) -> bool {
+        matches!(consent, Self::NotAsked)
+    }
+}
+
+/// User consent for local crash reports (a separate consent from the usage statistics).
+///
+/// Missing, null, and unrecognised values deserialize as [`CrashReportsConsent::Ask`], so an
+/// old settings file (or a future value an older build does not know) never fails the load.
+/// The field is omitted from JSON while `Ask`, so files written with the default stay
+/// byte-identical to older versions'.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrashReportsConsent {
+    /// Ask before sending each report (default; nothing is ever sent without a yes).
+    #[default]
+    Ask,
+    /// Always offer to send reports without asking again.
+    Always,
+    /// Never send reports; pending local reports are deleted.
+    Never,
+}
+
+impl CrashReportsConsent {
+    fn is_ask(consent: &Self) -> bool {
+        matches!(consent, Self::Ask)
+    }
+}
+
+fn deserialize_crash_reports_consent<'de, D>(
+    deserializer: D,
+) -> Result<CrashReportsConsent, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let consent = match value {
+        serde_json::Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "always" => CrashReportsConsent::Always,
+            "never" => CrashReportsConsent::Never,
+            _ => CrashReportsConsent::Ask,
+        },
+        _ => CrashReportsConsent::Ask,
+    };
+    Ok(consent)
+}
+
+fn deserialize_usage_stats_consent<'de, D>(deserializer: D) -> Result<UsageStatsConsent, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let consent = match value {
+        serde_json::Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "granted" => UsageStatsConsent::Granted,
+            "declined" => UsageStatsConsent::Declined,
+            _ => UsageStatsConsent::NotAsked,
+        },
+        _ => UsageStatsConsent::NotAsked,
+    };
+    Ok(consent)
+}
+
 fn deserialize_games_mode<'de, D>(deserializer: D) -> Result<GamesMode, D::Error>
 where
     D: Deserializer<'de>,
@@ -332,6 +412,23 @@ pub struct OcySettings {
         deserialize_with = "deserialize_games_silent"
     )]
     pub games_silent: Vec<String>,
+    /// Consent for anonymous usage statistics. Omitted from JSON while [`UsageStatsConsent::NotAsked`],
+    /// so files written with the default stay byte-identical to older versions'.
+    #[serde(
+        default,
+        skip_serializing_if = "UsageStatsConsent::is_not_asked",
+        deserialize_with = "deserialize_usage_stats_consent"
+    )]
+    pub usage_stats: UsageStatsConsent,
+    /// Consent for crash reports. Omitted from JSON while [`CrashReportsConsent::Ask`], so
+    /// files written with the default stay byte-identical to older versions'. Completely
+    /// separate from `usage_stats`.
+    #[serde(
+        default,
+        skip_serializing_if = "CrashReportsConsent::is_ask",
+        deserialize_with = "deserialize_crash_reports_consent"
+    )]
+    pub crash_reports: CrashReportsConsent,
 }
 
 impl OcySettings {
@@ -390,6 +487,121 @@ impl Default for OcySettings {
             language: "en".to_owned(),
             games_mode: GamesMode::Gentle,
             games_silent: Vec::new(),
+            usage_stats: UsageStatsConsent::NotAsked,
+            crash_reports: CrashReportsConsent::Ask,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_omits_crash_reports_from_json() {
+        let json = serde_json::to_string(&OcySettings::default()).unwrap_or_default();
+        assert!(!json.contains("crashReports"));
+        assert!(!json.contains("usageStats"));
+    }
+
+    #[test]
+    fn crash_reports_consent_round_trips() {
+        for (consent, tag) in [
+            (CrashReportsConsent::Ask, "ask"),
+            (CrashReportsConsent::Always, "always"),
+            (CrashReportsConsent::Never, "never"),
+        ] {
+            let settings = OcySettings {
+                crash_reports: consent,
+                ..OcySettings::default()
+            };
+            let json = serde_json::to_string(&settings).unwrap_or_default();
+            assert_eq!(
+                json.contains(&format!("\"crashReports\":\"{tag}\"")),
+                consent != CrashReportsConsent::Ask
+            );
+            let back: OcySettings = serde_json::from_str(&json).unwrap_or_default();
+            assert_eq!(back.crash_reports, consent);
+        }
+    }
+
+    #[test]
+    fn crash_reports_consent_is_tolerant() {
+        for (raw, expected) in [
+            (
+                serde_json::json!({"crashReports": "always"}),
+                CrashReportsConsent::Always,
+            ),
+            (
+                serde_json::json!({"crashReports": "never"}),
+                CrashReportsConsent::Never,
+            ),
+            (
+                serde_json::json!({"crashReports": " ALWAYS "}),
+                CrashReportsConsent::Always,
+            ),
+            (
+                serde_json::json!({"crashReports": "ask"}),
+                CrashReportsConsent::Ask,
+            ),
+            (
+                serde_json::json!({"crashReports": "from-the-future"}),
+                CrashReportsConsent::Ask,
+            ),
+            (
+                serde_json::json!({"crashReports": null}),
+                CrashReportsConsent::Ask,
+            ),
+            (
+                serde_json::json!({"crashReports": 42}),
+                CrashReportsConsent::Ask,
+            ),
+            (serde_json::json!({}), CrashReportsConsent::Ask),
+        ] {
+            let settings: OcySettings = serde_json::from_value(raw).unwrap_or_default();
+            assert_eq!(settings.crash_reports, expected);
+        }
+    }
+
+    /// The 0.2.2-era struct shape (every field except `crash_reports`) must still read a
+    /// file written by this version: unknown properties are ignored by the plain reader.
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase", default)]
+    struct OcySettingsV022 {
+        schema_version: i32,
+        short_breaks: ShortBreakSettings,
+        long_breaks: LongBreakSettings,
+        strict_mode: bool,
+        sounds: bool,
+        language: String,
+        #[serde(default, deserialize_with = "deserialize_usage_stats_consent")]
+        usage_stats: UsageStatsConsent,
+    }
+
+    impl Default for OcySettingsV022 {
+        fn default() -> Self {
+            Self {
+                schema_version: 0,
+                short_breaks: ShortBreakSettings::default(),
+                long_breaks: LongBreakSettings::default(),
+                strict_mode: false,
+                sounds: false,
+                language: String::new(),
+                usage_stats: UsageStatsConsent::NotAsked,
+            }
+        }
+    }
+
+    #[test]
+    fn older_struct_shape_still_reads_the_new_file() {
+        let settings = OcySettings {
+            crash_reports: CrashReportsConsent::Never,
+            usage_stats: UsageStatsConsent::Granted,
+            ..OcySettings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap_or_default();
+        let old: OcySettingsV022 = serde_json::from_str(&json).unwrap_or_default();
+        assert_eq!(old.usage_stats, UsageStatsConsent::Granted);
+        assert_eq!(old.schema_version, OcySettings::CURRENT_SCHEMA_VERSION);
     }
 }

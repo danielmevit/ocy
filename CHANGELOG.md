@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0 — 2026-11-27
+
+Optional, anonymous usage stats and crash reports, so Ocy can get better for everyone. Nothing is sent unless you say yes.
+
+### Added
+- **Optional anonymous usage stats.** Settings asks once whether Ocy may send a short summary once a day: the day's
+  break counts and your break settings, plus the app version, system version and language. It is anonymous, nothing
+  personal is included, and nothing is sent unless you choose **Share stats**. **No thanks** is just as easy.
+  - Change your mind any time in Settings → General → **Share anonymous usage stats**. Turning it off deletes the
+    random ID from your PC.
+  - Exactly what is sent, and what never is: https://ocy.damt.xyz/privacy/#usage-stats
+- **Optional crash reports.** If Ocy ever closes unexpectedly, it saves a short report on your PC: what went wrong,
+  where in Ocy's code, Ocy's version and your system version. Nothing personal: names, folders and game names are
+  removed before anything is saved. Next time Ocy starts, a small card asks: **Send** or **Don't send**, with
+  **See what's in it** to read the exact report first.
+  - Tick **Don't ask again** to remember your choice, or pick **Ask each time**, **Always send** or **Never send** in
+    Settings → General → **Crash reports**. It's separate from the usage stats.
+  - Details: https://ocy.damt.xyz/privacy/#crash-reports
+
+### Changed
+- Ocy's website now lives at https://ocy.damt.xyz/.
+
+### Behind the scenes
+- More groundwork for Linux and macOS versions. They are not ready to use yet.
+
 ## 0.2.2 — 2026-11-22
 
 Gentle breaks in games, a glass of water now and then, and a Settings header that shows your rhythm.

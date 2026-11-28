@@ -1,0 +1,296 @@
+// Crash-report ask card (CR3): a calm corner card in the short-break card style, shown on the next
+// start after a crash while consent is "Ask each time". Never an alarm: no attention colour, no icon,
+// and Send / Don't send are the same outline button at the same width.
+import { Theme } from "@app-theme/theme.slint";
+import { Button, ButtonKind, CloseButton, Card, LinkButton, Check } from "@damt-ui/kit.slint";
+
+// One pending report as the preview shows it: its ID and the exact text that would be sent.
+export struct CrashPreviewItem {
+    report-id: string,
+    id-line: string,
+    text: string,
+}
+
+// Plain square check box with its label; the whole row toggles.
+component CheckRow inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled(bool);
+    accessible-role: checkbox;
+    accessible-label: root.text;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.checked = !root.checked; root.toggled(root.checked); }
+    min-height: row.preferred-height;
+    row := HorizontalLayout {
+        spacing: Theme.space-8;
+        alignment: start;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 3px;
+                border-width: root.checked ? 0px : 1px;
+                border-color: Theme.text-muted;
+                background: root.checked ? Theme.accent : transparent;
+                if root.checked : Check {
+                    x: 3px;
+                    y: 4px;
+                    stroke: Theme.on-accent;
+                }
+            }
+        }
+        Text {
+            text: root.text;
+            font-size: Theme.font-size-label;
+            color: Theme.text;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.checked = !root.checked; root.toggled(root.checked); }
+    }
+}
+
+export component CrashReportCard inherits Window {
+    in property <string> font-family: "Segoe UI";
+    // Monospace family for the preview text (Consolas / Menlo / monospace, set by the host).
+    in property <string> mono-font-family: "Consolas";
+    in property <string> heading;
+    in property <string> body;
+    // "Reports waiting: 3 ..." when more than one report is pending, empty otherwise.
+    in property <string> count-text;
+    in property <string> see-what-label;
+    in property <string> dont-ask-label;
+    in property <string> send-label;
+    in property <string> dont-send-label;
+    in property <string> close-label;
+    in property <string> preview-title;
+    in property <string> preview-help;
+    in property <string> copy-label;
+    in property <string> back-label;
+    in property <[CrashPreviewItem]> reports;
+    in-out property <bool> dont-ask-again: false;
+    in-out property <bool> show-preview: false;
+    // The text that "Copy ID" put on the clipboard last (the host can read it in tests).
+    out property <string> copied-id;
+    // Send = true, Don't send = false; `dont-ask-again` carries the tick.
+    callback decided(bool);
+    // Closed without a choice: the reports stay for the next start.
+    callback closed();
+    // The preview opened or closed: the host re-sizes the window to `content-height`.
+    callback layout-changed();
+    // Logical preview text area height (the card grows to it while the preview is open).
+    in property <length> preview-height: 220px;
+    // Transparent margin around the card (holds the drop shadow); 0 on macOS like the other cards.
+    in property <length> card-inset: 16px;
+    out property <length> content-height: frame.preferred-height;
+    // Any height change (preview opened or closed, lazily built rows) re-sizes the window.
+    changed content-height => { root.layout-changed(); }
+
+    no-frame: true;
+    always-on-top: true;
+    background: root.card-inset == 0 ? Theme.surface : transparent;
+    width: 360px + 2 * root.card-inset;
+    default-font-family: root.font-family;
+
+    // Hidden measuring copies so both choice buttons get the width of the longer label.
+    send-measure := Text { visible: false; x: 0; y: 0; text: root.send-label; font-size: Theme.font-size-label; font-weight: 600; }
+    dont-measure := Text { visible: false; x: 0; y: 0; text: root.dont-send-label; font-size: Theme.font-size-label; font-weight: 600; }
+    property <length> button-width: max(send-measure.preferred-width, dont-measure.preferred-width) + 22px;
+    // Inner width: 360 card - 28 padding.
+    property <bool> side-by-side: 332px >= 2 * root.button-width + 8px;
+
+    // Clipboard helper: a hidden read-only input whose text is the ID being copied.
+    clip := TextInput {
+        visible: false;
+        read-only: true;
+        x: 0;
+        y: 0;
+        width: 1px;
+        height: 1px;
+    }
+
+    function copy-id(id: string) {
+        root.copied-id = id;
+        clip.text = id;
+        clip.select-all();
+        clip.copy();
+        clip.clear-selection();
+    }
+
+    frame := VerticalLayout {
+        padding: root.card-inset;
+        Card {
+            shadow: root.card-inset > 0;
+            VerticalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                spacing: Theme.space-8;
+                HorizontalLayout {
+                    spacing: Theme.space-4;
+                    Text {
+                        text: root.show-preview ? root.preview-title : root.heading;
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: Theme.text;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        CloseButton {
+                            accessible-name: root.close-label;
+                            clicked => { root.closed(); }
+                        }
+                    }
+                }
+
+                if !root.show-preview : VerticalLayout {
+                    spacing: Theme.space-8;
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+                        Text {
+                            text: root.body;
+                            font-size: Theme.font-size-label;
+                            color: Theme.text-muted;
+                            wrap: word-wrap;
+                        }
+                        if root.count-text != "" : Text {
+                            text: root.count-text;
+                            font-size: Theme.font-size-label;
+                            color: Theme.text-muted;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            LinkButton {
+                                text: root.see-what-label;
+                                padding-y: 2px;
+                                clicked => { root.show-preview = true; root.layout-changed(); }
+                            }
+                        }
+                    }
+                    CheckRow {
+                        text: root.dont-ask-label;
+                        checked <=> root.dont-ask-again;
+                    }
+                    if root.side-by-side : HorizontalLayout {
+                        spacing: Theme.space-8;
+                        alignment: start;
+                        Button {
+                            text: root.send-label;
+                            fixed-width: root.button-width;
+                            clicked => { root.decided(true); }
+                        }
+                        Button {
+                            text: root.dont-send-label;
+                            fixed-width: root.button-width;
+                            clicked => { root.decided(false); }
+                        }
+                    }
+                    if !root.side-by-side : VerticalLayout {
+                        spacing: Theme.space-8;
+                        Button {
+                            text: root.send-label;
+                            horizontal-stretch: 1;
+                            clicked => { root.decided(true); }
+                        }
+                        Button {
+                            text: root.dont-send-label;
+                            horizontal-stretch: 1;
+                            clicked => { root.decided(false); }
+                        }
+                    }
+                }
+
+                if root.show-preview : VerticalLayout {
+                    spacing: Theme.space-8;
+                    Text {
+                        text: root.preview-help;
+                        font-size: Theme.font-size-label;
+                        color: Theme.text-muted;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: root.preview-height;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        background: Theme.bg;
+                        clip: true;
+                        flick := Flickable {
+                            x: 1px;
+                            y: 1px;
+                            width: parent.width - 2px;
+                            height: parent.height - 2px;
+                            content-height: list.preferred-height;
+                            content-width: self.width;
+                            list := VerticalLayout {
+                                width: flick.width;
+                                padding: 8px;
+                                padding-right: 12px;
+                                spacing: Theme.space-10;
+                                for item in root.reports : VerticalLayout {
+                                    spacing: Theme.space-4;
+                                    // The ID on its own line and Copy under it, so a long Copy label never
+                                    // squeezes the ID.
+                                    Text {
+                                        text: item.id-line;
+                                        font-size: Theme.font-size-help;
+                                        font-weight: 600;
+                                        color: Theme.text;
+                                        wrap: char-wrap;
+                                    }
+                                    HorizontalLayout {
+                                        alignment: start;
+                                        Button {
+                                            kind: ButtonKind.outline;
+                                            text: root.copy-label;
+                                            font-size: Theme.font-size-help;
+                                            padding-y: 2px;
+                                            padding-x: 8px;
+                                            clicked => { root.copy-id(item.report-id); }
+                                        }
+                                    }
+                                    Text {
+                                        text: item.text;
+                                        font-family: root.mono-font-family;
+                                        font-size: 11px;
+                                        color: Theme.text;
+                                        // Long values wrap at any character, so nothing hides off to the side.
+                                        wrap: char-wrap;
+                                    }
+                                }
+                            }
+                        }
+                        // Thin scroll position indicator (the text scrolls with the wheel or a drag).
+                        if flick.content-height > flick.height : Rectangle {
+                            x: parent.width - 5px;
+                            width: 3px;
+                            border-radius: 1.5px;
+                            background: Theme.text-muted;
+                            opacity: 0.6;
+                            height: max(16px, flick.height * flick.height / flick.content-height);
+                            y: 1px + (flick.height - self.height) * (-flick.content-y) / max(1px, flick.content-height - flick.height);
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        Button {
+                            kind: ButtonKind.outline;
+                            text: root.back-label;
+                            padding-y: 4px;
+                            clicked => { root.show-preview = false; root.layout-changed(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

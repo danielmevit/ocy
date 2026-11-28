@@ -2,17 +2,18 @@ use x11rb::connection::Connection as _;
 use x11rb::properties::WmHints;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::xproto::{
-    AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConnectionExt as _,
-    EventMask, PropMode,
+    AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConfigureWindowAux,
+    ConnectionExt as _, EventMask, PropMode, StackMode,
 };
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 
 use crate::pure::{
-    IdleEnv, LinuxDisplayBackend, RawX11Crtc, X11_BREAK_STATE_ATOM_NAMES, X11_WM_STATE_ATOM,
-    X11_WM_USER_TIME_ATOM, X11_WM_WINDOW_TYPE_ATOM, X11_WM_WINDOW_TYPE_NOTIFICATION_ATOM,
-    X11MonitorSnapshot, merge_wm_state_atoms, net_wm_state_add_messages, parse_net_workarea,
-    parse_xft_dpi, resolve_x11_monitors, select_display_backend,
+    IdleEnv, LinuxDisplayBackend, RawX11Crtc, X11_BREAK_STATE_ATOM_NAMES, X11_BREAK_USER_TIME,
+    X11_BREAK_WM_HINTS_INPUT, X11_WM_STATE_ATOM, X11_WM_USER_TIME_ATOM, X11_WM_WINDOW_TYPE_ATOM,
+    X11_WM_WINDOW_TYPE_NOTIFICATION_ATOM, X11MonitorSnapshot, merge_wm_state_atoms,
+    net_wm_state_add_messages, parse_net_workarea, parse_xft_dpi, resolve_x11_monitors,
+    select_display_backend,
 };
 use damt_platform::ScreenRect;
 
@@ -89,7 +90,7 @@ pub fn apply_x11_break_window_hints(window_id: u32) -> Result<(), String> {
         .ok()
         .and_then(|cookie| cookie.reply().ok().flatten())
         .unwrap_or_default();
-    hints.input = Some(false);
+    hints.input = Some(X11_BREAK_WM_HINTS_INPUT);
     hints
         .set(&conn, window_id)
         .map_err(|err| format!("set WM_HINTS input=false failed: {err}"))?;
@@ -100,13 +101,36 @@ pub fn apply_x11_break_window_hints(window_id: u32) -> Result<(), String> {
             window_id,
             user_time_atom,
             AtomEnum::CARDINAL,
-            &[0],
+            &[X11_BREAK_USER_TIME],
         )
         .map_err(|err| format!("set _NET_WM_USER_TIME failed: {err}"))?;
     }
 
     conn.flush()
         .map_err(|err| format!("x11rb flush failed: {err}"))?;
+    // Synchronize so the X server has committed every property before the caller maps the window
+    // on winit's separate X11 connection.
+    conn.sync()
+        .map_err(|err| format!("x11rb sync failed: {err}"))?;
+    Ok(())
+}
+
+/// Raises `window_id` to the top of its X11 stacking layer without changing input focus.
+pub fn raise_x11_window_above(window_id: u32) -> Result<(), String> {
+    if window_id == 0 {
+        return Err("X11 window id must be non-zero".to_owned());
+    }
+    let (conn, _screen_num) =
+        RustConnection::connect(None).map_err(|err| format!("x11rb connect failed: {err}"))?;
+    conn.configure_window(
+        window_id,
+        &ConfigureWindowAux::new().stack_mode(StackMode::ABOVE),
+    )
+    .map_err(|err| format!("raise_x11_window_above configure failed: {err}"))?;
+    conn.flush()
+        .map_err(|err| format!("raise_x11_window_above flush failed: {err}"))?;
+    conn.sync()
+        .map_err(|err| format!("raise_x11_window_above sync failed: {err}"))?;
     Ok(())
 }
 

@@ -1,0 +1,525 @@
+name: Linux X11/Wayland smoke & tarball
+
+# Runs Ocy demo modes under Xvfb + Openbox (plus best-effort headless Weston) and builds
+# a plain Linux x86_64 tester tarball. See docs/rust/LINUX.md §14 L3.
+on:
+  push:
+    branches: ["dev", "main"]
+    paths:
+      - "rust/**"
+      - "packaging/linux/**"
+      - "assets/**"
+      - "content/strings/**"
+      - ".github/workflows/linux-smoke.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  x11-smoke:
+    name: X11 + Wayland smoke (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Toolchain (from rust-toolchain.toml)
+        working-directory: rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install Linux build and X11 smoke dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            libfontconfig1-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            xvfb \
+            openbox \
+            xdotool \
+            x11-utils \
+            imagemagick \
+            xterm
+          # Runtime libraries the release Ocy binary dlopens on X11 and Wayland
+          # (winit -> x11-dl/xkbcommon-dl, softbuffer -> x11rb/tiny-xlib/wayland-sys).
+          # The -dev packages above do not provide the X11/Wayland client runtime set.
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon0 \
+            libxkbcommon-x11-0 \
+            libxcb1 \
+            libx11-6 \
+            libx11-xcb1 \
+            libxcursor1 \
+            libxi6 \
+            libwayland-client0 \
+            libfontconfig1
+
+      - name: Build release binary
+        working-directory: rust
+        run: |
+          # Remap build-machine paths out of the binary (CR2c). Every FROM is non-empty:
+          # an empty FROM makes rustc prefix every *relative* path with the TO, and rustc
+          # applies the LAST matching rule, so the most specific prefixes come last.
+          sysroot="$(rustc --print sysroot)"
+          sep=$'\037'
+          flags=""
+          add_remap() {
+            [ -n "$1" ] || return 0
+            if [ -n "$flags" ]; then flags+="$sep"; fi
+            flags+="--remap-path-prefix=$1=$2"
+          }
+          add_remap "${RUSTUP_HOME:-$HOME/.rustup}" rustup
+          add_remap "$GITHUB_WORKSPACE" ocy
+          add_remap "${CARGO_HOME:-$HOME/.cargo}" cargo
+          add_remap "${CARGO_TARGET_DIR:-$GITHUB_WORKSPACE/rust/target}" target
+          add_remap "$sysroot" rustup
+          export CARGO_ENCODED_RUSTFLAGS="$flags"
+          echo "CARGO_ENCODED_RUSTFLAGS: $(printf '%s' "$flags" | tr '\037' ' ')"
+          cargo build --release --locked -p ocy-app
+
+      - name: Check the binary for leaked build-machine paths
+        run: |
+          TARGET_DIR="${CARGO_TARGET_DIR:-rust/target}"
+          python3 rust/tools/path_leak_check.py "$TARGET_DIR/release/Ocy"
+
+      - name: Run Xvfb + Openbox demo smoke checks and memory probe
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_DIR="${CARGO_TARGET_DIR:-rust/target}"
+          OCY_BIN="$TARGET_DIR/release/Ocy"
+          test -x "$OCY_BIN"
+
+          rm -rf smoke-artifacts
+          mkdir -p smoke-artifacts
+
+          export DISPLAY=:99
+          unset WAYLAND_DISPLAY || true
+
+          XVFB_PID=""
+          OPENBOX_PID=""
+          XTERM_PID=""
+          OCY_PID=""
+          cleanup() {
+            for p in "$OCY_PID" "$XTERM_PID" "$OPENBOX_PID" "$XVFB_PID"; do
+              if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+                kill "$p" 2>/dev/null || true
+              fi
+            done
+          }
+          trap cleanup EXIT
+
+          Xvfb :99 -screen 0 1920x1080x24 >smoke-artifacts/xvfb.log 2>&1 &
+          XVFB_PID=$!
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.1
+          done
+          xdpyinfo -display :99 >/dev/null
+
+          openbox >smoke-artifacts/openbox.log 2>&1 &
+          OPENBOX_PID=$!
+          for _ in $(seq 1 50); do
+            if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id # 0x"; then
+              break
+            fi
+            sleep 0.1
+          done
+
+          xterm -T "User App" -geometry 80x24+40+40 -e "sleep 600" >smoke-artifacts/xterm.log 2>&1 &
+          XTERM_PID=$!
+          XTERM_WID=""
+          for _ in $(seq 1 50); do
+            XTERM_WID="$(xdotool search --onlyvisible --class xterm 2>/dev/null | head -n 1 || true)"
+            if [ -n "$XTERM_WID" ]; then
+              break
+            fi
+            sleep 0.1
+          done
+          test -n "$XTERM_WID"
+          xdotool windowactivate --sync "$XTERM_WID" || xdotool windowfocus --sync "$XTERM_WID"
+          sleep 0.5
+
+          BEFORE_ACTIVE="$(xdotool getactivewindow 2>/dev/null || true)"
+          echo "xterm_wid=$XTERM_WID before_active=$BEFORE_ACTIVE" | tee smoke-artifacts/focus-baseline.log
+          test "$BEFORE_ACTIVE" = "$XTERM_WID"
+
+          FAILURES=0
+
+          cat <<'PY' > smoke-artifacts/_assert_x11.py
+          import pathlib
+          import re
+          import sys
+
+          mode = sys.argv[1]
+          xterm_wid = int(sys.argv[2])
+          active_str = sys.argv[3].strip()
+          xprop_log = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8", errors="replace")
+          stacking_log = pathlib.Path(sys.argv[5]).read_text(encoding="utf-8", errors="replace")
+          wids = [int(w) for w in sys.argv[6:] if w.strip()]
+
+          assert wids, f"[{mode}] expected at least one mapped Ocy window, found 0"
+          assert active_str, f"[{mode}] xdotool getactivewindow returned empty"
+          active_wid = int(active_str)
+          assert active_wid == xterm_wid, (
+              f"[{mode}] focus theft detected: active_wid={active_wid:#x} != xterm_wid={xterm_wid:#x}"
+          )
+
+          geometries = {}
+          current_wid = None
+          width = None
+          height = None
+          for line in xprop_log.splitlines():
+              m_win = re.match(r"^=== window (\d+) ===$", line.strip())
+              if m_win:
+                  if current_wid is not None and width is not None and height is not None:
+                      geometries[current_wid] = (width, height)
+                  current_wid = int(m_win.group(1))
+                  width = None
+                  height = None
+                  continue
+              m_w = re.match(r"^\s*Width:\s*(\d+)\s*$", line)
+              if m_w:
+                  width = int(m_w.group(1))
+              m_h = re.match(r"^\s*Height:\s*(\d+)\s*$", line)
+              if m_h:
+                  height = int(m_h.group(1))
+          if current_wid is not None and width is not None and height is not None:
+              geometries[current_wid] = (width, height)
+
+          print(f"[{mode}] mapped={len(wids)} active_wid={active_wid:#x} geometries={geometries}")
+
+          if mode == "long":
+              dims = [wid for wid, (w, h) in geometries.items() if w >= 800 and h >= 600]
+              cards = [wid for wid in wids if wid not in dims]
+              assert dims, f"[long] no monitor-sized dim window found in {geometries}"
+              assert cards, f"[long] no long-break card window found in {geometries}"
+
+              # _NET_CLIENT_LIST_STACKING is ordered bottom-to-top per EWMH.
+              stack_ids = [int(tok, 16) for tok in re.findall(r"0x[0-9a-fA-F]+", stacking_log)]
+              assert stack_ids, f"[long] _NET_CLIENT_LIST_STACKING is empty: {stacking_log!r}"
+              missing_dims = [w for w in dims if w not in stack_ids]
+              missing_cards = [w for w in cards if w not in stack_ids]
+              assert not missing_dims, (
+                  f"[long] dim window(s) {[hex(w) for w in missing_dims]} missing from "
+                  f"_NET_CLIENT_LIST_STACKING={[hex(w) for w in stack_ids]}"
+              )
+              assert not missing_cards, (
+                  f"[long] card window(s) {[hex(w) for w in missing_cards]} missing from "
+                  f"_NET_CLIENT_LIST_STACKING={[hex(w) for w in stack_ids]}"
+              )
+              top_dim_idx = max(stack_ids.index(w) for w in dims)
+              bottom_card_idx = min(stack_ids.index(w) for w in cards)
+              assert bottom_card_idx > top_dim_idx, (
+                  f"[long] card is not above dim in _NET_CLIENT_LIST_STACKING: "
+                  f"dim_idx={top_dim_idx} card_idx={bottom_card_idx} "
+                  f"stack={[hex(w) for w in stack_ids]}"
+              )
+              print(
+                  f"[long] stacking OK: dim_idx={top_dim_idx} < card_idx={bottom_card_idx}"
+              )
+          PY
+
+          run_demo_probe() {
+            local mode="$1"
+            local check_focus_and_stack="$2"
+            local flag_arg="$3"
+            local mode_arg="$4"
+
+            xdotool windowactivate --sync "$XTERM_WID" || xdotool windowfocus --sync "$XTERM_WID"
+            sleep 0.3
+
+            if [ -n "$mode_arg" ]; then
+              "$OCY_BIN" "$flag_arg" "$mode_arg" >"smoke-artifacts/${mode}.stdout.log" 2>"smoke-artifacts/${mode}.stderr.log" &
+            else
+              "$OCY_BIN" "$flag_arg" >"smoke-artifacts/${mode}.stdout.log" 2>"smoke-artifacts/${mode}.stderr.log" &
+            fi
+            OCY_PID=$!
+
+            sleep 4
+
+            local active_wid
+            active_wid="$(xdotool getactivewindow 2>/dev/null || true)"
+            echo "mode=$mode xterm_wid=$XTERM_WID active_wid=$active_wid" | tee "smoke-artifacts/active-${mode}.log"
+
+            mapfile -t ocy_wids < <(xdotool search --onlyvisible --pid "$OCY_PID" 2>/dev/null || true)
+            if [ "${#ocy_wids[@]}" -eq 0 ]; then
+              mapfile -t ocy_wids < <(xdotool search --onlyvisible --class xyz.damt.ocy 2>/dev/null || true)
+            fi
+
+            {
+              echo "mode=$mode pid=$OCY_PID matched_wids=${ocy_wids[*]:-(none)}"
+              for wid in "${ocy_wids[@]}"; do
+                echo "=== window $wid ==="
+                xprop -id "$wid" _NET_WM_WINDOW_TYPE _NET_WM_STATE WM_HINTS _NET_WM_USER_TIME WM_CLASS _NET_WM_PID WM_NAME 2>&1 || true
+                xwininfo -id "$wid" 2>&1 || true
+              done
+            } >"smoke-artifacts/xprop-${mode}.log"
+
+            xprop -root _NET_CLIENT_LIST_STACKING >"smoke-artifacts/stacking-${mode}.log" 2>&1 || true
+            xwininfo -root -tree >"smoke-artifacts/tree-${mode}.log" 2>&1 || true
+
+            import -window root "smoke-artifacts/shot-${mode}.png"
+
+            if kill -0 "$OCY_PID" 2>/dev/null; then
+              kill -TERM "$OCY_PID" 2>/dev/null || true
+              for _ in $(seq 1 30); do
+                if ! kill -0 "$OCY_PID" 2>/dev/null; then
+                  break
+                fi
+                sleep 0.1
+              done
+              if kill -0 "$OCY_PID" 2>/dev/null; then
+                kill -KILL "$OCY_PID" 2>/dev/null || true
+              fi
+            fi
+            wait "$OCY_PID" 2>/dev/null || true
+            OCY_PID=""
+
+            if [ "$check_focus_and_stack" = "1" ]; then
+              if ! python3 smoke-artifacts/_assert_x11.py \
+                  "$mode" "$XTERM_WID" "$active_wid" \
+                  "smoke-artifacts/xprop-${mode}.log" \
+                  "smoke-artifacts/stacking-${mode}.log" \
+                  "${ocy_wids[@]}"; then
+                FAILURES=$((FAILURES + 1))
+              fi
+            fi
+          }
+
+          run_demo_probe short 1 --demo-break short
+          run_demo_probe warning 1 --demo-break warning
+          run_demo_probe long 1 --demo-break long
+          run_demo_probe settings 0 --demo-settings ""
+
+          rm -f smoke-artifacts/_assert_x11.py
+
+          echo "Running --report-memory..."
+          if timeout 30 "$OCY_BIN" --report-memory >smoke-artifacts/report-memory.stdout.log 2>smoke-artifacts/report-memory.stderr.log; then
+            cat smoke-artifacts/report-memory.stdout.log
+            cat smoke-artifacts/report-memory.stderr.log >&2 || true
+            if ! python3 - <<'PY'; then
+          import pathlib
+          import re
+
+          text = pathlib.Path("smoke-artifacts/report-memory.stdout.log").read_text(encoding="utf-8", errors="replace")
+          match = re.search(r"Ocy idle memory.*?:\s*private_mb=([0-9]+(?:\.[0-9]+)?)", text)
+          assert match, f"Missing 'Ocy idle memory' private_mb line in:\n{text}"
+          private_mb = float(match.group(1))
+          print(f"Idle memory check: private_mb={private_mb:.2f} MB (budget <= 15.00 MB)")
+          assert private_mb <= 15.0, (
+              f"Idle private memory {private_mb:.2f} MB exceeds 15.00 MB budget"
+          )
+          PY
+              FAILURES=$((FAILURES + 1))
+            fi
+          else
+            cat smoke-artifacts/report-memory.stdout.log || true
+            cat smoke-artifacts/report-memory.stderr.log >&2 || true
+            echo "ERROR: Ocy --report-memory exited non-zero" >&2
+            FAILURES=$((FAILURES + 1))
+          fi
+
+          if [ "$FAILURES" -ne 0 ]; then
+            echo "ERROR: $FAILURES X11 smoke check(s) failed" >&2
+            exit 1
+          fi
+
+      - name: Wayland headless Weston smoke (best effort)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_DIR="${CARGO_TARGET_DIR:-rust/target}"
+          OCY_BIN="$TARGET_DIR/release/Ocy"
+          test -x "$OCY_BIN"
+
+          mkdir -p smoke-artifacts
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends weston
+
+          export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/xdg-runtime-$UID}"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+
+          WESTON_PID=""
+          OCY_PID=""
+          cleanup_wayland() {
+            for p in "$OCY_PID" "$WESTON_PID"; do
+              if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+                kill "$p" 2>/dev/null || true
+              fi
+            done
+          }
+          trap cleanup_wayland EXIT
+
+          weston --backend=headless --socket=wayland-ocy >smoke-artifacts/weston.log 2>&1 &
+          WESTON_PID=$!
+          for _ in $(seq 1 50); do
+            if [ -S "$XDG_RUNTIME_DIR/wayland-ocy" ]; then
+              break
+            fi
+            sleep 0.1
+          done
+          test -S "$XDG_RUNTIME_DIR/wayland-ocy"
+
+          env -u DISPLAY WAYLAND_DISPLAY=wayland-ocy \
+            "$OCY_BIN" --demo-break short \
+            >smoke-artifacts/wayland-short.stdout.log \
+            2>smoke-artifacts/wayland-short.stderr.log &
+          OCY_PID=$!
+
+          sleep 3
+          if ! kill -0 "$OCY_PID" 2>/dev/null; then
+            wait "$OCY_PID" || status=$?
+            echo "Wayland Ocy exited prematurely (status=${status:-0})" >&2
+            cat smoke-artifacts/wayland-short.stderr.log >&2 || true
+            exit 1
+          fi
+
+          kill -TERM "$OCY_PID"
+          for _ in $(seq 1 50); do
+            if ! kill -0 "$OCY_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 0.1
+          done
+          if kill -0 "$OCY_PID" 2>/dev/null; then
+            echo "Wayland Ocy did not exit within 5s after SIGTERM" >&2
+            kill -KILL "$OCY_PID" 2>/dev/null || true
+            wait "$OCY_PID" 2>/dev/null || true
+            OCY_PID=""
+            cat smoke-artifacts/wayland-short.stderr.log >&2 || true
+            exit 1
+          fi
+          set +e
+          wait "$OCY_PID"
+          EXIT_STATUS=$?
+          set -e
+          OCY_PID=""
+
+          echo "Wayland Ocy exit status after SIGTERM: $EXIT_STATUS"
+          cat smoke-artifacts/wayland-short.stderr.log || true
+          # 0 = handled SIGTERM cleanly; 143 = 128 + 15 (default SIGTERM termination, no crash).
+          if [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 143 ]; then
+            echo "Unexpected Wayland exit status: $EXIT_STATUS" >&2
+            exit 1
+          fi
+
+      - name: Upload X11/Wayland smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-linux-smoke
+          path: smoke-artifacts/**
+          if-no-files-found: warn
+
+  tarball:
+    name: Linux tarball (x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Toolchain (from rust-toolchain.toml)
+        working-directory: rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig1-dev libxdo-dev libayatana-appindicator3-dev
+
+      - name: Read app version
+        id: meta
+        shell: bash
+        run: |
+          version=$(python3 - <<'PY'
+          import pathlib, tomllib
+          ws = tomllib.loads(pathlib.Path("rust/Cargo.toml").read_text(encoding="utf-8"))
+          print(ws["workspace"]["package"]["version"])
+          PY
+          )
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release binary
+        working-directory: rust
+        # PostHog key compiled in via option_env! in ocy-app's usage_stats.rs.
+        # Absent/empty secret -> build_key() is None -> usage stats stay off.
+        # Only the tarball (release artifact) gets the key, not the smoke job's build.
+        env:
+          OCY_POSTHOG_KEY: ${{ secrets.OCY_POSTHOG_KEY }}
+        run: |
+          # Remap build-machine paths out of the binary (CR2c). Every FROM is non-empty:
+          # an empty FROM makes rustc prefix every *relative* path with the TO, and rustc
+          # applies the LAST matching rule, so the most specific prefixes come last.
+          sysroot="$(rustc --print sysroot)"
+          sep=$'\037'
+          flags=""
+          add_remap() {
+            [ -n "$1" ] || return 0
+            if [ -n "$flags" ]; then flags+="$sep"; fi
+            flags+="--remap-path-prefix=$1=$2"
+          }
+          add_remap "${RUSTUP_HOME:-$HOME/.rustup}" rustup
+          add_remap "$GITHUB_WORKSPACE" ocy
+          add_remap "${CARGO_HOME:-$HOME/.cargo}" cargo
+          add_remap "${CARGO_TARGET_DIR:-$GITHUB_WORKSPACE/rust/target}" target
+          add_remap "$sysroot" rustup
+          export CARGO_ENCODED_RUSTFLAGS="$flags"
+          echo "CARGO_ENCODED_RUSTFLAGS: $(printf '%s' "$flags" | tr '\037' ' ')"
+          cargo build --release --locked -p ocy-app
+
+      - name: Check the binary for leaked build-machine paths
+        run: |
+          TARGET_DIR="${CARGO_TARGET_DIR:-rust/target}"
+          python3 rust/tools/path_leak_check.py "$TARGET_DIR/release/Ocy"
+
+      - name: Assemble tarball and sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.meta.outputs.version }}"
+          TARGET_DIR="${CARGO_TARGET_DIR:-rust/target}"
+          OCY_BIN="$TARGET_DIR/release/Ocy"
+          test -x "$OCY_BIN"
+
+          STEM="Ocy-${VERSION}-linux-x86_64"
+          STAGE="dist/${STEM}"
+          rm -rf dist
+          mkdir -p "$STAGE"
+
+          install -Dm755 "$OCY_BIN" "$STAGE/Ocy"
+          install -Dm644 packaging/linux/xyz.damt.ocy.desktop "$STAGE/xyz.damt.ocy.desktop"
+          install -Dm644 assets/icons/app/png/ocy-app-256.png "$STAGE/xyz.damt.ocy.png"
+          install -Dm644 packaging/linux/README-LINUX.txt "$STAGE/README-LINUX.txt"
+          install -Dm644 LICENSE "$STAGE/LICENSE.txt"
+          python3 rust/tools/notices.py --target x86_64-unknown-linux-gnu --out "$STAGE/THIRD-PARTY-NOTICES.txt"
+
+          tar -C dist -czf "dist/${STEM}.tar.gz" "${STEM}"
+          (
+            cd dist
+            sha256sum "${STEM}.tar.gz" > "${STEM}.tar.gz.sha256"
+            sha256sum -c "${STEM}.tar.gz.sha256"
+          )
+
+      - name: Upload Linux tarball and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocy-linux-tarball
+          path: |
+            dist/Ocy-${{ steps.meta.outputs.version }}-linux-x86_64.tar.gz
+            dist/Ocy-${{ steps.meta.outputs.version }}-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error

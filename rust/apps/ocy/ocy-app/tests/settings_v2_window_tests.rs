@@ -370,9 +370,14 @@ fn headless_v2_language_switch_updates_texts_slider_formatters_and_font_family()
         ui.get_next_break_text().as_str(),
         "Nächste kurze Pause in 25 Min."
     );
+    let expected_de_auto = if cfg!(windows) {
+        "Automatisch (Windows-Sprache)"
+    } else {
+        "Automatisch (Systemsprache)"
+    };
     assert_eq!(
         ui.get_language_model().row_data(0).as_deref(),
-        Some("Automatisch (Windows-Sprache)")
+        Some(expected_de_auto)
     );
     assert_eq!(ui.get_language_index(), de_idx);
     assert_eq!(
@@ -447,4 +452,93 @@ fn headless_v2_today_counts_and_demo_language_flag_work_end_to_end() {
     drop(ui);
     host.borrow_mut().shutdown();
     let _ = fs::remove_dir_all(&dir);
+}
+
+/// `--demo-license <value>` drives `demo_license_state` through the real host path
+/// (`AppHost::set_license_state`) into the open `SettingsWindowV2`, for all five demo values.
+#[cfg(feature = "store")]
+#[test]
+fn headless_v2_demo_license_values_reach_the_settings_window() {
+    use ocy_app::break_logic::{DemoLicense, demo_license_state};
+    use ocy_app::license::format_trial_days_left;
+
+    init_headless();
+    let strings = Strings::from_language("en");
+    // Same instant as `make_host`'s clock (2026-11-20 15:00 UTC).
+    let now = jiff::Timestamp::from_second(1_795_186_800).unwrap();
+    // (value, license-state tag, trial-days-left, days-left text, trial-ended card shown)
+    let cases = [
+        ("full", "full", -1, String::new(), false),
+        (
+            "trial",
+            "trial",
+            5,
+            format_trial_days_left(&strings, 5),
+            false,
+        ),
+        (
+            "trial-last-day",
+            "trial",
+            1,
+            format_trial_days_left(&strings, 1),
+            false,
+        ),
+        (
+            "trial-ended",
+            "trial-expired",
+            0,
+            format_trial_days_left(&strings, 0),
+            true,
+        ),
+        ("unknown", "unknown", -1, String::new(), false),
+    ];
+    for (value, tag, days, days_text, ended) in cases {
+        let dir = temp_dir(&format!("demo-license-{value}"));
+        let cli = parse_cli_args(vec!["--demo-license".to_owned(), value.to_owned()]);
+        let demo = cli.demo_license.expect("demo license parsed");
+        assert_eq!(DemoLicense::parse(value), Some(demo));
+
+        let host = make_host(
+            &dir,
+            default_app_settings(),
+            ToggleThemePlatform::new(true, true),
+        );
+        host.borrow_mut().show_settings();
+        host.borrow_mut()
+            .set_license_state(demo_license_state(demo, now), now);
+
+        let ui = host
+            .borrow()
+            .coordinator()
+            .settings_window()
+            .active_window()
+            .expect("V2 window open");
+        assert_eq!(ui.get_license_state().as_str(), tag, "{value}: license tag");
+        assert_eq!(ui.get_trial_days_left(), days, "{value}: days left");
+        assert_eq!(
+            ui.get_trial_days_left_text().as_str(),
+            days_text,
+            "{value}: days-left text"
+        );
+        assert!(ui.get_store_build(), "{value}: store build");
+        // The UI shows the trial-ended card exactly when `license-state == "trial-expired"`
+        // (and `store-build`); its texts must be populated.
+        assert_eq!(
+            ui.get_license_state() == "trial-expired",
+            ended,
+            "{value}: trial ended"
+        );
+        assert!(
+            !ui.get_trial_ended_title().is_empty(),
+            "{value}: trial-ended title"
+        );
+        assert!(
+            !ui.get_trial_ended_body().is_empty(),
+            "{value}: trial-ended body"
+        );
+
+        drop(ui);
+        host.borrow_mut().shutdown();
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
