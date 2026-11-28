@@ -249,12 +249,15 @@ try {
         # Microsoft Partner Center package upload accepts a .msixupload containing
         # the unsigned .msix and a .appxsym symbol package.
         # Format reference: https://learn.microsoft.com/en-us/windows/apps/publish/upload-app-packages
-        Compress-Archive -Path (Join-Path $appxsymStage "*") -DestinationPath $appxsymPath -Force
+        # Compress-Archive only writes .zip: zip first, then rename to .appxsym.
+        Compress-Archive -Path (Join-Path $appxsymStage "*") -DestinationPath "$appxsymPath.zip" -Force
+        Move-Item -LiteralPath "$appxsymPath.zip" -Destination $appxsymPath -Force
 
         New-Item -ItemType Directory -Path $uploadStage -Force | Out-Null
         Copy-Item $msixPath (Join-Path $uploadStage (Split-Path $msixPath -Leaf))
         Copy-Item $appxsymPath (Join-Path $uploadStage (Split-Path $appxsymPath -Leaf))
-        Compress-Archive -Path (Join-Path $uploadStage "*") -DestinationPath $msixuploadPath -Force
+        Compress-Archive -Path (Join-Path $uploadStage "*") -DestinationPath "$msixuploadPath.zip" -Force
+        Move-Item -LiteralPath "$msixuploadPath.zip" -Destination $msixuploadPath -Force
 
         Remove-Item $appxsymStage -Recurse -Force
         Remove-Item $uploadStage -Recurse -Force
