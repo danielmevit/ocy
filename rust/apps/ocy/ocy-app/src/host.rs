@@ -400,6 +400,15 @@ impl<W: BreakWindows, S: SettingsWindow, T: TraySink> AppHost<W, S, T> {
 
     /// Applies updated settings to the engine and persists them via [`AppDataStore::save_settings`].
     /// Returns `false` (and logs the error) if persistence fails.
+    /// Saves a crash-report consent chosen on the crash card ("Don't ask again"): a copy of the
+    /// in-memory settings with only `crash_reports` changed, through [`Self::save_settings`], so
+    /// the consent mirror, the open Settings window and `settings.json` all follow.
+    pub fn save_crash_consent(&mut self, consent: ocy_core::settings::CrashReportsConsent) -> bool {
+        let mut updated = self.engine.settings().clone();
+        updated.crash_reports = consent;
+        self.save_settings(updated)
+    }
+
     pub fn save_settings(&mut self, updated: OcySettings) -> bool {
         if self.shut_down {
             return false;

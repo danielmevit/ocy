@@ -141,6 +141,13 @@ export component SettingsWindowV2 inherits Window {
     in property <string> usage-stats-ask-body;
     in property <string> usage-stats-share-label;
     in property <string> usage-stats-decline-label;
+    // Crash reports (CR3): Ask each time / Always send / Never send. Same gate as usage stats (a
+    // build with a key), but its own row, label and helper line.
+    in property <bool> show-crash-reports: false;
+    in property <string> crash-reports-label;
+    in property <string> crash-reports-help;
+    in property <[string]> crash-reports-model;
+    in-out property <int> crash-reports-index: 0;
     in property <string> about-tagline;
     // Language picker: display names, entry 0 is "Automatic (Windows language)".
     in property <[string]> language-model;
@@ -764,6 +771,17 @@ export component SettingsWindowV2 inherits Window {
                                     font-size: Theme.font-size-help;
                                     padding-y: 2px;
                                     clicked => { root.open-usage-stats-link(); }
+                                }
+                            }
+                            if root.show-crash-reports : CompactRow {
+                                label: root.crash-reports-label;
+                                help: root.crash-reports-help;
+                                Dropdown {
+                                    model: root.crash-reports-model;
+                                    current-index <=> root.crash-reports-index;
+                                    window-height: root.height;
+                                    accessible-name: root.crash-reports-label;
+                                    selected => { root.changed(); }
                                 }
                             }
                         }

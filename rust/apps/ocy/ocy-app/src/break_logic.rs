@@ -397,6 +397,9 @@ pub struct CliArgs {
     pub demo_settings: bool,
     pub demo_license: Option<DemoLicense>,
     pub soak_cycles: Option<u32>,
+    /// `--demo-crash-card` (or `=card`) or `--demo-crash-card=preview`: the crash-report
+    /// card with a fake, already scrubbed report (isolated demo run).
+    pub demo_crash_card: Option<crate::crash_card::DemoCrashCard>,
 }
 
 /// Parses command-line arguments (excluding or including argv[0]).
@@ -409,6 +412,10 @@ pub fn parse_cli_args(args: impl IntoIterator<Item = String>) -> CliArgs {
             out.report_memory = true;
         } else if arg == "--demo-settings" {
             out.demo_settings = true;
+        } else if arg == "--demo-crash-card" {
+            out.demo_crash_card = Some(crate::crash_card::DemoCrashCard::Card);
+        } else if let Some(rest) = arg.strip_prefix("--demo-crash-card=") {
+            out.demo_crash_card = crate::crash_card::DemoCrashCard::parse(rest);
         } else if arg == "--demo-license" {
             if let Some(next) = iter.next() {
                 out.demo_license = DemoLicense::parse(&next);

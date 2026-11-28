@@ -17,7 +17,7 @@ use damt_platform::{
 use jiff::SignedDuration;
 use ocy_core::engine::{EnginePhase, EngineSnapshot};
 use ocy_core::persistence::AppDataStore;
-use ocy_core::settings::{GamesMode, OcySettings, UsageStatsConsent};
+use ocy_core::settings::{CrashReportsConsent, GamesMode, OcySettings, UsageStatsConsent};
 use ocy_core::statistics::StatisticsData;
 use ocy_core::time::Paused;
 
@@ -93,6 +93,8 @@ pub struct SettingsValues {
     pub games_silent: Vec<String>,
     /// Anonymous usage stats consent (General switch and the one-time ask card).
     pub usage_stats: UsageStatsConsent,
+    /// Crash-report consent (General dropdown; the crash card changes it through the host).
+    pub crash_reports: CrashReportsConsent,
 }
 
 impl SettingsValues {
@@ -129,6 +131,7 @@ impl SettingsValues {
             games_hold: settings.games_mode == GamesMode::Hold,
             games_silent: settings.games_silent.clone(),
             usage_stats: settings.usage_stats,
+            crash_reports: settings.crash_reports,
         }
     }
 
@@ -163,6 +166,7 @@ impl SettingsValues {
         };
         updated.games_silent.clone_from(&self.games_silent);
         updated.usage_stats = self.usage_stats;
+        updated.crash_reports = self.crash_reports;
 
         if autostart_supported {
             updated.start_with_system = self.start_with_system;
@@ -243,6 +247,10 @@ pub struct SettingsTexts {
     pub usage_stats_ask_body: String,
     pub usage_stats_share_label: String,
     pub usage_stats_decline_label: String,
+    pub crash_reports_label: String,
+    pub crash_reports_help: String,
+    /// Dropdown labels in [`crash_reports_index`] order: Ask each time, Always send, Never send.
+    pub crash_reports_choices: [String; 3],
     pub strict_label: String,
     pub strict_help: String,
     pub inactivity_label: String,
@@ -337,6 +345,13 @@ impl SettingsTexts {
             usage_stats_ask_body: strings.get("settings.usageStats.ask.body").to_owned(),
             usage_stats_share_label: strings.get("settings.usageStats.ask.share").to_owned(),
             usage_stats_decline_label: strings.get("settings.usageStats.ask.decline").to_owned(),
+            crash_reports_label: strings.get("settings.crashReports.label").to_owned(),
+            crash_reports_help: strings.get("settings.crashReports.help").to_owned(),
+            crash_reports_choices: [
+                strings.get("settings.crashReports.ask").to_owned(),
+                strings.get("settings.crashReports.always").to_owned(),
+                strings.get("settings.crashReports.never").to_owned(),
+            ],
             strict_label: strings.get("settings.strictMode.label").to_owned(),
             strict_help: strings.get("settings.strictMode.help").to_owned(),
             inactivity_label: strings.get("settings.inactivityTracking.label").to_owned(),
@@ -1842,5 +1857,25 @@ impl<B: SettingsBackend + 'static> SettingsWindow for ManagedSettingsWindow<B> {
                     .log(Some("settings_window_create"), &err);
             }
         }
+    }
+}
+
+/// Dropdown index of a crash-report consent: 0 Ask each time, 1 Always send, 2 Never send.
+#[must_use]
+pub const fn crash_reports_index(consent: CrashReportsConsent) -> i32 {
+    match consent {
+        CrashReportsConsent::Ask => 0,
+        CrashReportsConsent::Always => 1,
+        CrashReportsConsent::Never => 2,
+    }
+}
+
+/// The consent for a dropdown index (anything unknown falls back to the safe default, Ask).
+#[must_use]
+pub const fn crash_reports_from_index(index: i32) -> CrashReportsConsent {
+    match index {
+        1 => CrashReportsConsent::Always,
+        2 => CrashReportsConsent::Never,
+        _ => CrashReportsConsent::Ask,
     }
 }

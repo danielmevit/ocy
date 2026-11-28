@@ -27,7 +27,7 @@
   <releases>
     <release version="0.3.0" date="2026-11-27">
       <description>
-        <p>Optional, anonymous usage stats (off unless you say yes) and more Linux groundwork.</p>
+        <p>Optional, anonymous usage stats and crash reports (each only with your yes) and more Linux groundwork.</p>
       </description>
     </release>
     <release version="0.2.2" date="2026-11-22">

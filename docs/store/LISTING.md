@@ -41,7 +41,7 @@ What you get:
 
 Good to know:
 
-• No account, no ads. Works offline. Optional anonymous usage stats, off unless you turn them on
+• No account, no ads. Works offline. Optional anonymous usage stats and crash reports, only with your yes
 • Tiny: about 4 MB of memory while it waits
 • Try it free for 15 days, then buy it once. No subscription
 
@@ -76,6 +76,7 @@ quiet when you need focus. Never steals focus. No account, no ads, no tracking.
 - Calmer defaults: a short break every 25 minutes
 - An occasional reminder to drink a glass of water during long breaks
 - Optional anonymous usage stats, off unless you turn them on in Settings
+- Optional crash reports: after an unexpected close, Ocy asks before sending anything (or choose Always/Never in Settings)
 - Gentle in games: breaks come as a small card in a calm moment, and "Not during this game" keeps any game silent
 
 ## Keywords (up to 7)
@@ -91,6 +92,9 @@ medical app.
 ## Privacy questionnaire
 - Off by default. Only if the user opts in (Settings), Ocy sends one anonymous daily summary of break counts and
   settings to PostHog (EU region), with a random install ID. No names, files, window titles, apps used or IP addresses.
+- Crash reports: only after an unexpected close and only with the user's yes (Ask each time by default, or Always /
+  Never in Settings), Ocy sends one scrubbed crash report (error, code location, Ocy and system version, each with its
+  own random report ID) to PostHog (EU region). No names, files, paths, settings or IP addresses.
 - The Store version asks the Microsoft Store for its licence (trial or purchased) through Windows.
 - Privacy policy URL: `https://ocy.damt.xyz/privacy/`
 
@@ -103,4 +107,6 @@ Ocy is a tray app: after install it starts in the notification area with no wind
 open Settings. Breaks appear on schedule; to see one immediately, right-click the tray icon and choose "Take a short
 break now". It has a 15-day trial managed by the Store licence. Ocy sends nothing by default: only after the user
 opts in to the anonymous usage stats in Settings (left-click the tray icon) does it send one anonymous daily summary
-to PostHog (EU region). Turning the switch off stops it and deletes the random ID.
+to PostHog (EU region). Turning the switch off stops it and deletes the random ID. After an unexpected close, a
+small card asks whether to send a crash report (Send / Don't send); nothing is sent without that yes or the "Always
+send" setting.

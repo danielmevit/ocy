@@ -155,7 +155,8 @@ const supportEmail = 'support@damt.xyz';
           <a class="nav-hide-sm" href={`${homeHref}#exercises`}>{t(lang, 'nav.exercises')}</a>
           <a class="nav-hide-sm" href={`${homeHref}#app`}>{t(lang, 'nav.theApp')}</a>
           <a class="nav-hide-sm" href={`${homeHref}#faq`}>{t(lang, 'nav.faq')}</a>
-          <a class="nav-cta" href={STORE_URL} aria-label={t(lang, 'nav.store')}><img class="store-logo on-light" src="/ms-store-light.svg" alt="" width="18" height="18" /><img class="store-logo on-dark" src="/ms-store.svg" alt="" width="18" height="18" />Microsoft Store</a>
+          <a class="nav-cta store-only" href={STORE_URL} aria-label={t(lang, 'nav.store')}><img class="store-logo on-light" src="/ms-store-light.svg" alt="" width="18" height="18" /><img class="store-logo on-dark" src="/ms-store.svg" alt="" width="18" height="18" />Microsoft Store</a>
+          <span class="play-chip play-only" role="img" aria-label={t(lang, 'play.soonAria')}><img src="/google-play.svg" alt="" width="18" height="18" /></span>
           <details class="lang-menu" data-lang-menu>
             <summary class="lang-btn" aria-label={t(lang, 'nav.languageAria', { language: currentEndonym })}>
               <span class="lang-name">{currentEndonym}</span>

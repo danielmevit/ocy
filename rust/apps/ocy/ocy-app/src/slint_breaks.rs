@@ -328,14 +328,14 @@ impl SlintBreakWindows {
     }
 
     fn active_monitor_info(&self) -> Option<ScreenInfo> {
-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-        let monitors = enumerate_monitors();
-        #[cfg(target_os = "linux")]
-        let monitors = crate::linux_window::enumerate_monitors();
-        #[cfg(target_os = "macos")]
-        let monitors = crate::macos_window::enumerate_monitors();
-        let active_bounds = self.platform.active_screen().active_screen_bounds();
-        select_active_screen(&monitors, active_bounds)
+        active_screen_info(self.platform.as_ref())
+    }
+
+    /// Shared flag that is `true` while a break card, warning or long break is on screen (the
+    /// crash-report card waits until it is `false`).
+    #[must_use]
+    pub fn break_active_handle(&self) -> Rc<Cell<bool>> {
+        Rc::clone(&self.break_active)
     }
 
     fn configure_short_card_handlers(&self, card: &ShortBreakCard) {
@@ -942,6 +942,56 @@ fn long_card_window_size(content_height_dip: f64, screen: Option<ScreenInfo>) ->
             None => DipSize::new(544.0, content_height_dip + 80.0),
         }
     }
+}
+
+/// The monitor a card should appear on (the one with the active window).
+pub(crate) fn active_screen_info(platform: &dyn PlatformServices) -> Option<ScreenInfo> {
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let monitors = enumerate_monitors();
+    #[cfg(target_os = "linux")]
+    let monitors = crate::linux_window::enumerate_monitors();
+    #[cfg(target_os = "macos")]
+    let monitors = crate::macos_window::enumerate_monitors();
+    let active_bounds = platform.active_screen().active_screen_bounds();
+    select_active_screen(&monitors, active_bounds)
+}
+
+/// Shows `card` as a non-activating corner card exactly like the short-break card (same window
+/// role, placement and platform styling); used by the crash-report card (CR3). The card must have
+/// been created under a [`WindowRole::BreakCard`] guard.
+pub(crate) fn show_corner_card<C: ComponentHandle + 'static>(
+    card: &C,
+    screen: Option<ScreenInfo>,
+    error_log: ErrorLog,
+    announcement: String,
+    content_height: impl Fn(&C) -> f64 + 'static,
+) {
+    show_card_window(
+        card,
+        ShowWindowContext {
+            kind: "crash",
+            prewarmed: false,
+            due_at: Instant::now(),
+            screen,
+            centered: false,
+            generation: 1,
+            gen_cell: Rc::new(Cell::new(1)),
+            latency_out: Rc::new(RefCell::new(None)),
+            error_log,
+            log_latency: false,
+            print_latency_on_first_paint: false,
+            announcement,
+        },
+        move |c, _| DipSize::new(CARD_WINDOW_WIDTH_DIP, content_height(c).max(100.0)),
+    );
+}
+
+/// Re-places a corner card after its content height changed (keeps the corner anchoring).
+pub(crate) fn resize_corner_card(window: &slint::Window, screen: Option<ScreenInfo>, height: f64) {
+    let dip = DipSize::new(CARD_WINDOW_WIDTH_DIP, height.max(100.0));
+    let (pos, w, h) = compute_card_rect(screen, dip, false);
+    window.set_position(PhysicalPosition::new(pos.x, pos.y));
+    window.set_size(PhysicalSize::new(w, h));
 }
 
 fn compute_card_rect(

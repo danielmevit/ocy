@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Short eye exercises every few minutes, a real break every hour, and quiet when you need focus.</b><br/>
-  Free and open source. Lives in the tray. No account, works offline, optional anonymous usage stats.
+  Free and open source. Lives in the tray. No account, works offline, optional anonymous usage stats and crash reports.
 </p>
 
 <p align="center">
@@ -155,10 +155,24 @@ looking at the screen.
   **take a long break now**. The pause menu shows your choice and the time left, for example
   "Paused until 15:40 · 1 h 15 min left".
 
+## What's new in 0.3.0
+
+- **Optional anonymous usage stats:** off until you say yes; one short summary a day of break counts and settings;
+  nothing personal, no IP address stored.
+- **Optional crash reports:** if Ocy closes unexpectedly, it asks before sending anything, shows you the exact report
+  first, and removes anything personal. Choose Ask each time, Always send or Never send in Settings → General.
+- The two choices are separate, and both can be changed any time.
+- Release builds no longer contain build-machine paths, and the Microsoft Store package includes symbol files for
+  readable crash locations.
+
+Full details: [CHANGELOG.md](CHANGELOG.md) and the [privacy page](https://ocy.damt.xyz/privacy/).
+
 ## Privacy
 
 No account and no ads. Ocy works fully offline and keeps its files on your PC. The only thing it can send is an
-anonymous daily summary of its own break counts and settings, and only if you turn on usage stats in Settings. Full
+anonymous daily summary of its own break counts and settings, and only if you turn on usage stats in Settings.
+If Ocy ever closes unexpectedly, it can also send a crash report (the error, Ocy's version and your system version,
+nothing personal), but only if you say yes: it asks first, and you can choose Always or Never in Settings. Full
 details: [ocy.damt.xyz/privacy](https://ocy.damt.xyz/privacy/#usage-stats).
 
 ## FAQ

@@ -96,6 +96,14 @@ fn apply_texts(ui: &UiSettingsWindow, texts: &SettingsTexts) {
     ui.set_usage_stats_ask_body(texts.usage_stats_ask_body.as_str().into());
     ui.set_usage_stats_share_label(texts.usage_stats_share_label.as_str().into());
     ui.set_usage_stats_decline_label(texts.usage_stats_decline_label.as_str().into());
+    ui.set_crash_reports_label(texts.crash_reports_label.as_str().into());
+    ui.set_crash_reports_help(texts.crash_reports_help.as_str().into());
+    let crash_choices: Vec<SharedString> = texts
+        .crash_reports_choices
+        .iter()
+        .map(|label| SharedString::from(label.as_str()))
+        .collect();
+    ui.set_crash_reports_model(ModelRc::new(VecModel::from(crash_choices)));
     ui.set_strict_label(texts.strict_label.as_str().into());
     ui.set_strict_help(texts.strict_help.as_str().into());
     ui.set_inactivity_label(texts.inactivity_label.as_str().into());
@@ -154,6 +162,9 @@ fn apply_values(ui: &UiSettingsWindow, values: &SettingsValues) {
     ui.set_status_notifications(values.status_notifications);
     ui.set_usage_stats_on(values.usage_stats == UsageStatsConsent::Granted);
     ui.set_usage_stats_ask(values.usage_stats == UsageStatsConsent::NotAsked);
+    ui.set_crash_reports_index(crate::settings_logic::crash_reports_index(
+        values.crash_reports,
+    ));
 }
 
 /// The consent the UI shows: the ask card still open means "not asked yet".
@@ -242,6 +253,9 @@ fn read_ui_values(ui: &UiSettingsWindow) -> SettingsValues {
             .map(|game| game.name.to_string())
             .collect(),
         usage_stats: ui_usage_stats(ui),
+        crash_reports: crate::settings_logic::crash_reports_from_index(
+            ui.get_crash_reports_index(),
+        ),
     }
 }
 
@@ -585,6 +599,9 @@ impl SettingsBackend for SlintSettingsBackend {
         // settings model (`SettingsValues::usage_stats` -> `apply_to` -> the usual save), like any
         // other toggle; the install record follows the saved settings via the host hook (AN1c).
         ui.set_show_usage_stats(crate::usage_stats::is_available());
+        // Crash reports: same gate (a build with a key), its own dropdown; a change is an ordinary
+        // settings change (`SettingsValues::crash_reports` -> `apply_to` -> `AppHost::save_settings`).
+        ui.set_show_crash_reports(crate::usage_stats::is_available());
         let on_changed_stats = Rc::clone(&handlers.on_changed);
         ui.on_usage_stats_chosen(move |_share| on_changed_stats());
         let link_log = self.error_log.clone();

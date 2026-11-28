@@ -541,6 +541,7 @@ fn main() -> ExitCode {
         latency_options,
     );
     let latency_handle = slint_break_windows.latency_handle();
+    let break_active = slint_break_windows.break_active_handle();
     let break_windows = OverlayBreakWindows::with_clock(
         slint_break_windows,
         Arc::clone(&platform),
@@ -740,6 +741,30 @@ fn main() -> ExitCode {
     if cli.demo_settings {
         host.borrow_mut().show_settings();
     }
+
+    // Crash-report ask card (CR3): once per start, only with consent "Ask each time", pending
+    // reports and a build with a key; it waits while a break is on screen. A "Don't ask again"
+    // choice goes through the host's in-memory settings and `AppHost::save_settings`.
+    let _crash_card = (crash_capture || cli.demo_crash_card.is_some()).then(|| {
+        ocy_app::crash_card::start(
+            ocy_app::crash_card::CrashCardDeps {
+                platform: Arc::clone(&platform),
+                strings: Arc::clone(&strings),
+                error_log: error_log.clone(),
+                break_active: Rc::clone(&break_active),
+                consent: Rc::new(|| {
+                    with_ui_host_ret(|h| h.engine().settings().crash_reports).unwrap_or_default()
+                }),
+                save_consent: Rc::new(|consent| {
+                    with_ui_host(|h| {
+                        let _ = h.save_crash_consent(consent);
+                    });
+                    arm_next_tick();
+                }),
+            },
+            cli.demo_crash_card,
+        )
+    });
 
     if let (Some(demo), Some(plan)) = (cli.demo_break, &demo_plan)
         && plan.trigger_immediately

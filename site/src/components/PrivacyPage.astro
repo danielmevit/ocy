@@ -2,6 +2,9 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { pageHref, rawTemplate, splitTemplateParts, t } from '../lib/i18n';
 import { REPO_URL } from '../lib/ocyData';
+import { appLabel } from '../lib/appStrings';
+import Rich from './Rich.astro';
+import { USAGE_STATS_IN_RELEASE } from '../lib/release';
 
 interface Props {
   lang: string;
@@ -16,8 +19,105 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const homeHref = pageHref(base, lang, 'home');
 
 const storedIntroParts = splitTemplateParts(rawTemplate(lang, 'privacy.stored.intro'));
-const usageOffParts = splitTemplateParts(rawTemplate(lang, 'privacy.usage.off'));
 const supportEmail = 'support@damt.xyz';
+const supportLink = { support: { href: `mailto:${supportEmail}`, text: supportEmail } };
+const u = (key: string) => t(lang, `privacy.usage.${key}`);
+const ur = (key: string) => rawTemplate(lang, `privacy.usage.${key}`);
+
+// Field table rows: field names and examples are code (never translated); the meaning comes from `privacy.usage.f.<key>`.
+const fieldRows: Array<[string[], string[], string]> = [
+  [['distinct_id'], ['639bf9e3-…'], 'distinctId'],
+  [['uuid'], ['a6a10371-…'], 'uuid'],
+  [['timestamp'], ['2026-11-20T12:00:00Z'], 'timestamp'],
+  [['$process_person_profile'], ['false'], 'personProfile'],
+  [['$geoip_disable'], ['true'], 'geoip'],
+  [['$lib'], ['ocy'], 'lib'],
+  [['platform'], ['windows'], 'platform'],
+  [['os_version'], ['10.0.26100'], 'osVersion'],
+  [['app_version'], ['0.3.0'], 'appVersion'],
+  [['channel'], ['store'], 'channel'],
+  [['license'], ['trial'], 'license'],
+  [['ui_language'], ['hu'], 'uiLanguage'],
+  [['locale'], ['hu-HU'], 'locale'],
+  [['short_completed', 'short_skipped'], ['12', '1'], 'shortCounts'],
+  [['long_completed', 'long_skipped', 'long_postponed'], ['2', '0', '3'], 'longCounts'],
+  [['absences_credited'], ['1'], 'absences'],
+  [['active_minutes'], ['240'], 'activeMinutes'],
+  [['preset'], ['balanced'], 'preset'],
+  [['short_enabled', 'short_interval_min', 'short_duration_s'], ['true', '25', '15'], 'shortSettings'],
+  [['long_enabled', 'long_interval_min', 'long_duration_min'], ['true', '60', '5'], 'longSettings'],
+  [['strict_mode', 'sounds', 'pause_during_fullscreen', 'natural_moments', 'water_nudges', 'start_with_system'], ['true'], 'switches'],
+  [['games_mode'], ['gentle'], 'gamesMode'],
+  [['days_since_opt_in'], ['12'], 'daysSinceOptIn'],
+];
+const pcFields = Object.fromEntries(
+  ['installId', 'optedInDate', 'lastSentDate', 'enabledEventSent', 'schemaVersion'].map((n) => [n, n])
+);
+// The app's own labels in this language (content/strings/<lang>.json), so the steps match what people see in Ocy.
+const appLabels = {
+  settings: appLabel(lang, 'tray.menu.settings'),
+  general: appLabel(lang, 'settings.section.general'),
+  switch: appLabel(lang, 'settings.usageStats.label'),
+};
+const c = (key: string) => t(lang, `privacy.crash.${key}`);
+const cr = (key: string) => rawTemplate(lang, `privacy.crash.${key}`);
+const crashRows: Array<[string[], string[], string]> = [
+  [['distinct_id'], ['0f1e2d3c-…'], 'reportId'],
+  [['timestamp'], ['2026-11-27T14:02:11Z'], 'timestamp'],
+  [['$process_person_profile'], ['false'], 'personProfile'],
+  [['$geoip_disable'], ['true'], 'geoip'],
+  [['$lib'], ['ocy'], 'lib'],
+  [['platform'], ['windows'], 'platform'],
+  [['os_version'], ['10.0.26100'], 'osVersion'],
+  [['app_version'], ['0.3.0'], 'appVersion'],
+  [['channel'], ['store'], 'channel'],
+  [['build_id'], ['C9F5…-1'], 'buildId'],
+  [['type'], ['panic'], 'type'],
+  [['value'], ['settings file missing at <data>\\…'], 'value'],
+  [['mechanism'], ['handled: false'], 'mechanism'],
+  [['stacktrace.frames'], ['function', 'filename', 'lineno', 'colno', 'module', 'in_app'], 'frames'],
+];
+const crashLabels = {
+  never: appLabel(lang, 'settings.crashReports.never'),
+  always: appLabel(lang, 'settings.crashReports.always'),
+  ask: appLabel(lang, 'settings.crashReports.ask'),
+  crashReports: appLabel(lang, 'settings.crashReports.label'),
+  see: appLabel(lang, 'crash.card.seeWhat'),
+  send: appLabel(lang, 'crash.card.send'),
+  dontSend: appLabel(lang, 'crash.card.dontSend'),
+  dontAsk: appLabel(lang, 'crash.card.dontAskAgain'),
+  settings: appLabels.settings,
+  general: appLabels.general,
+};
+const pick = (...names: Array<keyof typeof crashLabels>) => Object.fromEntries(names.map((n) => [n, crashLabels[n]]));
+const placeholders = Object.fromEntries(['user', 'host', 'home', 'data', 'game', 'path'].map((n) => [n, `<${n}>`]));
+// The example event from the crash-reports handoff (scrubbed, shortened stack); untranslated.
+const crashExample = `{
+  "event": "$exception",
+  "distinct_id": "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0",
+  "timestamp": "2026-11-27T14:02:11Z",
+  "properties": {
+    "$process_person_profile": false,
+    "$geoip_disable": true,
+    "$lib": "ocy",
+    "platform": "windows",
+    "os_version": "10.0.26100",
+    "app_version": "0.3.0",
+    "channel": "store",
+    "build_id": "C9F58F21-9849-79DF-4C4C-44205044422E-1",
+    "$exception_list": [{
+      "type": "panic",
+      "value": "settings file missing at <data>\\\\settings.json",
+      "mechanism": { "handled": false, "synthetic": false },
+      "stacktrace": { "type": "raw", "frames": [
+        { "function": "ocy_app::host::AppHost::save_settings", "filename": "apps/ocy/ocy-app/src/host.rs",
+          "lineno": 412, "colno": 9, "in_app": true, "lang": "rust", "platform": "custom" },
+        { "function": "Ocy.exe+0x1a2b3c", "module": "Ocy.exe", "in_app": false, "lang": "rust",
+          "platform": "custom" }
+      ] }
+    }]
+  }
+}`;
 const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource.body'));
 ---
 
@@ -35,30 +135,219 @@ const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource
     </div>
 
     <p class="prose-lede">
-      {t(lang, 'privacy.lede')}
+      {t(lang, USAGE_STATS_IN_RELEASE ? 'privacy.lede' : 'privacy.ledeCrashOnly')}
     </p>
 
-    <article class="prose-card prose-usage" id="usage-stats" aria-labelledby="usage-stats-heading">
-      <h2 id="usage-stats-heading">{t(lang, 'privacy.usage.heading')}</h2>
-      <p>{t(lang, 'privacy.usage.intro')}</p>
-      <p>{t(lang, 'privacy.usage.listIntro')}</p>
-      <ul class="usage-list">
-        <li>{t(lang, 'privacy.usage.item.counts')}</li>
-        <li>{t(lang, 'privacy.usage.item.settings')}</li>
-        <li>{t(lang, 'privacy.usage.item.system')}</li>
-        <li>{t(lang, 'privacy.usage.item.id')}</li>
-      </ul>
-      <p>{t(lang, 'privacy.usage.never')}</p>
-      <p>{t(lang, 'privacy.usage.where')}</p>
-      <p>
-        {usageOffParts.map((part) =>
-          part.type === 'text' ? (
-            part.value
-          ) : part.name === 'support' ? (
-            <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
-          ) : null
-        )}
-      </p>
+    {USAGE_STATS_IN_RELEASE && (
+    <article class="usage" id="usage-stats" aria-labelledby="usage-stats-heading">
+      <h2 id="usage-stats-heading" class="usage-title">{u('heading')}</h2>
+
+      <div class="usage-plain">
+        <p class="eyebrow">{u('plainLabel')}</p>
+        <p class="usage-plain-text">{u('plain')}</p>
+      </div>
+
+      <section class="usage-part" id="usage-stats-details" aria-labelledby="usage-stats-details-heading">
+        <div class="usage-part-head">
+          <h2 id="usage-stats-details-heading">{u('detailsHeading')}</h2>
+          <p>{u('detailsIntro')}</p>
+        </div>
+
+        <div class="usage-block usage-events">
+          <h3>{u('eventsHeading')}</h3>
+          <p>{u('eventsIntro')}</p>
+          <ul class="usage-list">
+            <li><Rich template={ur('eventEnabled')} code={{ name: 'usage_stats_enabled' }} /></li>
+            <li><Rich template={ur('eventDaily')} code={{ name: 'daily_summary' }} /></li>
+          </ul>
+          <table class="field-table">
+            <caption>{u('table.caption')}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{u('table.field')}</th>
+                <th scope="col">{u('table.example')}</th>
+                <th scope="col">{u('table.meaning')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fieldRows.map(([names, examples, key]) => (
+                <tr>
+                  <th scope="row" data-label={u('table.field')}>
+                    <span class="cell">{names.map((n, i) => <>{i > 0 && ', '}<code>{n}</code></>)}</span>
+                  </th>
+                  <td data-label={u('table.example')}>
+                    <span class="cell">{examples.map((x, i) => <>{i > 0 && ', '}<code>{x}</code></>)}</span>
+                  </td>
+                  <td data-label={u('table.meaning')}><span class="cell">{u(`f.${key}`)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p><Rich template={ur('enabledNote')} code={{ name: 'usage_stats_enabled', last: 'locale' }} /></p>
+          <h3 class="usage-never-head">{u('neverHeading')}</h3>
+          <p>{u('neverBody')}</p>
+        </div>
+
+        <div class="usage-grid">
+          <div class="usage-block">
+            <h3>{u('howHeading')}</h3>
+            <p><Rich template={ur('howBody')} code={{ host: 'eu.i.posthog.com' }} /></p>
+            <p>{u('keyNote')}</p>
+          </div>
+          <div class="usage-block">
+            <h3>{u('whereHeading')}</h3>
+            <p>{u('whereBody')}</p>
+          </div>
+          <div class="usage-block">
+            <h3>{u('pcHeading')}</h3>
+            <p><Rich template={ur('pcBody')} code={{ file: 'usage-stats.json', appdata: '%APPDATA%\\Ocy', ...pcFields }} /></p>
+          </div>
+          <div class="usage-block">
+            <h3>{u('rightsHeading')}</h3>
+            <p><Rich template={ur('rightsBody')} links={supportLink} /></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="usage-part" id="usage-stats-choices" aria-labelledby="usage-stats-choices-heading">
+        <div class="usage-part-head">
+          <h2 id="usage-stats-choices-heading">{u('choicesHeading')}</h2>
+        </div>
+        <ul class="choice-list">
+          <li>
+            <strong class="choice-title">{u('stopTitle')}</strong>
+            <p><Rich template={ur('stopBody')} strong={appLabels} /></p>
+          </li>
+          <li>
+            <strong class="choice-title">{u('deleteTitle')}</strong>
+            <p><Rich template={ur('deleteBody')} links={supportLink} /></p>
+            <p><Rich template={ur('idWhere')} code={{ installId: 'installId', file: 'usage-stats.json', appdata: '%APPDATA%\\Ocy' }} /></p>
+          </li>
+          <li>
+            <strong class="choice-title">{u('firstTitle')}</strong>
+            <p>{u('firstBody')}</p>
+          </li>
+        </ul>
+      </section>
+    </article>
+    )}
+
+    <article class="usage" id="crash-reports" aria-labelledby="crash-reports-heading">
+      <h2 id="crash-reports-heading" class="usage-title">{c('heading')}</h2>
+
+      <div class="usage-plain">
+        <p class="eyebrow">{c('plainLabel')}</p>
+        <p class="usage-plain-text">{c('plain')}</p>
+      </div>
+
+      <div class="usage-block">
+        <h3>{c('stepsHeading')}</h3>
+        <ol class="usage-list">
+          <li>{c('step1')}</li>
+          <li><Rich template={cr('step2')} code={{ folder: '%APPDATA%\\Ocy\\crashes\\' }} strong={pick('never')} /></li>
+          <li><Rich template={cr('step3')} strong={pick('see')} /></li>
+          <li><Rich template={cr('step4')} strong={pick('send', 'dontSend', 'dontAsk')} /></li>
+          <li><Rich template={cr('step5')} strong={pick('always')} /></li>
+          <li>{c('step6')}</li>
+        </ol>
+      </div>
+
+      <section class="usage-part" id="crash-reports-details" aria-labelledby="crash-reports-details-heading">
+        <div class="usage-part-head">
+          <h2 id="crash-reports-details-heading">{c('detailsHeading')}</h2>
+          <p><Rich template={cr('eventIntro')} code={{ name: '$exception' }} /></p>
+        </div>
+
+        <div class="usage-block">
+          <table class="field-table">
+            <caption>{c('table.caption')}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{c('table.field')}</th>
+                <th scope="col">{c('table.example')}</th>
+                <th scope="col">{c('table.meaning')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crashRows.map(([names, examples, key]) => (
+                <tr>
+                  <th scope="row" data-label={c('table.field')}>
+                    <span class="cell">{names.map((n, i) => <>{i > 0 && ', '}<code>{n}</code></>)}</span>
+                  </th>
+                  <td data-label={c('table.example')}>
+                    <span class="cell">{examples.map((x, i) => <>{i > 0 && ', '}<code>{x}</code></>)}</span>
+                  </td>
+                  <td data-label={c('table.meaning')}>
+                    <span class="cell">{key === 'type'
+                      ? <Rich template={cr('f.type')} code={{ code: 'EXCEPTION_ACCESS_VIOLATION' }} />
+                      : c(`f.${key}`)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p class="example-label">{c('exampleLabel')}</p>
+          <pre class="code-sample" tabindex="0"><code>{crashExample}</code></pre>
+          <h3 class="usage-never-head">{c('removedHeading')}</h3>
+          <p><Rich template={cr('removedBody')} code={placeholders} /></p>
+          <h3 class="usage-never-head">{c('neverHeading')}</h3>
+          <p>{c('neverBody')}</p>
+        </div>
+
+        <div class="usage-grid">
+          <div class="usage-block">
+            <h3>{c('howHeading')}</h3>
+            <p><Rich template={cr('howBody')} code={{ host: 'eu.i.posthog.com' }} strong={pick('send', 'always')} /></p>
+          </div>
+          <div class="usage-block">
+            <h3>{c('whereHeading')}</h3>
+            <p>{c('whereBody')}</p>
+          </div>
+          <div class="usage-block">
+            <h3>{c('pcHeading')}</h3>
+            <ul class="usage-list">
+              <li><Rich template={cr('pcReports')} code={{ file: '%APPDATA%\\Ocy\\crashes\\<report-id>.json' }} /></li>
+              <li><Rich template={cr('pcNative')} code={{ file: '%APPDATA%\\Ocy\\crashes\\native-raw.log' }} /></li>
+              <li><Rich template={cr('pcState')} code={{ file: '%APPDATA%\\Ocy\\crash-send-state.json' }} /></li>
+            </ul>
+            <p><Rich template={cr('pcDeleted')} strong={pick('never')} /></p>
+          </div>
+          <div class="usage-block">
+            <h3>{c('rightsHeading')}</h3>
+            <p><Rich template={cr('rightsBody')} links={supportLink} strong={pick('send', 'always', 'never')} /></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="usage-part" id="crash-reports-choices" aria-labelledby="crash-reports-choices-heading">
+        <div class="usage-part-head">
+          <h2 id="crash-reports-choices-heading">{c('choicesHeading')}</h2>
+        </div>
+        <ul class="choice-list">
+          <li>
+            <strong class="choice-title">{c('settingTitle')}</strong>
+            <p><Rich template={cr('settingBody')} strong={pick('settings', 'general', 'crashReports', 'ask', 'always', 'never')} /></p>
+          </li>
+          <li>
+            <strong class="choice-title">{c('offTitle')}</strong>
+            <p><Rich template={cr('offBody')} strong={pick('never')} /></p>
+          </li>
+          <li>
+            <strong class="choice-title">{c('deleteTitle')}</strong>
+            <p><Rich template={cr('deleteBody')} links={supportLink} strong={pick('see', 'send')} /></p>
+          </li>
+          {USAGE_STATS_IN_RELEASE && (
+            <li>
+              <strong class="choice-title">{c('separateTitle')}</strong>
+              <p>{c('separateBody')}</p>
+            </li>
+          )}
+          <li>
+            <strong class="choice-title">{c('storeTitle')}</strong>
+            <p>{c('storeBody')}</p>
+          </li>
+        </ul>
+      </section>
     </article>
 
     <div class="prose-grid">
@@ -78,7 +367,7 @@ const openSourceParts = splitTemplateParts(rawTemplate(lang, 'privacy.opensource
           <li><code>state.json</code><span>{t(lang, 'privacy.stored.state')}</span></li>
           <li><code>stats.json</code><span>{t(lang, 'privacy.stored.stats')}</span></li>
           <li><code>ocy-errors.log</code><span>{t(lang, 'privacy.stored.errors')}</span></li>
-          <li><code>usage-stats.json</code><span>{t(lang, 'privacy.stored.usage')}</span></li>
+          {USAGE_STATS_IN_RELEASE && <li><code>usage-stats.json</code><span>{t(lang, 'privacy.stored.usage')}</span></li>}
         </ul>
         <p>{t(lang, 'privacy.stored.outro')}</p>
       </article>

@@ -2205,3 +2205,103 @@ fn usage_stats_texts_come_from_the_string_table() {
     assert_eq!(texts.usage_stats_decline_label, "No thanks");
     assert!(!texts.usage_stats_link.is_empty());
 }
+
+#[test]
+fn crash_reports_consent_round_trips_through_settings_values() {
+    use ocy_core::settings::CrashReportsConsent;
+    for consent in [
+        CrashReportsConsent::Ask,
+        CrashReportsConsent::Always,
+        CrashReportsConsent::Never,
+    ] {
+        let original = OcySettings {
+            crash_reports: consent,
+            ..OcySettings::default()
+        };
+        let values = SettingsValues::from_settings(&original, true, true);
+        assert_eq!(values.crash_reports, consent);
+        let saved = values.apply_to(&OcySettings::default(), true);
+        assert_eq!(saved.crash_reports, consent);
+        // The dropdown index maps both ways.
+        let index = ocy_app::settings_logic::crash_reports_index(consent);
+        assert_eq!(
+            ocy_app::settings_logic::crash_reports_from_index(index),
+            consent
+        );
+    }
+    assert_eq!(
+        ocy_app::settings_logic::crash_reports_from_index(7),
+        CrashReportsConsent::Ask
+    );
+}
+
+#[test]
+fn crash_reports_texts_come_from_the_string_table() {
+    let texts = SettingsTexts::from_strings(&Strings::from_language("en"), "0.0.0");
+    assert_eq!(texts.crash_reports_label, "Crash reports");
+    assert_eq!(
+        texts.crash_reports_choices,
+        [
+            "Ask each time".to_owned(),
+            "Always send".to_owned(),
+            "Never send".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn crash_card_consent_goes_through_host_save_settings() {
+    use ocy_core::settings::CrashReportsConsent;
+    let dir = temp_dir("host-crash-consent");
+    let clock = Arc::new(FakeClock::from_utc(2026, 11, 19, 10, 0, 0).unwrap());
+    let clock_dyn: Arc<dyn Clock> = clock.clone();
+    let engine_store = AppDataStore::new(&dir, Arc::clone(&clock_dyn));
+    let settings_store = AppDataStore::new(&dir, Arc::clone(&clock_dyn));
+    let platform: Arc<dyn PlatformServices> = Arc::new(Unsupported);
+    let engine = BreakEngine::new(
+        OcySettings::default(),
+        platform,
+        Arc::clone(&clock_dyn),
+        Some(engine_store),
+        None,
+        None,
+        None,
+    );
+    let snapshot = engine.snapshot();
+    let strings = Arc::new(Strings::from_embedded().unwrap());
+    let presenter = TrayPresenter::new(strings, Arc::clone(&clock_dyn));
+    let theme: Rc<dyn TaskbarThemeProvider> = Rc::new(StaticTaskbarTheme);
+    let tray = TrayController::new(
+        presenter,
+        DummyTraySink,
+        theme,
+        clock_dyn,
+        Some(AppTheme::Light),
+        &snapshot,
+    );
+    let coordinator = BreakUiCoordinator::new(DummyBreakWindows, DummySettingsWindow::default());
+    let error_log = damt_app::ErrorLog::new(&dir, "ocy");
+
+    let mut host = AppHost::with_store(engine, coordinator, tray, error_log, Some(settings_store));
+    let before = OcySettings {
+        strict_mode: true,
+        ..OcySettings::default()
+    };
+    assert!(host.save_settings(before));
+
+    assert!(host.save_crash_consent(CrashReportsConsent::Never));
+    // Only the consent changed in memory; everything else is kept.
+    assert_eq!(
+        host.engine().settings().crash_reports,
+        CrashReportsConsent::Never
+    );
+    assert!(host.engine().settings().strict_mode);
+    // The usual save path wrote it.
+    let on_disk = AppDataStore::with_system_clock(&dir).load_settings();
+    assert_eq!(on_disk.crash_reports, CrashReportsConsent::Never);
+    assert!(on_disk.strict_mode);
+
+    assert!(host.save_crash_consent(CrashReportsConsent::Always));
+    let on_disk = AppDataStore::with_system_clock(&dir).load_settings();
+    assert_eq!(on_disk.crash_reports, CrashReportsConsent::Always);
+}

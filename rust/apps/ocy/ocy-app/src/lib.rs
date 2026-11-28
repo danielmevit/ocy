@@ -9,6 +9,7 @@ pub mod art;
 pub mod break_logic;
 pub mod build_id;
 pub mod coordinator;
+pub mod crash_card;
 pub mod crash_reports;
 pub mod crash_sender;
 pub mod host;
